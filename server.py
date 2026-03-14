@@ -1,10 +1,8 @@
 """
 EssentialNoPopups — YouTube Download Server
-Downloads to temp file first, then serves to browser.
-Deploy this on Railway.
 """
 
-from flask import Flask, request, Response, jsonify, send_file
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import subprocess
 import sys
@@ -16,14 +14,56 @@ app = Flask(__name__)
 CORS(app)
 
 
-def ensure_yt_dlp():
+def run_cmd(cmd):
+    return subprocess.run(cmd, capture_output=True, text=True)
+
+
+def setup_dependencies():
+    print("Upgrading yt-dlp...")
     try:
         subprocess.run(
             [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
             check=True, capture_output=True
         )
+        print("yt-dlp ready.")
     except Exception as e:
-        print(f"Failed to upgrade yt-dlp: {e}")
+        print(f"yt-dlp upgrade failed: {e}")
+
+    print("Checking ffmpeg...")
+    result = run_cmd(["which", "ffmpeg"])
+    if result.returncode == 0:
+        print("ffmpeg already installed.")
+    else:
+        print("Installing ffmpeg...")
+        try:
+            subprocess.run(["apt-get", "update", "-y"], capture_output=True)
+            subprocess.run(["apt-get", "install", "-y", "ffmpeg"], check=True, capture_output=True)
+            print("ffmpeg installed.")
+        except Exception as e:
+            print(f"ffmpeg install failed: {e}")
+
+    print("Checking deno...")
+    result = run_cmd(["which", "deno"])
+    if result.returncode == 0:
+        print("deno already installed.")
+    else:
+        print("Installing deno...")
+        try:
+            subprocess.run(
+                "curl -fsSL https://deno.land/install.sh | sh",
+                shell=True, check=True, capture_output=True
+            )
+            # Add deno to PATH
+            deno_path = os.path.expanduser("~/.deno/bin")
+            os.environ["PATH"] = deno_path + ":" + os.environ.get("PATH", "")
+            print("deno installed.")
+        except Exception as e:
+            print(f"deno install failed: {e}")
+    
+    # Make sure deno is on PATH even if already installed
+    deno_path = os.path.expanduser("~/.deno/bin")
+    if deno_path not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = deno_path + ":" + os.environ.get("PATH", "")
 
 
 @app.route("/")
@@ -72,7 +112,6 @@ def download():
     if not url:
         return jsonify({"ok": False, "error": "No URL provided"})
 
-    # Create a temp directory for this download
     tmp_dir = tempfile.mkdtemp()
     tmp_path = os.path.join(tmp_dir, "%(title)s.%(ext)s")
 
@@ -106,26 +145,21 @@ def download():
             mimetype = "video/mp4"
             ext = "mp4"
 
-        # Run yt-dlp and wait for it to fully finish
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
         if result.returncode != 0:
             return jsonify({"ok": False, "error": "Download failed: " + result.stderr})
 
-        # Find the actual output file (yt-dlp fills in the title)
         files = os.listdir(tmp_dir)
         if not files:
             return jsonify({"ok": False, "error": "No file was created"})
 
         actual_file = os.path.join(tmp_dir, files[0])
-
-        # Clean filename for the browser
         raw_name = files[0]
         safe_name = "".join(c for c in raw_name if c.isalnum() or c in " -_.()").strip()
         if not safe_name:
             safe_name = f"video.{ext}"
 
-        # Send the completed file to the browser, then delete it
         def cleanup(path, directory):
             try:
                 os.remove(path)
@@ -140,9 +174,7 @@ def download():
             download_name=safe_name
         )
 
-        # Schedule cleanup after response is sent
         threading.Timer(10.0, cleanup, args=[actual_file, tmp_dir]).start()
-
         return response
 
     except subprocess.TimeoutExpired:
@@ -152,9 +184,7 @@ def download():
 
 
 if __name__ == "__main__":
-    print("Upgrading yt-dlp...")
-    ensure_yt_dlp()
-    print("yt-dlp ready.")
+    setup_dependencies()
     port = int(os.environ.get("PORT", 8080))
     print(f"Server starting on port {port}")
     app.run(host="0.0.0.0", port=port)
