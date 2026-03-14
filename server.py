@@ -144,3 +144,15 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     print(f"Server starting on port {port}")
     app.run(host="0.0.0.0", port=port)
+
+def ensure_ffmpeg():
+    try:
+        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+        print("ffmpeg already installed.")
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        print("Installing ffmpeg...")
+        subprocess.run(
+            ["apt-get", "install", "-y", "ffmpeg"],
+            check=True, capture_output=True
+        )
+        print("ffmpeg installed.")
