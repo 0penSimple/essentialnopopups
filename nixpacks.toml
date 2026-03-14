@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["ffmpeg", "ffprobe"]
+nixPkgs = ["ffmpeg", "deno"]
 
 [phases.install]
 cmds = ["pip install -r requirements.txt", "pip install --upgrade yt-dlp"]
