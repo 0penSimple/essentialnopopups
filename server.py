@@ -138,7 +138,9 @@ def download():
 
 
 if __name__ == "__main__":
+    print("Upgrading yt-dlp...")
     ensure_yt_dlp()
+    print("yt-dlp ready.")
     port = int(os.environ.get("PORT", 8080))
     print(f"Server starting on port {port}")
     app.run(host="0.0.0.0", port=port)
