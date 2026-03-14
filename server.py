@@ -30,7 +30,7 @@ def index():
 def info():
     url = request.args.get("url", "").strip()
     if not url:
-        return jsonify({"ok": False, "error": "No URL provided"}), 400
+        return jsonify({"ok": False, "error": "No URL provided"}), 200
 
     try:
         result = subprocess.run(
@@ -38,7 +38,7 @@ def info():
             capture_output=True, text=True, timeout=30
         )
         if result.returncode != 0:
-            return jsonify({"ok": False, "error": "Could not fetch video info"}), 400
+            return jsonify({"ok": False, "error": "Could not fetch video info"}), 200
 
         import json
         info_data = json.loads(result.stdout)
@@ -65,7 +65,7 @@ def download():
     quality = request.args.get("quality", "best")
 
     if not url:
-        return jsonify({"ok": False, "error": "No URL provided"}), 400
+        return jsonify({"ok": False, "error": "No URL provided"}), 200
 
     if fmt == "mp3":
         cmd = [
