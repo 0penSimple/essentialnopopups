@@ -16,10 +16,12 @@ CORS(app)
 
 def ensure_yt_dlp():
     try:
-        subprocess.run(["yt-dlp", "--version"], capture_output=True, check=True)
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        subprocess.run([sys.executable, "-m", "pip", "install", "yt-dlp"], check=True)
-
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
+            check=True, capture_output=True
+        )
+    except Exception as e:
+        print(f"Failed to upgrade yt-dlp: {e}")
 
 @app.route("/")
 def index():
