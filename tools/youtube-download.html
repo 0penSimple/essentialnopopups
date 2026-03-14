@@ -257,6 +257,12 @@
   .btn-download:active { transform: translateY(0); box-shadow: none; }
   .btn-download:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
+  .btn-download.btn-done {
+  background: var(--teal);
+  opacity: 1;
+  cursor: default;
+}
+
   .spinner {
     width: 15px; height: 15px;
     border: 2px solid rgba(255,255,255,0.35);
@@ -474,7 +480,21 @@
 </footer>
 
 <script>
-  const API = "https://web-production-03a31.up.railway.app"; // ← update this after deploying
+  const API = "https://web-production-03a31.up.railway.app";
+
+  // Queue state — ready for future multi-download support
+  let queue = { total: 0, done: 0 };
+
+  function setBtn(state, label) {
+    const btn = document.getElementById("dlBtn");
+    btn.disabled = state === "loading";
+    btn.className = "btn-download" + (state === "done" ? " btn-done" : "");
+    btn.innerHTML = label;
+  }
+
+  function resetBtn() {
+    setTimeout(() => setBtn("idle", "↓ &nbsp; Download"), 3000);
+  }
 
   function notify(msg, type = "info") {
     const el = document.getElementById("notification");
@@ -523,35 +543,46 @@
     const fmt = document.getElementById("fmtSelect").value;
     const quality = document.getElementById("qualSelect").value;
 
-    const btn = document.getElementById("dlBtn");
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Preparing download...';
+    // Set up queue for this download
+    queue = { total: 1, done: 0 };
+    setBtn("loading", `Downloading... ${queue.done}/${queue.total}`);
     clearNotify();
-    notify("Getting your file ready — this may take a moment for longer videos.", "info");
 
     try {
-      // Build the download URL and trigger browser download
       const downloadUrl = `${API}/download?url=${encodeURIComponent(url)}&format=${fmt}&quality=${quality}`;
 
-      // Create a hidden link and click it — this triggers the browser's native download
+      // Fetch the file as a blob — this waits for the server to fully prepare it
+      const response = await fetch(downloadUrl);
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(err.error || "Download failed");
+      }
+
+      // Get filename from server headers if available
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const nameMatch = disposition.match(/filename="?([^"]+)"?/);
+      const filename = nameMatch ? nameMatch[1] : `download.${fmt}`;
+
+      // Convert response to blob and trigger browser save dialog
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = "";
+      a.href = blobUrl;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
 
-      // Give it a moment then show success
-      setTimeout(() => {
-        notify("Your download should be starting. Check your downloads folder!", "success");
-        btn.disabled = false;
-        btn.innerHTML = "↓ &nbsp; Download";
-      }, 2000);
+      // Update queue count and show done state
+      queue.done = 1;
+      setBtn("done", `✓ Done! ${queue.done}/${queue.total}`);
+      resetBtn();
 
-    } catch {
-      notify("Something went wrong. Please try again.", "error");
-      btn.disabled = false;
-      btn.innerHTML = "↓ &nbsp; Download";
+    } catch (err) {
+      notify(err.message || "Something went wrong. Please try again.", "error");
+      setBtn("idle", "↓ &nbsp; Download");
     }
   }
 
