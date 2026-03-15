@@ -271,26 +271,26 @@
     </div>
     <h1>Image converter</h1>
     <div style="display:flex; align-items:flex-start; gap:8px;">
-  <p style="flex:1;">Convert any image to JPG, PNG, WebP, or GIF — instantly, in your browser. Nothing is uploaded to any server.</p>
-  <button onclick="toggleInfo()" id="infoBtn" title="Help & info" style="flex-shrink:0; margin-top:2px; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--border); background:var(--surface); color:var(--muted); font-size:0.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;">?</button>
-</div>
-<div id="infoPanel" style="display:none; margin-top:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden;">
-  <div style="padding:14px 16px; border-bottom:1px solid var(--border); display:flex; gap:10px; align-items:flex-start;">
-    <div style="font-size:1rem; flex-shrink:0;">💡</div>
-    <div>
-      <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">Not sure what to do?</div>
-      <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+      <p style="flex:1;">Convert any image to JPG, PNG, or WebP — instantly, in your browser. Nothing is uploaded to any server.</p>
+      <button onclick="toggleInfo()" id="infoBtn" title="Help & info" style="flex-shrink:0; margin-top:2px; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--teal); background:var(--teal); color:#fff; font-size:0.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;">?</button>
+    </div>
+    <div id="infoPanel" style="display:none; margin-top:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden;">
+      <div style="padding:14px 16px; border-bottom:1px solid var(--border); display:flex; gap:10px; align-items:flex-start;">
+        <div style="font-size:1rem; flex-shrink:0;">💡</div>
+        <div>
+          <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">Not sure what to do?</div>
+          <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+        </div>
+      </div>
+      <div style="padding:14px 16px; display:flex; gap:10px; align-items:flex-start;">
+        <div style="font-size:1rem; flex-shrink:0;">🙏</div>
+        <div>
+          <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">This site survives thanks to you</div>
+          <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+        </div>
+      </div>
     </div>
   </div>
-  <div style="padding:14px 16px; display:flex; gap:10px; align-items:flex-start;">
-    <div style="font-size:1rem; flex-shrink:0;">🙏</div>
-    <div>
-      <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">This site survives thanks to you</div>
-      <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
-    </div>
-  </div>
-</div>
-</div>
 
   <div id="notification" class="notification"></div>
 
@@ -317,6 +317,7 @@
         <div class="format-pill selected" data-fmt="image/jpeg" data-ext="jpg" onclick="selectFormat(this)">JPG</div>
         <div class="format-pill" data-fmt="image/png" data-ext="png" onclick="selectFormat(this)">PNG</div>
         <div class="format-pill" data-fmt="image/webp" data-ext="webp" onclick="selectFormat(this)">WebP</div>
+
       </div>
     </div>
 
@@ -365,6 +366,7 @@
     <ul class="info-list">
       <li>Everything happens in your browser — your image is never uploaded anywhere.</li>
       <li>JPG is best for photos. PNG keeps transparency. WebP is smaller than both. GIF supports animation.</li>
+
       <li>Quality setting only applies to JPG and WebP output.</li>
     </ul>
   </div>
@@ -383,19 +385,20 @@
 </footer>
 
 <script>
-  function toggleInfo() {
-  const panel = document.getElementById("infoPanel");
-  const btn   = document.getElementById("infoBtn");
-  const open  = panel.style.display === "none";
-  panel.style.display = open ? "block" : "none";
-  btn.style.background = open ? "var(--teal-light)" : "var(--surface)";
-  btn.style.borderColor = open ? "var(--teal-border)" : "var(--border)";
-  btn.style.color = open ? "var(--teal)" : "var(--muted)";
-}
   let currentFile = null;
   let selectedMime = "image/jpeg";
   let selectedExt  = "jpg";
   let convertedBlob = null;
+
+  function toggleInfo() {
+    const panel = document.getElementById("infoPanel");
+    const btn   = document.getElementById("infoBtn");
+    const open  = panel.style.display === "none";
+    panel.style.display = open ? "block" : "none";
+    btn.style.background = open ? "var(--teal-light)" : "var(--teal)";
+    btn.style.borderColor = open ? "var(--teal-border)" : "var(--teal)";
+    btn.style.color = open ? "var(--teal)" : "#fff";
+  }
 
   // Drag and drop
   const dropZone = document.getElementById("dropZone");
