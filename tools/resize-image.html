@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resize Image — EssentialNoPopups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --teal:        #0F6E56;
+    --teal-mid:    #1D9E75;
+    --teal-light:  #e1f5ee;
+    --teal-border: #9FE1CB;
+    --teal-text:   #085041;
+    --warm-bg:     #faf8f5;
+    --surface:     #ffffff;
+    --border:      #e8e4de;
+    --text:        #1a1a18;
+    --muted:       #6b6860;
+    --faint:       #a8a49e;
+    --error:       #c0392b;
+    --error-light: #fdf0ee;
+    --error-border:#e8b4af;
+    --warn:        #92600a;
+    --warn-light:  #fef9ec;
+    --warn-border: #f5d98a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--warm-bg); color: var(--text); min-height: 100vh; }
+  a { text-decoration: none; color: inherit; }
+
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(250,248,245,0.92);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 clamp(1rem, 4vw, 3rem);
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-logo { font-family: 'Lora', serif; font-size: 1.1rem; letter-spacing: -0.01em; }
+  .nav-logo em { font-style: normal; color: var(--teal); }
+  .nav-back { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; transition: color 0.15s; }
+  .nav-back:hover { color: var(--teal); }
+  .nav-badge { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.06em; background: var(--teal-light); color: var(--teal-text); border: 1px solid var(--teal-border); border-radius: 99px; padding: 4px 12px; text-transform: uppercase; }
+
+  .page { max-width: 640px; margin: 0 auto; padding: clamp(2rem, 6vw, 3.5rem) clamp(1rem, 4vw, 2rem) 4rem; }
+
+  .page-header { margin-bottom: 2rem; opacity: 0; animation: fadeUp 0.4s 0.1s forwards; }
+  .breadcrumb { font-size: 0.75rem; color: var(--faint); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 6px; }
+  .breadcrumb a:hover { color: var(--teal); }
+  .page-header h1 { font-family: 'Lora', serif; font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 400; letter-spacing: -0.02em; margin-bottom: 0.4rem; }
+  .page-header p { font-size: 0.9rem; color: var(--muted); line-height: 1.6; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.75rem; margin-bottom: 1rem; opacity: 0; animation: fadeUp 0.4s 0.2s forwards; }
+
+  label { display: block; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+
+  /* DROP ZONE */
+  .drop-zone {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 2.5rem 1.5rem;
+    text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 1.25rem; position: relative;
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--teal-border); background: var(--teal-light); }
+  .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+  .drop-text { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.25rem; }
+  .drop-text strong { color: var(--teal); }
+  .drop-sub { font-size: 0.75rem; color: var(--faint); }
+
+  /* ORIGINAL INFO */
+  .orig-info {
+    display: none;
+    background: var(--warm-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 1.25rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .orig-info.show { display: flex; }
+  .orig-info strong { color: var(--text); }
+  .orig-info .sep { color: var(--border); }
+
+  /* MODE TABS */
+  .mode-tabs { display: flex; gap: 4px; background: var(--warm-bg); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 1.25rem; }
+  .mode-tab { flex: 1; text-align: center; font-size: 0.82rem; font-weight: 500; padding: 8px; border-radius: 7px; cursor: pointer; color: var(--muted); transition: all 0.15s; }
+  .mode-tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  /* PIXEL INPUTS */
+  .pixel-inputs { display: none; gap: 12px; align-items: center; margin-bottom: 1.25rem; }
+  .pixel-inputs.show { display: flex; }
+
+  .dim-group { flex: 1; }
+  .dim-group label { margin-bottom: 6px; }
+
+  input[type="number"] {
+    width: 100%;
+    background: var(--warm-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem;
+    padding: 11px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="number"]:focus { border-color: var(--teal-border); }
+
+  .dim-sep { color: var(--faint); font-size: 1.2rem; margin-top: 24px; flex-shrink: 0; }
+
+  .lock-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .lock-checkbox { width: 15px; height: 15px; accent-color: var(--teal); cursor: pointer; }
+  .lock-label { font-size: 0.78rem; color: var(--muted); cursor: pointer; }
+
+  /* PERCENTAGE INPUT */
+  .pct-input { display: none; margin-bottom: 1.25rem; }
+  .pct-input.show { display: block; }
+  .pct-row { display: flex; align-items: center; gap: 12px; }
+  .pct-row input { flex: 1; }
+  .pct-unit { font-size: 0.9rem; color: var(--muted); flex-shrink: 0; }
+  .pct-result { font-size: 0.78rem; color: var(--faint); margin-top: 8px; }
+  .pct-result strong { color: var(--teal-text); }
+
+  /* UPSCALE WARNING */
+  .upscale-warn {
+    display: none;
+    background: var(--warn-light);
+    border: 1px solid var(--warn-border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    color: var(--warn);
+    margin-bottom: 1.25rem;
+    line-height: 1.5;
+  }
+  .upscale-warn.show { display: block; }
+
+  /* OUTPUT FORMAT */
+  .format-row { margin-bottom: 1.25rem; }
+  .format-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  .format-pill { border: 1px solid var(--border); border-radius: 8px; padding: 8px 16px; font-size: 0.82rem; font-weight: 500; cursor: pointer; background: var(--surface); color: var(--muted); transition: all 0.15s; }
+  .format-pill:hover { border-color: var(--teal-border); color: var(--teal); }
+  .format-pill.selected { background: var(--teal-light); border-color: var(--teal-border); color: var(--teal-text); }
+
+  /* PREVIEW */
+  .preview-section { display: none; margin-bottom: 1.25rem; }
+  .preview-section.show { display: block; }
+  .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .preview-box { background: var(--warm-bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .preview-label { font-size: 0.68rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .preview-label span { color: var(--teal-text); font-weight: 500; font-size: 0.72rem; }
+  .preview-img-wrap { aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #f0ede8; }
+  .preview-img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+  /* BUTTON */
+  .btn-resize { width: 100%; background: var(--teal); border: none; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.875rem; font-weight: 500; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-resize:hover { background: var(--teal-mid); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(15,110,86,0.25); }
+  .btn-resize:active { transform: translateY(0); box-shadow: none; }
+  .btn-resize:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-resize.btn-done { background: var(--teal); opacity: 1; cursor: default; }
+
+  .notification { border-radius: 10px; padding: 12px 16px; font-size: 0.8rem; line-height: 1.5; display: none; margin-bottom: 1rem; border: 1px solid; }
+  .notification.show { display: block; }
+  .notification.error { background: var(--error-light); border-color: var(--error-border); color: var(--error); }
+
+  .info-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.25rem 1.5rem; opacity: 0; animation: fadeUp 0.4s 0.35s forwards; }
+  .info-card h3 { font-family: 'Lora', serif; font-size: 0.95rem; font-weight: 500; margin-bottom: 0.75rem; }
+  .info-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .info-list li { font-size: 0.8rem; color: var(--muted); line-height: 1.5; display: flex; gap: 8px; }
+  .info-list li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--teal-border); flex-shrink: 0; margin-top: 7px; }
+
+  .ad-slot { margin: 1rem 0; opacity: 0; animation: fadeUp 0.4s 0.4s forwards; }
+  .ad-slot-inner { background: var(--surface); border: 1px dashed var(--border); border-radius: 10px; height: 260px; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; }
+
+  footer { border-top: 1px solid var(--border); background: var(--surface); padding: 1.5rem clamp(1rem, 4vw, 3rem); display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
+  .footer-logo { font-family: 'Lora', serif; font-size: 0.95rem; }
+  .footer-logo em { font-style: normal; color: var(--teal); }
+  .footer-tagline { font-size: 0.72rem; color: var(--faint); margin-top: 2px; }
+  .footer-right { font-size: 0.78rem; color: var(--muted); text-align: right; line-height: 1.8; }
+  .footer-right a { color: var(--teal); font-weight: 500; }
+  .footer-right a:hover { text-decoration: underline; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @media (max-width: 480px) { .preview-grid { grid-template-columns: 1fr; } .footer-right { text-align: left; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-logo">Essential<em>NoPopups</em></a>
+  <a href="../index.html" class="nav-back">← All tools</a>
+  <div class="nav-badge">Zero pop-ups, ever</div>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>Images</span>
+      <span>›</span>
+      <span>Resize image</span>
+    </div>
+    <h1>Resize image</h1>
+    <p>Scale any image up or down by exact pixels or percentage. Everything happens in your browser — nothing is uploaded.</p>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <!-- Top banner ad -->
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <label>Your image</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
+      <div class="drop-icon">🖼</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag an image here</div>
+      <div class="drop-sub">Any image format supported</div>
+    </div>
+
+    <div class="orig-info" id="origInfo">
+      <strong id="origName">—</strong>
+      <span class="sep">·</span>
+      <span id="origDims">—</span>
+      <span class="sep">·</span>
+      <span id="origFileSize">—</span>
+    </div>
+
+    <!-- MODE TABS -->
+    <label>Resize method</label>
+    <div class="mode-tabs">
+      <div class="mode-tab active" onclick="setMode('pixels')">Exact pixels</div>
+      <div class="mode-tab" onclick="setMode('percent')">Percentage</div>
+    </div>
+
+    <!-- PIXEL INPUTS -->
+    <div class="pixel-inputs show" id="pixelInputs">
+      <div class="dim-group">
+        <label>Width</label>
+        <input type="number" id="newW" placeholder="e.g. 1920" min="1" oninput="onWidthInput()">
+      </div>
+      <div class="dim-sep">×</div>
+      <div class="dim-group">
+        <label>Height</label>
+        <input type="number" id="newH" placeholder="e.g. 1080" min="1" oninput="onHeightInput()">
+      </div>
+    </div>
+    <div class="lock-row" id="lockRow" style="display:none; margin-bottom:1.25rem;">
+      <input type="checkbox" class="lock-checkbox" id="lockAspect" checked onchange="onLockChange()">
+      <label class="lock-label" for="lockAspect">Lock aspect ratio</label>
+    </div>
+
+    <!-- PERCENTAGE INPUT -->
+    <div class="pct-input" id="pctInput">
+      <label>Scale percentage</label>
+      <div class="pct-row">
+        <input type="number" id="pctVal" placeholder="e.g. 50" min="1" max="1000" value="50" oninput="onPctInput()">
+        <span class="pct-unit">%</span>
+      </div>
+      <div class="pct-result" id="pctResult">—</div>
+    </div>
+
+    <!-- UPSCALE WARNING -->
+    <div class="upscale-warn" id="upscaleWarn">
+      ⚠ You're upscaling beyond the original size. The result may look blurry or pixelated — basic resizing cannot add detail that wasn't there.
+    </div>
+
+    <!-- OUTPUT FORMAT -->
+    <div class="format-row">
+      <label>Save as</label>
+      <div class="format-pills">
+        <div class="format-pill selected" data-fmt="image/jpeg" data-ext="jpg" onclick="selectFormat(this)">JPG</div>
+        <div class="format-pill" data-fmt="image/png" data-ext="png" onclick="selectFormat(this)">PNG</div>
+        <div class="format-pill" data-fmt="image/webp" data-ext="webp" onclick="selectFormat(this)">WebP</div>
+      </div>
+    </div>
+
+    <!-- PREVIEW -->
+    <div class="preview-section" id="previewSection">
+      <label style="margin-bottom:10px">Preview</label>
+      <div class="preview-grid">
+        <div class="preview-box">
+          <div class="preview-label">Original <span id="origDimsLabel">—</span></div>
+          <div class="preview-img-wrap"><img id="origImg" src="" alt="Original"></div>
+        </div>
+        <div class="preview-box">
+          <div class="preview-label">Resized <span id="newDimsLabel">—</span></div>
+          <div class="preview-img-wrap"><img id="resizedImg" src="" alt="Resized"></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-resize" id="resizeBtn" onclick="downloadResized()" disabled>
+      Resize &amp; download — 0/1
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your image is never uploaded anywhere.</li>
+      <li>Upscaling beyond the original size will look blurry — no browser tool can add real detail.</li>
+      <li>PNG keeps transparency. JPG and WebP do not — transparent areas become white.</li>
+      <li>For the smallest file size at good quality, choose WebP.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer>
+  <div>
+    <div class="footer-logo">Essential<em>NoPopups</em></div>
+    <div class="footer-tagline">Free tools. No pop-ups. Ever.</div>
+  </div>
+  <div class="footer-right">
+    Issues or suggestions?<br>
+    <a href="mailto:essentialsnopopups@gmail.com">essentialsnopopups@gmail.com</a>
+  </div>
+</footer>
+
+<script>
+  let currentFile = null;
+  let origW = 0, origH = 0;
+  let currentMode = "pixels";
+  let selectedMime = "image/jpeg";
+  let selectedExt  = "jpg";
+  let resizedBlob  = null;
+
+  // Drag and drop
+  const dropZone = document.getElementById("dropZone");
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) handleFile(file);
+  });
+
+  function handleFile(file) {
+    if (!file || !file.type.startsWith("image/")) {
+      notify("Please choose an image file.");
+      return;
+    }
+    currentFile = file;
+
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.onload = () => {
+        origW = img.naturalWidth;
+        origH = img.naturalHeight;
+
+        // Show original info bar
+        document.getElementById("origName").textContent = file.name;
+        document.getElementById("origDims").textContent = `${origW} × ${origH} px`;
+        document.getElementById("origFileSize").textContent = formatBytes(file.size);
+        document.getElementById("origInfo").classList.add("show");
+        document.getElementById("origImg").src = e.target.result;
+        document.getElementById("origDimsLabel").textContent = `${origW} × ${origH}`;
+        document.getElementById("lockRow").style.display = "flex";
+
+        // Update drop zone
+        dropZone.querySelector(".drop-text").innerHTML = `<strong>${file.name}</strong>`;
+        dropZone.querySelector(".drop-sub").textContent = "Click to choose a different image";
+
+        // Pre-fill pixel inputs with original size
+        document.getElementById("newW").value = origW;
+        document.getElementById("newH").value = origH;
+
+        // Update percentage result
+        onPctInput();
+        updatePreview();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll(".mode-tab").forEach((t, i) => {
+      t.classList.toggle("active", (i === 0 && mode === "pixels") || (i === 1 && mode === "percent"));
+    });
+    document.getElementById("pixelInputs").classList.toggle("show", mode === "pixels");
+    document.getElementById("lockRow").style.display = mode === "pixels" && currentFile ? "flex" : "none";
+    document.getElementById("pctInput").classList.toggle("show", mode === "percent");
+    if (currentFile) updatePreview();
+  }
+
+  function onWidthInput() {
+    if (!currentFile) return;
+    const lock = document.getElementById("lockAspect").checked;
+    if (lock && origW) {
+      const w = parseInt(document.getElementById("newW").value) || 0;
+      document.getElementById("newH").value = Math.round(w * origH / origW) || "";
+    }
+    updatePreview();
+  }
+
+  function onHeightInput() {
+    if (!currentFile) return;
+    const lock = document.getElementById("lockAspect").checked;
+    if (lock && origH) {
+      const h = parseInt(document.getElementById("newH").value) || 0;
+      document.getElementById("newW").value = Math.round(h * origW / origH) || "";
+    }
+    updatePreview();
+  }
+
+  function onLockChange() {
+    // When re-locking, sync height to current width
+    if (document.getElementById("lockAspect").checked && origW) {
+      const w = parseInt(document.getElementById("newW").value) || origW;
+      document.getElementById("newH").value = Math.round(w * origH / origW);
+      updatePreview();
+    }
+  }
+
+  function onPctInput() {
+    if (!origW) return;
+    const pct = parseFloat(document.getElementById("pctVal").value) || 0;
+    const newW = Math.round(origW * pct / 100);
+    const newH = Math.round(origH * pct / 100);
+    document.getElementById("pctResult").innerHTML =
+      pct > 0 ? `Result: <strong>${newW} × ${newH} px</strong>` : "—";
+    if (currentFile) updatePreview();
+  }
+
+  function getTargetDims() {
+    if (currentMode === "pixels") {
+      return {
+        w: parseInt(document.getElementById("newW").value) || 0,
+        h: parseInt(document.getElementById("newH").value) || 0
+      };
+    } else {
+      const pct = parseFloat(document.getElementById("pctVal").value) || 0;
+      return {
+        w: Math.round(origW * pct / 100),
+        h: Math.round(origH * pct / 100)
+      };
+    }
+  }
+
+  function updatePreview() {
+    if (!currentFile) return;
+    const { w, h } = getTargetDims();
+    if (!w || !h) return;
+
+    // Show/hide upscale warning
+    const isUpscale = w > origW || h > origH;
+    document.getElementById("upscaleWarn").classList.toggle("show", isUpscale);
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width  = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+
+      if (selectedMime === "image/jpeg") {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      ctx.drawImage(img, 0, 0, w, h);
+
+      canvas.toBlob(blob => {
+        resizedBlob = blob;
+        document.getElementById("resizedImg").src = URL.createObjectURL(blob);
+        document.getElementById("newDimsLabel").textContent = `${w} × ${h}`;
+        document.getElementById("previewSection").classList.add("show");
+
+        const btn = document.getElementById("resizeBtn");
+        btn.disabled = false;
+        btn.textContent = "Resize & download — 0/1";
+        btn.className = "btn-resize";
+      }, selectedMime, 0.92);
+    };
+
+    const reader = new FileReader();
+    reader.onload = e => img.src = e.target.result;
+    reader.readAsDataURL(currentFile);
+  }
+
+  function selectFormat(el) {
+    document.querySelectorAll(".format-pill").forEach(p => p.classList.remove("selected"));
+    el.classList.add("selected");
+    selectedMime = el.dataset.fmt;
+    selectedExt  = el.dataset.ext;
+    if (currentFile) updatePreview();
+  }
+
+  function downloadResized() {
+    if (!resizedBlob || !currentFile) return;
+
+    const btn = document.getElementById("resizeBtn");
+    btn.disabled = true;
+    btn.textContent = "Resizing... 0/1";
+
+    const baseName = currentFile.name.replace(/\.[^.]+$/, "");
+    const { w, h } = getTargetDims();
+    const filename  = `${baseName}_${w}x${h}.${selectedExt}`;
+
+    const url = URL.createObjectURL(resizedBlob);
+    const a   = document.createElement("a");
+    a.href     = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    btn.textContent = "✓ Done! 1/1";
+    btn.className   = "btn-resize btn-done";
+    setTimeout(() => {
+      btn.disabled    = false;
+      btn.textContent = "Resize & download — 0/1";
+      btn.className   = "btn-resize";
+    }, 3000);
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  function notify(msg) {
+    const el = document.getElementById("notification");
+    el.textContent = msg;
+    el.className = "notification show error";
+  }
+</script>
+
+</body>
+</html>
