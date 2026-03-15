@@ -462,3 +462,70 @@ function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinit
     });
   }
 }
+
+
+/* ── FLOATING "GOOD TO KNOW" HINT ──
+   Appears after 4 seconds on tool pages, fades out when user
+   scrolls near the Good to Know section. Auto-injected — no
+   tool page changes needed.
+*/
+(function () {
+  if (!window.location.pathname.includes("/tools/")) return;
+
+  function initPill() {
+    const infoCard = document.querySelector(".info-card");
+    if (!infoCard) return;
+
+    const pill = document.createElement("div");
+    pill.id = "gtkPill";
+    pill.textContent = "Good to know ↓";
+    pill.style.cssText = `
+      position: fixed;
+      bottom: 24px;
+      right: 20px;
+      background: var(--teal);
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 7px 14px;
+      border-radius: 99px;
+      cursor: pointer;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      z-index: 200;
+      user-select: none;
+      pointer-events: none;
+    `;
+
+    pill.addEventListener("click", () => {
+      infoCard.scrollIntoView({ behavior: "smooth", block: "start" });
+      fadePill(false);
+    });
+
+    document.body.appendChild(pill);
+
+    function fadePill(show) {
+      pill.style.opacity = show ? "1" : "0";
+      pill.style.pointerEvents = show ? "auto" : "none";
+    }
+
+    const showTimer = setTimeout(() => fadePill(true), 4000);
+
+    window.addEventListener("scroll", () => {
+      const rect = infoCard.getBoundingClientRect();
+      if (rect.top < window.innerHeight + 300) {
+        clearTimeout(showTimer);
+        fadePill(false);
+      }
+    }, { passive: true });
+  }
+
+  // Run immediately if DOM is ready, otherwise wait
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initPill);
+  } else {
+    initPill();
+  }
+})();
