@@ -175,26 +175,26 @@
     </div>
     <h1>Compress image</h1>
     <div style="display:flex; align-items:flex-start; gap:8px;">
-  <p style="flex:1;">Shrink any image file without visible quality loss. Everything happens in your browser — nothing is uploaded.</p>
-  <button onclick="toggleInfo()" id="infoBtn" title="Help & info" style="flex-shrink:0; margin-top:2px; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--border); background:var(--surface); color:var(--muted); font-size:0.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;">?</button>
-</div>
-<div id="infoPanel" style="display:none; margin-top:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden;">
-  <div style="padding:14px 16px; border-bottom:1px solid var(--border); display:flex; gap:10px; align-items:flex-start;">
-    <div style="font-size:1rem; flex-shrink:0;">💡</div>
-    <div>
-      <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">Not sure what to do?</div>
-      <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+      <p style="flex:1;">Shrink any image file without visible quality loss. Everything happens in your browser — nothing is uploaded.</p>
+      <button onclick="toggleInfo()" id="infoBtn" title="Help & info" style="flex-shrink:0; margin-top:2px; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--teal); background:var(--teal); color:#fff; font-size:0.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;">?</button>
+    </div>
+    <div id="infoPanel" style="display:none; margin-top:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden;">
+      <div style="padding:14px 16px; border-bottom:1px solid var(--border); display:flex; gap:10px; align-items:flex-start;">
+        <div style="font-size:1rem; flex-shrink:0;">💡</div>
+        <div>
+          <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">Not sure what to do?</div>
+          <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+        </div>
+      </div>
+      <div style="padding:14px 16px; display:flex; gap:10px; align-items:flex-start;">
+        <div style="font-size:1rem; flex-shrink:0;">🙏</div>
+        <div>
+          <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">This site survives thanks to you</div>
+          <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+        </div>
+      </div>
     </div>
   </div>
-  <div style="padding:14px 16px; display:flex; gap:10px; align-items:flex-start;">
-    <div style="font-size:1rem; flex-shrink:0;">🙏</div>
-    <div>
-      <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">This site survives thanks to you</div>
-      <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
-    </div>
-  </div>
-</div>
-</div>
 
   <div id="notification" class="notification"></div>
 
@@ -303,7 +303,7 @@
     <ul class="info-list">
       <li>Everything happens in your browser — your image is never uploaded anywhere.</li>
       <li>82% quality is the sweet spot for JPG — files are typically 40–60% smaller with no visible difference.</li>
-      <li>PNG compression is less effective than JPG or WebP — quality is fully preserved, but savings are typically more modest. Consider converting to WebP for the best results.</li>
+      <li>PNG files stay as PNG and are compressed losslessly — quality is fully preserved, savings are more modest.</li>
       <li>Use "by target size" if you need to fit an upload limit, like an email attachment or profile picture.</li>
     </ul>
   </div>
@@ -322,15 +322,6 @@
 </footer>
 
 <script>
-  function toggleInfo() {
-  const panel = document.getElementById("infoPanel");
-  const btn   = document.getElementById("infoBtn");
-  const open  = panel.style.display === "none";
-  panel.style.display = open ? "block" : "none";
-  btn.style.background = open ? "var(--teal-light)" : "var(--surface)";
-  btn.style.borderColor = open ? "var(--teal-border)" : "var(--border)";
-  btn.style.color = open ? "var(--teal)" : "var(--muted)";
-}
   let currentFile  = null;
   let origSizeBytes = 0;
   let currentMode  = "quality";
@@ -340,6 +331,16 @@
   // Output format matches input — PNG stays PNG, others use JPG
   let OUTPUT_MIME = "image/jpeg";
   let OUTPUT_EXT  = "jpg";
+
+  function toggleInfo() {
+    const panel = document.getElementById("infoPanel");
+    const btn   = document.getElementById("infoBtn");
+    const open  = panel.style.display === "none";
+    panel.style.display = open ? "block" : "none";
+    btn.style.background = open ? "var(--teal-light)" : "var(--teal)";
+    btn.style.borderColor = open ? "var(--teal-border)" : "var(--teal)";
+    btn.style.color = open ? "var(--teal)" : "#fff";
+  }
 
   function getOutputFormat(file) {
     if (file.type === "image/png") {
