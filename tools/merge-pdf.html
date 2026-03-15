@@ -85,7 +85,7 @@
 
     <label>Your PDF files</label>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept=".pdf,application/pdf" multiple onchange="handleFiles(this.files)">
+      <input type="file" id="fileInput" accept=".pdf,application/pdf" multiple>
       <div class="drop-icon">📄</div>
       <div class="drop-text"><strong>Click to choose</strong> or drag PDF files here</div>
       <div class="drop-sub">Select multiple PDFs — they will be merged in order</div>
@@ -130,25 +130,23 @@
 <script src="../shared.js"></script>
 <script>
   let files = []; // array of { file, name, pages }
-  let dragSrcIndex = null;
 
-  const dropZone = document.getElementById("dropZone");
-  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-  dropZone.addEventListener("drop", e => {
-    e.preventDefault(); dropZone.classList.remove("dragover");
-    const pdfs = Array.from(e.dataTransfer.files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
-    if (pdfs.length) handleFiles(pdfs);
+  document.addEventListener("DOMContentLoaded", () => {
+    makeDropZone(document.getElementById("dropZone"), {
+      accept:   "application/pdf",
+      multiple: true,
+      maxFree:  Infinity,
+      onFiles:  (newFiles) => { files = []; loadFiles(newFiles); }
+    });
+
+    const addMoreInput = document.querySelector(".btn-add-more input");
+    if (addMoreInput) {
+      addMoreInput.addEventListener("change", function() {
+        loadFiles(Array.from(this.files));
+        this.value = "";
+      });
+    }
   });
-
-  function handleFiles(fileList) {
-    files = [];
-    loadFiles(Array.from(fileList));
-  }
-
-  function addMoreFiles(fileList) {
-    loadFiles(Array.from(fileList));
-  }
 
   async function loadFiles(newFiles) {
     const pdfs = newFiles.filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
@@ -170,8 +168,7 @@
 
     files.forEach((item, i) => {
       const div = document.createElement("div");
-      div.className = "file-item"; div.draggable = true;
-
+      div.className = "file-item";
       div.innerHTML = `
         <div class="file-drag-handle">⠿</div>
         <div class="file-icon">📄</div>
@@ -181,21 +178,13 @@
         </div>
         <button class="file-remove" onclick="removeFile(${i})" title="Remove">×</button>
       `;
-
-      div.addEventListener("dragstart", () => { dragSrcIndex = i; setTimeout(() => div.classList.add("dragging"), 0); });
-      div.addEventListener("dragend", () => div.classList.remove("dragging"));
-      div.addEventListener("dragover", e => { e.preventDefault(); div.classList.add("drag-over"); });
-      div.addEventListener("dragleave", () => div.classList.remove("drag-over"));
-      div.addEventListener("drop", e => {
-        e.preventDefault(); div.classList.remove("drag-over");
-        if (dragSrcIndex !== null && dragSrcIndex !== i) {
-          const moved = files.splice(dragSrcIndex, 1)[0];
-          files.splice(i, 0, moved);
-          renderFileList();
-        }
-      });
-
       list.appendChild(div);
+    });
+
+    // Wire drag-to-reorder via shared helper
+    makeDraggable(list, files, (reordered) => {
+      files = reordered;
+      renderFileList();
     });
 
     document.getElementById("filesCount").textContent = `${files.length} file${files.length !== 1 ? "s" : ""}`;
