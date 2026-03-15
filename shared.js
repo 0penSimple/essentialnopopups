@@ -4,6 +4,12 @@
    functions used across all tool pages.
    ============================================================ */
 
+/* ── PREMIUM FLAG ──
+   Set to true to unlock all premium features for testing.
+   When real accounts exist, replace with: checkUserSubscription()
+*/
+const IS_PREMIUM = false;
+
 /* ── NAV & FOOTER INJECTION ── */
 
 (function () {
@@ -115,6 +121,8 @@ function btnDone(id, doneLabel = "✓ Done! 1/1", resetLabel = null, resetMs = 3
   btn.disabled = false;
   btn.textContent = doneLabel;
   btn.classList.add("btn-done");
+  // Scroll button into view so user always sees the result
+  btn.scrollIntoView({ behavior: "smooth", block: "center" });
   if (resetLabel) {
     setTimeout(() => {
       btn.disabled = false;
@@ -140,4 +148,276 @@ function formatBytes(bytes) {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+
+/* ── BATCH PROCESSOR ──
+   Reusable batch processing engine for all tools.
+
+   Usage:
+     const batch = new BatchProcessor({
+       items:       array of anything (files, {file, options}, etc.)
+       processOne:  async (item, index) => { return { filename, data } }
+                    — return null to skip an item
+                    — data can be Uint8Array, Blob, or ArrayBuffer
+       btnId:       id of the action button
+       btnLabel:    base label e.g. "Convert"  → shows "Convert — 0/3"
+       zipName:     filename for the output ZIP (e.g. "converted.zip")
+                    if only one item, downloads directly without ZIP
+       onComplete:  optional callback after all done
+     });
+     await batch.run();
+
+   The processor handles:
+   - Disabling/re-enabling the button
+   - Live 0/N counter on the button
+   - Progress bar (looks for #progressSection, #progressFill, #progressPct, #progressLabel)
+   - ZIP bundling (via JSZip — must be loaded on the page)
+   - Error collection and notification
+   - Direct download for single-file results
+*/
+
+class BatchProcessor {
+  constructor({ items, processOne, btnId, btnLabel, zipName, onComplete }) {
+    this.items      = items;
+    this.processOne = processOne;
+    this.btnId      = btnId;
+    this.btnLabel   = btnLabel;
+    this.zipName    = zipName || "results.zip";
+    this.onComplete = onComplete || null;
+  }
+
+  _setBtn(label, disabled = true) {
+    const btn = document.getElementById(this.btnId);
+    if (!btn) return;
+    btn.disabled  = disabled;
+    btn.textContent = label;
+    btn.classList.remove("btn-done");
+  }
+
+  _setProgress(current, total, label) {
+    const fill  = document.getElementById("progressFill");
+    const pct   = document.getElementById("progressPct");
+    const lbl   = document.getElementById("progressLabel");
+    const sec   = document.getElementById("progressSection");
+    if (sec)  sec.classList.add("show");
+    const p = Math.round((current / total) * 100);
+    if (fill) fill.style.width = p + "%";
+    if (pct)  pct.textContent  = p + "%";
+    if (lbl)  lbl.textContent  = label;
+  }
+
+  async run() {
+    const total   = this.items.length;
+    const errors  = [];
+    const results = []; // { filename, data }
+
+    this._setBtn(`${this.btnLabel} — 0/${total}`);
+
+    for (let i = 0; i < total; i++) {
+      this._setBtn(`${this.btnLabel} — ${i}/${total}`);
+      this._setProgress(i, total, `Processing ${i + 1} of ${total}...`);
+
+      try {
+        const result = await this.processOne(this.items[i], i);
+        if (result) results.push(result);
+      } catch(e) {
+        errors.push(`${e.message}`);
+      }
+
+      // Yield to browser so UI updates
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    this._setProgress(total, total, results.length > 0 ? "Done!" : "Failed");
+
+    if (results.length === 0) {
+      // All items failed — show clear error, never say "Done"
+      const msg = errors.length > 0
+        ? errors.join(" | ")
+        : "Nothing was processed successfully.";
+      showNotification(msg, "error");
+      btnReset(this.btnId, `${this.btnLabel} — 0/${total}`);
+      // Scroll to notification so user sees the error
+      const notif = document.getElementById("notification");
+      if (notif) notif.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    // Download results
+    if (results.length === 1) {
+      const { filename, data } = results[0];
+      const blob = data instanceof Blob ? data : new Blob([data]);
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      const zip = new JSZip();
+      for (const { filename, data } of results) {
+        zip.file(filename, data);
+      }
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(zipBlob);
+      const a   = document.createElement("a");
+      a.href = url; a.download = this.zipName;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Show partial errors if some succeeded
+    if (errors.length > 0) {
+      showNotification(`Completed with ${errors.length} error(s): ${errors.join(" | ")}`, "error");
+    }
+
+    // Update button to done state
+    const btn = document.getElementById(this.btnId);
+    if (btn) {
+      btn.disabled    = false;
+      btn.textContent = `✓ Done! ${results.length}/${total}`;
+      btn.classList.add("btn-done");
+      btn.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => {
+        btn.textContent = `${this.btnLabel} — 0/${total}`;
+        btn.classList.remove("btn-done");
+      }, 3000);
+    }
+
+    if (this.onComplete) this.onComplete(results);
+  }
+}
+
+
+/* ── MAKE DRAGGABLE ──
+   Adds drag-to-reorder behaviour to a container of child elements.
+   Each child must have a data-index attribute set to its position.
+
+   Usage:
+     makeDraggable(containerEl, items, (reorderedItems) => {
+       state.files = reorderedItems;
+       render();
+     });
+
+   Call again after every render() to re-attach events to new DOM nodes.
+   Pass the same items array each time — it is not mutated.
+*/
+function makeDraggable(containerEl, items, onReorder) {
+  if (!containerEl) return;
+
+  let dragSrcIndex = null;
+
+  Array.from(containerEl.children).forEach((child, i) => {
+    child.draggable = true;
+
+    child.addEventListener("dragstart", () => {
+      dragSrcIndex = i;
+      setTimeout(() => child.classList.add("dragging"), 0);
+    });
+
+    child.addEventListener("dragend", () => {
+      child.classList.remove("dragging");
+    });
+
+    child.addEventListener("dragover", e => {
+      e.preventDefault();
+      child.classList.add("drag-over");
+    });
+
+    child.addEventListener("dragleave", () => {
+      child.classList.remove("drag-over");
+    });
+
+    child.addEventListener("drop", e => {
+      e.preventDefault();
+      child.classList.remove("drag-over");
+      if (dragSrcIndex === null || dragSrcIndex === i) return;
+
+      // Reorder a shallow copy of items
+      const reordered = [...items];
+      const [moved] = reordered.splice(dragSrcIndex, 1);
+      reordered.splice(i, 0, moved);
+      dragSrcIndex = null;
+
+      onReorder(reordered);
+    });
+  });
+}
+
+
+/* ── MAKE DROP ZONE ──
+   Wires up a drop zone element for drag-and-drop and file input.
+
+   Options:
+     accept      {string}   MIME type prefix to filter, e.g. "image/" or "application/pdf"
+     multiple    {boolean}  Allow multiple files (default: false)
+     maxFree     {number}   Max files for free tier. If IS_PREMIUM is false and more
+                            files are dropped, extras are silently trimmed and a
+                            notification is shown. Pass Infinity to disable limit.
+     onFiles     {function} Called with filtered File array when files are chosen.
+                            Always called — even for single files.
+
+   Usage:
+     makeDropZone(document.getElementById("dropZone"), {
+       accept:  "image/",
+       multiple: true,
+       maxFree:  1,
+       onFiles: (files) => handleFiles(files)
+     });
+*/
+function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinity, onFiles }) {
+  if (!zoneEl || !onFiles) return;
+
+  function filterFiles(fileList) {
+    let files = Array.from(fileList);
+
+    // Filter by type
+    if (accept) {
+      files = files.filter(f => f.type.startsWith(accept) || f.name.endsWith(`.${accept.split("/")[1]}`));
+    }
+
+    // Apply free tier limit
+    if (!IS_PREMIUM && files.length > maxFree) {
+      const trimmed = files.length - maxFree;
+      files = files.slice(0, maxFree);
+      if (trimmed > 0) {
+        showNotification(
+          `Free tier supports ${maxFree} file${maxFree !== 1 ? "s" : ""} at a time. ${trimmed} file${trimmed !== 1 ? "s were" : " was"} skipped.`,
+          "info"
+        );
+      }
+    }
+
+    return files;
+  }
+
+  // Drag and drop
+  zoneEl.addEventListener("dragover", e => {
+    e.preventDefault();
+    zoneEl.classList.add("dragover");
+  });
+
+  zoneEl.addEventListener("dragleave", () => {
+    zoneEl.classList.remove("dragover");
+  });
+
+  zoneEl.addEventListener("drop", e => {
+    e.preventDefault();
+    zoneEl.classList.remove("dragover");
+    const files = filterFiles(e.dataTransfer.files);
+    if (files.length) onFiles(files);
+  });
+
+  // File input inside the drop zone
+  const input = zoneEl.querySelector("input[type='file']");
+  if (input) {
+    input.multiple = multiple;
+    input.addEventListener("change", () => {
+      const files = filterFiles(input.files);
+      if (files.length) onFiles(files);
+      input.value = ""; // reset so same file can be re-selected
+    });
+  }
 }
