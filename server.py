@@ -183,8 +183,10 @@ def download():
         return jsonify({"ok": False, "error": str(e)})
 
 
+# Runs at startup regardless of whether Flask or gunicorn is used
+setup_dependencies()
+
 if __name__ == "__main__":
-    setup_dependencies()
     port = int(os.environ.get("PORT", 8080))
     print(f"Server starting on port {port}")
     app.run(host="0.0.0.0", port=port)
