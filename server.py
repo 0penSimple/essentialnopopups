@@ -21,11 +21,7 @@ def run_cmd(cmd):
 
 
 def setup_dependencies():
-    """Install/upgrade all required tools at startup. Runs only once across all workers."""
-    lock = "/tmp/setup_done.lock"
-    if os.path.exists(lock):
-        print("Dependencies already set up, skipping.")
-        return
+    """Install/upgrade all required tools at startup."""
 
     # Upgrade yt-dlp to latest version
     print("Upgrading yt-dlp...")
@@ -57,7 +53,7 @@ def setup_dependencies():
     deno_bin = os.path.expanduser("~/.deno/bin/deno")
     deno_path = os.path.expanduser("~/.deno/bin")
 
-    # Add deno to PATH regardless
+    # Ensure deno is on PATH
     if deno_path not in os.environ.get("PATH", ""):
         os.environ["PATH"] = deno_path + ":" + os.environ.get("PATH", "")
 
@@ -74,13 +70,6 @@ def setup_dependencies():
         except Exception as e:
             print(f"deno install failed: {e}")
 
-    # Ensure deno is on PATH
-    deno_path = os.path.expanduser("~/.deno/bin")
-    if deno_path not in os.environ.get("PATH", ""):
-        os.environ["PATH"] = deno_path + ":" + os.environ.get("PATH", "")
-
-    # Mark setup as complete so other workers skip it
-    open(lock, "w").close()
     print("Setup complete.")
 
 
