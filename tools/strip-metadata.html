@@ -7,24 +7,47 @@
 <link rel="stylesheet" href="../shared.css">
 <style>
   /* METADATA TABLE */
-  .meta-section { display: none; margin-bottom: 1.25rem; }
-  .meta-section.show { display: block; }
-  .meta-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .meta-found { font-size: 0.82rem; color: var(--muted); }
-  .meta-found strong { color: var(--text); }
-  .meta-scroll { background: var(--warm-bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; max-height: 240px; overflow-y: auto; }
-  .meta-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
-  .meta-table tr { border-bottom: 1px solid var(--border); }
-  .meta-table tr:last-child { border-bottom: none; }
-  .meta-table td { padding: 7px 10px; vertical-align: top; }
-  .meta-table td:first-child { color: var(--faint); font-weight: 500; white-space: nowrap; width: 40%; padding-right: 16px; }
-  .meta-table td:last-child { color: var(--text); word-break: break-word; }
-  .gps-row td { background: #fff8e6; }
-  .gps-row td:first-child { color: #8a6200; }
-  .gps-row td:last-child { color: #5a3e00; }
+  .meta-section { display:none; margin-bottom:1.25rem; }
+  .meta-section.show { display:block; }
+  .meta-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .meta-found { font-size:0.82rem; color:var(--muted); }
+  .meta-found strong { color:var(--text); }
 
-  .meta-empty { display: none; background: var(--teal-light); border: 1px solid var(--teal-border); border-radius: 10px; padding: 12px 16px; font-size: 0.82rem; color: var(--teal-text); margin-bottom: 1.25rem; }
-  .meta-empty.show { display: block; }
+  .meta-scroll { background:var(--warm-bg); border:1px solid var(--border); border-radius:10px; overflow:hidden; max-height:240px; overflow-y:auto; }
+  .meta-table { width:100%; border-collapse:collapse; font-size:0.78rem; }
+  .meta-table tr { border-bottom:1px solid var(--border); }
+  .meta-table tr:last-child { border-bottom:none; }
+  .meta-table td { padding:7px 10px; vertical-align:top; }
+  .meta-table td:first-child { color:var(--faint); font-weight:500; white-space:nowrap; width:40%; padding-right:16px; }
+  .meta-table td:last-child { color:var(--text); word-break:break-word; }
+
+  .gps-row td { background:#fff8e6; }
+  .gps-row td:first-child { color:#8a6200; }
+  .gps-row td:last-child { color:#5a3e00; }
+
+  .meta-empty { display:none; background:var(--teal-light); border:1px solid var(--teal-border); border-radius:10px; padding:12px 16px; font-size:0.82rem; color:var(--teal-text); margin-bottom:1.25rem; }
+  .meta-empty.show { display:block; }
+
+  /* FILE LIST */
+  .files-section { display:none; margin-bottom:1.25rem; }
+  .files-section.show { display:block; }
+  .files-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .files-count { font-size:0.78rem; color:var(--muted); }
+  .file-list { display:flex; flex-direction:column; gap:6px; }
+  .file-item { display:flex; align-items:center; gap:10px; background:var(--warm-bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .file-icon { font-size:1.1rem; flex-shrink:0; }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:0.82rem; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-meta { font-size:0.72rem; color:var(--faint); margin-top:1px; }
+  .file-remove { background:none; border:none; color:var(--faint); font-size:1rem; cursor:pointer; padding:0 4px; flex-shrink:0; transition:color 0.15s; }
+  .file-remove:hover { color:var(--error); }
+
+  /* PROGRESS */
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
 </style>
 </head>
 <body>
@@ -51,14 +74,14 @@
         <div class="info-panel-icon">💡</div>
         <div>
           <div class="info-panel-title">Not sure what to do?</div>
-          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
         </div>
       </div>
       <div class="info-panel-row">
         <div class="info-panel-icon">🙏</div>
         <div>
           <div class="info-panel-title">This site survives thanks to you</div>
-          <div class="info-panel-text">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
         </div>
       </div>
     </div>
@@ -74,13 +97,26 @@
 
     <label>Your image</label>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
-      <div class="drop-icon">🔍</div>
+      <input type="file" id="fileInput" accept="image/*">
+      <div class="drop-icon">🖼</div>
       <div class="drop-text"><strong>Click to choose</strong> or drag an image here</div>
-      <div class="drop-sub">JPG, PNG, WebP supported</div>
+      <div class="drop-sub" id="dropSub">JPG, PNG, WebP and more</div>
     </div>
 
-    <div class="meta-section" id="metaSection">
+    <!-- FILE LIST -->
+    <div class="files-section" id="filesSection">
+      <div class="files-header">
+        <div class="files-count" id="filesCount">0 files</div>
+        <div class="btn-add-more" id="addMoreBtn" style="display:none;">
+          <input type="file" accept="image/*" multiple onchange="addFiles(this.files); this.value=''">
+          + Add more
+        </div>
+      </div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+
+    <!-- METADATA PREVIEW (single file, free mode) -->
+    <div id="metaSection" class="meta-section">
       <div class="meta-header">
         <div class="meta-found">Found <strong id="metaCount">0</strong> metadata fields</div>
       </div>
@@ -88,12 +124,20 @@
         <table class="meta-table" id="metaTable"></table>
       </div>
     </div>
+    <div id="metaEmpty" class="meta-empty">✓ No metadata found — this image is already clean.</div>
 
-    <div class="meta-empty" id="metaEmpty">
-      No readable metadata found in this image — it may have already been stripped.
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Stripping...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
     </div>
 
-    <button class="btn-primary" id="stripBtn" onclick="stripAndDownload()" disabled>
+    <button class="btn-primary" id="stripBtn" onclick="strip()" disabled>
       Strip &amp; download — 0/1
     </button>
 
@@ -106,11 +150,10 @@
   <div class="info-card">
     <h3>Good to know</h3>
     <ul class="info-list">
-      <li>Everything happens in your browser — your image is never uploaded anywhere.</li>
-      <li>GPS coordinates highlighted in yellow are the most sensitive — they can reveal exactly where a photo was taken.</li>
-      <li>This tool removes standard EXIF metadata. Some AI-generated images may contain invisible watermarks embedded in the pixels themselves, which cannot be removed this way.</li>
-      <li>The image quality and dimensions are fully preserved — only the hidden data layer is removed.</li>
-      <li>PNG files have less metadata than JPG by default, but can still contain author and software information.</li>
+      <li>Everything happens in your browser — your images are never uploaded anywhere.</li>
+      <li>GPS location fields are highlighted in yellow — these are the most sensitive to remove before sharing.</li>
+      <li>Stripping metadata re-exports the image through a canvas — the visual quality is preserved but the file size may change slightly.</li>
+      <li>PNG files keep their transparency. JPG files are re-encoded at 95% quality.</li>
     </ul>
   </div>
 
@@ -120,29 +163,85 @@
 <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js"></script>
 <script src="../shared.js"></script>
 <script>
-  let currentFile = null;
+  const state = {
+    files: [],
+    isPremium: IS_PREMIUM
+  };
 
-  const dropZone = document.getElementById("dropZone");
-  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-  dropZone.addEventListener("drop", e => {
-    e.preventDefault(); dropZone.classList.remove("dragover");
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) handleFile(file);
+  document.addEventListener("DOMContentLoaded", () => {
+    makeDropZone(document.getElementById("dropZone"), {
+      accept:   "image/",
+      multiple: state.isPremium,
+      maxFree:  1,
+      onFiles:  (files) => {
+        state.files = files.map(f => ({ file: f, name: f.name, size: f.size }));
+        render();
+        if (files.length === 1) readExif(files[0]);
+        else {
+          document.getElementById("metaSection").classList.remove("show");
+          document.getElementById("metaEmpty").classList.remove("show");
+        }
+      }
+    });
+
+    if (state.isPremium) {
+      document.getElementById("addMoreBtn").style.display = "block";
+      document.getElementById("dropSub").textContent = "Drop multiple images at once";
+    }
   });
 
-  function handleFile(file) {
-    if (!file || !file.type.startsWith("image/")) return;
-    currentFile = file;
-    dropZone.querySelector(".drop-text").innerHTML = `<strong>${file.name}</strong>`;
-    dropZone.querySelector(".drop-sub").textContent = "Click to choose a different image";
+  function addFiles(fileList) {
+    const newFiles = Array.from(fileList).filter(f => f.type.startsWith("image/")).map(f => ({ file: f, name: f.name, size: f.size }));
+    state.files = [...state.files, ...newFiles];
+    render();
+  }
+
+  function render() {
+    const { files } = state;
+    const list = document.getElementById("fileList");
+    list.innerHTML = "";
+    files.forEach((item, i) => {
+      const div = document.createElement("div");
+      div.className = "file-item";
+      div.innerHTML = `
+        <div class="file-icon">🖼</div>
+        <div class="file-info">
+          <div class="file-name">${item.name}</div>
+          <div class="file-meta">${formatBytes(item.size)}</div>
+        </div>
+        <button class="file-remove" onclick="removeFile(${i})">×</button>
+      `;
+      list.appendChild(div);
+    });
+
+    document.getElementById("filesSection").classList.toggle("show", files.length > 0);
+    document.getElementById("filesCount").textContent = `${files.length} image${files.length !== 1 ? "s" : ""}`;
+
+    const dropText = document.querySelector("#dropZone .drop-text");
+    if (files.length === 0) dropText.innerHTML = `<strong>Click to choose</strong> or drag an image here`;
+    else if (files.length === 1) dropText.innerHTML = `<strong>${files[0].name}</strong>`;
+    else dropText.innerHTML = `<strong>${files.length} images loaded</strong>`;
+
+    const btn = document.getElementById("stripBtn");
+    btn.disabled = files.length === 0;
+    btn.textContent = files.length === 0 ? "Strip & download — 0/1" : `Strip & download — 0/${files.length}`;
+    btn.classList.remove("btn-done");
+  }
+
+  function removeFile(index) {
+    state.files.splice(index, 1);
+    if (state.files.length === 0) {
+      document.getElementById("metaSection").classList.remove("show");
+      document.getElementById("metaEmpty").classList.remove("show");
+    }
+    render();
+  }
+
+  function readExif(file) {
     document.getElementById("metaSection").classList.remove("show");
     document.getElementById("metaEmpty").classList.remove("show");
-    document.getElementById("stripBtn").disabled = true;
-
     EXIF.getData(file, function() {
-      const allTags = EXIF.getAllTags(this);
-      const entries = Object.entries(allTags).filter(([k, v]) =>
+      const entries = Object.entries(EXIF.getAllTags(this)).filter(([k, v]) =>
         v !== undefined && v !== null && v !== "" && !ArrayBuffer.isView(v)
       );
       if (entries.length === 0) {
@@ -152,7 +251,6 @@
         document.getElementById("metaCount").textContent = entries.length;
         document.getElementById("metaSection").classList.add("show");
       }
-      document.getElementById("stripBtn").disabled = false;
     });
   }
 
@@ -162,50 +260,59 @@
     const gpsKeys = ["GPSLatitude","GPSLongitude","GPSAltitude","GPSLatitudeRef","GPSLongitudeRef","GPSDateStamp","GPSTimeStamp"];
     entries.sort(([a], [b]) => {
       const aG = a.startsWith("GPS"), bG = b.startsWith("GPS");
-      if (aG && !bG) return -1; if (!aG && bG) return 1;
-      return a.localeCompare(b);
+      return aG && !bG ? -1 : !aG && bG ? 1 : a.localeCompare(b);
     });
     entries.forEach(([key, value]) => {
       const tr = document.createElement("tr");
       const isGps = gpsKeys.includes(key) || key.startsWith("GPS");
       if (isGps) tr.className = "gps-row";
       const tdKey = document.createElement("td");
-      tdKey.textContent = key.replace(/([A-Z])/g, " $1").trim() + (isGps ? " 📍" : "");
+      tdKey.textContent = key.replace(/([A-Z])/g, " $1").replace(/^GPS /, "GPS ").trim() + (isGps ? " 📍" : "");
       const tdVal = document.createElement("td");
-      tdVal.textContent = Array.isArray(value) ? value.join(", ") :
-        (typeof value === "object" && value !== null && value.numerator !== undefined)
-          ? (value.numerator / value.denominator).toFixed(4) : String(value);
-      tr.appendChild(tdKey); tr.appendChild(tdVal);
-      table.appendChild(tr);
+      tdVal.textContent = Array.isArray(value) ? value.join(", ") : typeof value === "object" && value?.numerator !== undefined ? (value.numerator / value.denominator).toFixed(4) : String(value);
+      tr.appendChild(tdKey); tr.appendChild(tdVal); table.appendChild(tr);
     });
   }
 
-  function stripAndDownload() {
-    if (!currentFile) return;
-    btnLoading("stripBtn", "Stripping... 0/1");
-    const reader = new FileReader();
-    reader.onload = e => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        if (currentFile.type !== "image/png") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-        ctx.drawImage(img, 0, 0);
-        const mime = currentFile.type === "image/png" ? "image/png" : "image/jpeg";
-        const ext  = currentFile.type === "image/png" ? "png" : "jpg";
-        canvas.toBlob(blob => {
-          const baseName = currentFile.name.replace(/\.[^.]+$/, "");
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a"); a.href = url; a.download = `${baseName}_clean.${ext}`;
-          document.body.appendChild(a); a.click(); document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          btnDone("stripBtn", "✓ Done! 1/1", "Strip & download — 0/1");
-        }, mime, mime === "image/jpeg" ? 0.95 : undefined);
+  function stripImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d");
+          if (file.type === "image/png") ctx.clearRect(0, 0, canvas.width, canvas.height);
+          else { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+          ctx.drawImage(img, 0, 0);
+          const mime = file.type === "image/png" ? "image/png" : "image/jpeg";
+          const ext  = file.type === "image/png" ? "png" : "jpg";
+          canvas.toBlob(blob => resolve({
+            filename: `${file.name.replace(/\.[^.]+$/, "")}_clean.${ext}`,
+            data: blob
+          }), mime, mime === "image/jpeg" ? 0.95 : undefined);
+        };
+        img.onerror = () => reject(new Error(`Could not load "${file.name}"`));
+        img.src = e.target.result;
       };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(currentFile);
+      reader.onerror = () => reject(new Error(`Could not read "${file.name}"`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function strip() {
+    if (state.files.length === 0) return;
+    document.getElementById("progressSection").classList.add("show");
+    const batch = new BatchProcessor({
+      items:    state.files,
+      btnId:    "stripBtn",
+      btnLabel: "Strip",
+      zipName:  "stripped_images.zip",
+      processOne: async (item) => stripImage(item.file),
+      onComplete: () => { document.getElementById("progressLabel").textContent = "Done!"; }
+    });
+    await batch.run();
   }
 </script>
 
