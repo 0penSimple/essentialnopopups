@@ -322,6 +322,15 @@
 </footer>
 
 <script>
+  function toggleInfo() {
+  const panel = document.getElementById("infoPanel");
+  const btn   = document.getElementById("infoBtn");
+  const open  = panel.style.display === "none";
+  panel.style.display = open ? "block" : "none";
+  btn.style.background = open ? "var(--teal-light)" : "var(--surface)";
+  btn.style.borderColor = open ? "var(--teal-border)" : "var(--border)";
+  btn.style.color = open ? "var(--teal)" : "var(--muted)";
+}
   let currentFile  = null;
   let origSizeBytes = 0;
   let currentMode  = "quality";
