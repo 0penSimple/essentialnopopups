@@ -1,5 +1,7 @@
 """
 EssentialNoPopups — YouTube Download Server
+Downloads to temp file first, then serves to browser.
+Deploy this on Railway.
 """
 
 from flask import Flask, request, jsonify, send_file
@@ -19,6 +21,13 @@ def run_cmd(cmd):
 
 
 def setup_dependencies():
+    """Install/upgrade all required tools at startup. Runs only once across all workers."""
+    lock = "/tmp/setup_done.lock"
+    if os.path.exists(lock):
+        print("Dependencies already set up, skipping.")
+        return
+
+    # Upgrade yt-dlp to latest version
     print("Upgrading yt-dlp...")
     try:
         subprocess.run(
@@ -29,6 +38,7 @@ def setup_dependencies():
     except Exception as e:
         print(f"yt-dlp upgrade failed: {e}")
 
+    # Install ffmpeg if not present
     print("Checking ffmpeg...")
     result = run_cmd(["which", "ffmpeg"])
     if result.returncode == 0:
@@ -42,9 +52,16 @@ def setup_dependencies():
         except Exception as e:
             print(f"ffmpeg install failed: {e}")
 
+    # Install deno if not present (needed for YouTube JS extraction)
     print("Checking deno...")
-    result = run_cmd(["which", "deno"])
-    if result.returncode == 0:
+    deno_bin = os.path.expanduser("~/.deno/bin/deno")
+    deno_path = os.path.expanduser("~/.deno/bin")
+
+    # Add deno to PATH regardless
+    if deno_path not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = deno_path + ":" + os.environ.get("PATH", "")
+
+    if os.path.exists(deno_bin):
         print("deno already installed.")
     else:
         print("Installing deno...")
@@ -53,17 +70,18 @@ def setup_dependencies():
                 "curl -fsSL https://deno.land/install.sh | sh",
                 shell=True, check=True, capture_output=True
             )
-            # Add deno to PATH
-            deno_path = os.path.expanduser("~/.deno/bin")
-            os.environ["PATH"] = deno_path + ":" + os.environ.get("PATH", "")
             print("deno installed.")
         except Exception as e:
             print(f"deno install failed: {e}")
-    
-    # Make sure deno is on PATH even if already installed
+
+    # Ensure deno is on PATH
     deno_path = os.path.expanduser("~/.deno/bin")
     if deno_path not in os.environ.get("PATH", ""):
         os.environ["PATH"] = deno_path + ":" + os.environ.get("PATH", "")
+
+    # Mark setup as complete so other workers skip it
+    open(lock, "w").close()
+    print("Setup complete.")
 
 
 @app.route("/")
@@ -112,7 +130,8 @@ def download():
     if not url:
         return jsonify({"ok": False, "error": "No URL provided"})
 
-    tmp_dir = tempfile.mkdtemp()
+    # Download to a temp directory — ensures complete file before sending
+    tmp_dir  = tempfile.mkdtemp()
     tmp_path = os.path.join(tmp_dir, "%(title)s.%(ext)s")
 
     try:
@@ -145,21 +164,24 @@ def download():
             mimetype = "video/mp4"
             ext = "mp4"
 
+        # Run yt-dlp and wait for full completion before sending anything
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
         if result.returncode != 0:
             return jsonify({"ok": False, "error": "Download failed: " + result.stderr})
 
+        # Find the actual output file
         files = os.listdir(tmp_dir)
         if not files:
             return jsonify({"ok": False, "error": "No file was created"})
 
         actual_file = os.path.join(tmp_dir, files[0])
-        raw_name = files[0]
-        safe_name = "".join(c for c in raw_name if c.isalnum() or c in " -_.()").strip()
+        raw_name    = files[0]
+        safe_name   = "".join(c for c in raw_name if c.isalnum() or c in " -_.()").strip()
         if not safe_name:
             safe_name = f"video.{ext}"
 
+        # Clean up temp files after a delay
         def cleanup(path, directory):
             try:
                 os.remove(path)
@@ -174,7 +196,7 @@ def download():
             download_name=safe_name
         )
 
-        threading.Timer(10.0, cleanup, args=[actual_file, tmp_dir]).start()
+        threading.Timer(30.0, cleanup, args=[actual_file, tmp_dir]).start()
         return response
 
     except subprocess.TimeoutExpired:
@@ -183,7 +205,7 @@ def download():
         return jsonify({"ok": False, "error": str(e)})
 
 
-# Runs at startup regardless of whether Flask or gunicorn is used
+# Run setup when gunicorn starts (not just __main__)
 setup_dependencies()
 
 if __name__ == "__main__":
