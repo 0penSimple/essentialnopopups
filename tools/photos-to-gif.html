@@ -6,43 +6,47 @@
 <title>Photos to GIF — EssentialNoPopups</title>
 <link rel="stylesheet" href="../shared.css">
 <style>
-  /* FRAMES */
-  .frames-section { display: none; margin-bottom: 1.25rem; }
-  .frames-section.show { display: block; }
-  .frames-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .frames-count { font-size: 0.78rem; color: var(--muted); }
-  .btn-add-more { font-size: 0.75rem; font-weight: 500; color: var(--teal); background: var(--teal-light); border: 1px solid var(--teal-border); border-radius: 6px; padding: 4px 10px; cursor: pointer; transition: background 0.15s; position: relative; overflow: hidden; }
-  .btn-add-more input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .btn-add-more:hover { background: #c5eddc; }
-  .frames-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
-  .frame-item { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: grab; transition: transform 0.15s, box-shadow 0.15s; background: #f0ede8; aspect-ratio: 1; }
-  .frame-item:active { cursor: grabbing; }
-  .frame-item.dragging { opacity: 0.4; transform: scale(0.95); }
-  .frame-item.drag-over { border-color: var(--teal-mid); box-shadow: 0 0 0 2px var(--teal-light); }
-  .frame-item img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
-  .frame-num { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.45); color: #fff; font-size: 0.65rem; font-weight: 500; text-align: center; padding: 2px 0; }
-  .frame-remove { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; background: rgba(0,0,0,0.5); color: #fff; border: none; border-radius: 50%; font-size: 0.65rem; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s; }
-  .frame-item:hover .frame-remove { opacity: 1; }
+  /* FRAMES GRID */
+  .frames-section { display:none; margin-bottom:1.25rem; }
+  .frames-section.show { display:block; }
+  .frames-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .frames-count { font-size:0.78rem; color:var(--muted); }
+
+  .frames-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(90px, 1fr)); gap:8px; }
+
+  .frame-item {
+    position:relative; border:1px solid var(--border); border-radius:8px;
+    overflow:hidden; cursor:grab; background:#f0ede8; aspect-ratio:1;
+    transition:box-shadow 0.15s;
+  }
+  .frame-item:active { cursor:grabbing; }
+  .frame-item.dragging { opacity:0.4; }
+  .frame-item.drag-over { border-color:var(--teal-mid); box-shadow:0 0 0 2px var(--teal-light); }
+  .frame-item img { width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
+  .frame-num { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.45); color:#fff; font-size:0.65rem; font-weight:500; text-align:center; padding:2px 0; }
+  .frame-remove { position:absolute; top:4px; right:4px; width:18px; height:18px; background:rgba(0,0,0,0.5); color:#fff; border:none; border-radius:50%; font-size:0.65rem; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.15s; }
+  .frame-item:hover .frame-remove { opacity:1; }
+  .drag-hint { font-size:0.72rem; color:var(--faint); margin-top:6px; }
 
   /* SETTINGS */
-  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.25rem; }
-  .setting-group { display: flex; flex-direction: column; gap: 6px; }
-  .speed-group select { opacity: 0.5; pointer-events: none; }
-  .speed-coming { font-size: 0.72rem; color: var(--premium); margin-top: 4px; }
+  .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:1.25rem; }
+  .setting-group { display:flex; flex-direction:column; gap:6px; }
+  .setting-coming { font-size:0.7rem; color:var(--premium); margin-top:3px; }
+  @media(max-width:480px) { .settings-grid { grid-template-columns:1fr; } }
+
+  /* PREVIEW */
+  .preview-section { display:none; margin-bottom:1.25rem; }
+  .preview-section.show { display:block; }
+  .preview-wrap { background:#f0ede8; border:1px solid var(--border); border-radius:10px; display:flex; align-items:center; justify-content:center; min-height:200px; overflow:hidden; }
+  .preview-wrap img { max-width:100%; max-height:360px; object-fit:contain; display:block; }
+  .preview-meta { font-size:0.75rem; color:var(--faint); margin-top:8px; text-align:center; }
 
   /* PROGRESS */
-  .progress-section { display: none; margin-bottom: 1.25rem; }
-  .progress-section.show { display: block; }
-  .progress-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; }
-  .progress-track { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
-  .progress-fill { height: 100%; background: var(--teal-mid); border-radius: 99px; transition: width 0.2s; width: 0%; }
-
-  /* GIF PREVIEW */
-  .gif-preview-wrap { background: #f0ede8; border: 1px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; min-height: 200px; overflow: hidden; }
-  .gif-preview-wrap img { max-width: 100%; max-height: 360px; object-fit: contain; display: block; }
-  .preview-meta { font-size: 0.75rem; color: var(--faint); margin-top: 8px; text-align: center; }
-
-  @media (max-width: 480px) { .settings-grid { grid-template-columns: 1fr; } }
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
 </style>
 </head>
 <body>
@@ -61,7 +65,7 @@
     </div>
     <h1>Photos to GIF</h1>
     <div class="info-btn-row">
-      <p>Turn a set of images into an animated GIF. Drag to reorder frames, then download. Everything runs in your browser.</p>
+      <p>Animate a set of images into a GIF. Drag to reorder frames, then download. Everything happens in your browser.</p>
       <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
     </div>
     <div id="infoPanel" class="info-panel" style="display:none;">
@@ -69,14 +73,14 @@
         <div class="info-panel-icon">💡</div>
         <div>
           <div class="info-panel-title">Not sure what to do?</div>
-          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
         </div>
       </div>
       <div class="info-panel-row">
         <div class="info-panel-icon">🙏</div>
         <div>
           <div class="info-panel-title">This site survives thanks to you</div>
-          <div class="info-panel-text">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
         </div>
       </div>
     </div>
@@ -92,46 +96,58 @@
 
     <label>Your images</label>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*" multiple onchange="handleFiles(this.files)">
+      <input type="file" id="fileInput" accept="image/*" multiple>
       <div class="drop-icon">🖼</div>
       <div class="drop-text"><strong>Click to choose</strong> or drag images here</div>
-      <div class="drop-sub">Select multiple images — they become the GIF frames</div>
+      <div class="drop-sub">JPG, PNG, WebP — select multiple</div>
     </div>
 
+    <!-- FRAMES -->
     <div class="frames-section" id="framesSection">
       <div class="frames-header">
         <div class="frames-count" id="framesCount">0 frames</div>
         <div class="btn-add-more">
-          <input type="file" accept="image/*" multiple onchange="addMoreFiles(this.files)">
+          <input type="file" accept="image/*" multiple onchange="addMoreFiles(this.files); this.value=''">
           + Add more
         </div>
       </div>
       <div class="frames-grid" id="framesGrid"></div>
-      <div style="font-size:0.72rem; color:var(--faint); margin-top:8px;">Drag frames to reorder</div>
+      <div class="drag-hint">Drag to reorder frames</div>
     </div>
 
+    <!-- SETTINGS -->
     <div class="settings-grid">
       <div class="setting-group">
-        <label>Output size</label>
+        <label>Size</label>
         <select id="sizeSelect">
-          <option value="480">Small (480px wide)</option>
-          <option value="640" selected>Medium (640px wide)</option>
-          <option value="800">Large (800px wide)</option>
           <option value="original">Original size</option>
+          <option value="480" selected>480px wide</option>
+          <option value="320">320px wide</option>
+          <option value="240">240px wide</option>
         </select>
       </div>
-      <div class="setting-group speed-group">
+      <div class="setting-group">
         <label>Frame speed <span class="premium-badge">✦ Premium</span></label>
-        <select id="speedSelect" disabled>
-          <option value="500">0.5s per frame</option>
-          <option value="200" selected>0.2s per frame</option>
-          <option value="100">0.1s per frame</option>
-          <option value="1000">1s per frame</option>
+        <select id="speedSelect" disabled style="opacity:0.5;">
+          <option value="100">Fast (0.1s)</option>
+          <option value="200" selected>Normal (0.2s)</option>
+          <option value="500">Slow (0.5s)</option>
+          <option value="1000">Very slow (1s)</option>
         </select>
-        <div class="speed-coming">Coming with premium — free tier uses 0.2s</div>
+        <div class="setting-coming">Coming with premium — free uses normal speed</div>
       </div>
     </div>
 
+    <!-- PREVIEW -->
+    <div class="preview-section" id="previewSection">
+      <label>Preview</label>
+      <div class="preview-wrap">
+        <img id="gifPreview" src="" alt="GIF preview">
+      </div>
+      <div class="preview-meta" id="previewMeta"></div>
+    </div>
+
+    <!-- PROGRESS -->
     <div class="progress-section" id="progressSection">
       <div class="progress-label">
         <span id="progressLabel">Building GIF...</span>
@@ -142,16 +158,8 @@
       </div>
     </div>
 
-    <div class="preview-section" id="previewSection">
-      <label style="margin-bottom:10px">Preview</label>
-      <div class="gif-preview-wrap">
-        <img id="gifPreview" src="" alt="GIF preview">
-      </div>
-      <div class="preview-meta" id="previewMeta">—</div>
-    </div>
-
     <button class="btn-primary" id="createBtn" onclick="createGif()" disabled>
-      Create GIF — 0/1
+      Add at least 2 images to create a GIF
     </button>
 
   </div>
@@ -164,41 +172,47 @@
     <h3>Good to know</h3>
     <ul class="info-list">
       <li>Everything happens in your browser — your images are never uploaded anywhere.</li>
-      <li>GIF supports a maximum of 256 colors per frame — photos may look slightly different than the originals.</li>
-      <li>Drag frames to reorder them before creating the GIF.</li>
-      <li>Larger images and more frames means longer processing time — be patient for big batches.</li>
+      <li>Drag the frames to set the order they appear in the GIF.</li>
+      <li>Larger images make larger GIF files — use the size setting to reduce file size.</li>
+      <li>GIFs are limited to 256 colours per frame, so photos with lots of colour variation may look slightly different.</li>
     </ul>
   </div>
 
 </div>
 
 <footer id="shared-footer"></footer>
-<script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
 <script src="../shared.js"></script>
 <script>
-  let frames = [];
-  let dragSrcIndex = null;
+  let frames = [];       // { file, dataUrl, img }
+  let gifWorkerURL = null;
 
-  const dropZone = document.getElementById("dropZone");
-  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-  dropZone.addEventListener("drop", e => {
-    e.preventDefault(); dropZone.classList.remove("dragover");
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-    if (files.length) handleFiles(files);
+  /* ── SETUP ── */
+  document.addEventListener("DOMContentLoaded", () => {
+    makeDropZone(document.getElementById("dropZone"), {
+      accept:   "image/",
+      multiple: true,
+      maxFree:  Infinity,
+      onFiles:  (files) => { frames = []; loadFiles(files); }
+    });
+
+    // Apply premium gate for speed
+    if (IS_PREMIUM) {
+      document.getElementById("speedSelect").disabled = false;
+      document.getElementById("speedSelect").style.opacity = "1";
+      document.querySelector(".setting-coming").style.display = "none";
+    }
+
+    // Pre-fetch gif.js worker as blob so it works cross-origin
+    fetch("https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js")
+      .then(r => r.blob())
+      .then(blob => { gifWorkerURL = URL.createObjectURL(blob); })
+      .catch(() => console.warn("Could not pre-fetch gif.js worker"));
   });
 
-  function handleFiles(fileList) {
-    const files = Array.from(fileList).filter(f => f.type.startsWith("image/"));
-    if (!files.length) return;
-    frames = [];
-    loadFiles(files);
-  }
-
+  /* ── FILE LOADING ── */
   function addMoreFiles(fileList) {
     const files = Array.from(fileList).filter(f => f.type.startsWith("image/"));
-    if (!files.length) return;
-    loadFiles(files);
+    if (files.length) loadFiles(files);
   }
 
   function loadFiles(files) {
@@ -218,36 +232,50 @@
     });
   }
 
+  /* ── RENDER FRAMES ── */
   function renderFrames() {
     const grid = document.getElementById("framesGrid");
     grid.innerHTML = "";
+
     frames.forEach((frame, i) => {
       const div = document.createElement("div");
-      div.className = "frame-item"; div.draggable = true; div.dataset.index = i;
-      const img = document.createElement("img"); img.src = frame.dataUrl;
-      const num = document.createElement("div"); num.className = "frame-num"; num.textContent = i + 1;
-      const btn = document.createElement("button"); btn.className = "frame-remove"; btn.textContent = "×";
-      btn.onclick = e => { e.stopPropagation(); removeFrame(i); };
-      div.appendChild(img); div.appendChild(num); div.appendChild(btn);
-      div.addEventListener("dragstart", () => { dragSrcIndex = i; setTimeout(() => div.classList.add("dragging"), 0); });
-      div.addEventListener("dragend", () => div.classList.remove("dragging"));
-      div.addEventListener("dragover", e => { e.preventDefault(); div.classList.add("drag-over"); });
-      div.addEventListener("dragleave", () => div.classList.remove("drag-over"));
-      div.addEventListener("drop", e => {
-        e.preventDefault(); div.classList.remove("drag-over");
-        if (dragSrcIndex !== null && dragSrcIndex !== i) {
-          const moved = frames.splice(dragSrcIndex, 1)[0];
-          frames.splice(i, 0, moved);
-          renderFrames();
-        }
-      });
+      div.className = "frame-item";
+      div.dataset.index = i;
+
+      const img = document.createElement("img");
+      img.src = frame.dataUrl;
+
+      const num = document.createElement("div");
+      num.className = "frame-num";
+      num.textContent = i + 1;
+
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "frame-remove";
+      removeBtn.textContent = "×";
+      removeBtn.onclick = e => { e.stopPropagation(); removeFrame(i); };
+
+      div.appendChild(img);
+      div.appendChild(num);
+      div.appendChild(removeBtn);
       grid.appendChild(div);
     });
-    document.getElementById("framesCount").textContent = `${frames.length} frame${frames.length !== 1 ? "s" : ""}`;
+
+    // Wire drag-to-reorder
+    makeDraggable(grid, frames, (reordered) => {
+      frames = reordered;
+      renderFrames();
+    });
+
+    document.getElementById("framesCount").textContent =
+      `${frames.length} frame${frames.length !== 1 ? "s" : ""}`;
     document.getElementById("framesSection").classList.add("show");
+
     const btn = document.getElementById("createBtn");
     btn.disabled = frames.length < 2;
-    btn.textContent = frames.length < 2 ? "Add at least 2 images to create a GIF" : "Create GIF — 0/1";
+    btn.textContent = frames.length < 2
+      ? "Add at least 2 images to create a GIF"
+      : "Create GIF — 0/1";
+    btn.classList.remove("btn-done");
   }
 
   function removeFrame(index) {
@@ -255,13 +283,20 @@
     if (frames.length === 0) {
       document.getElementById("framesSection").classList.remove("show");
       document.getElementById("createBtn").disabled = true;
-    } else renderFrames();
+      document.getElementById("createBtn").textContent = "Add at least 2 images to create a GIF";
+    } else {
+      renderFrames();
+    }
   }
 
-  function createGif() {
+  /* ── CREATE GIF ── */
+  async function createGif() {
     if (frames.length < 2) return;
+
     const btn = document.getElementById("createBtn");
-    btn.disabled = true; btn.textContent = "Building GIF... 0/1";
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> Building GIF...`;
+
     document.getElementById("progressSection").classList.add("show");
     document.getElementById("progressFill").style.width = "0%";
     document.getElementById("progressPct").textContent = "0%";
@@ -270,19 +305,45 @@
 
     const sizeVal = document.getElementById("sizeSelect").value;
     const targetW = sizeVal === "original" ? null : parseInt(sizeVal);
+    const delay   = IS_PREMIUM
+      ? parseInt(document.getElementById("speedSelect").value)
+      : 200;
+
+    // Load gif.js dynamically
+    if (!window.GIF) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js";
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    // Use blob worker URL if available, else fall back to CDN
+    const workerScript = gifWorkerURL ||
+      "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js";
 
     const gif = new GIF({
-      workers: 2, quality: 10,
-      workerScript: "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js"
+      workers:      2,
+      quality:      10,
+      workerScript
     });
 
     frames.forEach(frame => {
       const canvas = document.createElement("canvas");
-      const srcW = frame.img.naturalWidth, srcH = frame.img.naturalHeight;
-      if (targetW && srcW > targetW) { canvas.width = targetW; canvas.height = Math.round(srcH * targetW / srcW); }
-      else { canvas.width = srcW; canvas.height = srcH; }
+      const srcW = frame.img.naturalWidth;
+      const srcH = frame.img.naturalHeight;
+
+      if (targetW && srcW > targetW) {
+        canvas.width  = targetW;
+        canvas.height = Math.round(srcH * targetW / srcW);
+      } else {
+        canvas.width  = srcW;
+        canvas.height = srcH;
+      }
+
       canvas.getContext("2d").drawImage(frame.img, 0, 0, canvas.width, canvas.height);
-      gif.addFrame(canvas, { delay: 200 });
+      gif.addFrame(canvas, { delay });
     });
 
     gif.on("progress", p => {
@@ -294,13 +355,24 @@
     gif.on("finished", blob => {
       document.getElementById("progressFill").style.width = "100%";
       document.getElementById("progressLabel").textContent = "Done!";
+
       const url = URL.createObjectURL(blob);
       document.getElementById("gifPreview").src = url;
-      document.getElementById("previewMeta").textContent = `${frames.length} frames · ${formatBytes(blob.size)}`;
+      document.getElementById("previewMeta").textContent =
+        `${frames.length} frames · ${formatBytes(blob.size)}`;
       document.getElementById("previewSection").classList.add("show");
-      const a = document.createElement("a"); a.href = url; a.download = "animation.gif";
+
+      // Auto-download
+      const a = document.createElement("a");
+      a.href = url; a.download = "animation.gif";
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
+
       btnDone("createBtn", "✓ Done! 1/1", "Create GIF — 0/1");
+    });
+
+    gif.on("error", err => {
+      showNotification(`GIF creation failed: ${err}`, "error");
+      btnReset("createBtn", "Create GIF — 0/1");
     });
 
     gif.render();
