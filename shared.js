@@ -123,6 +123,8 @@ function btnDone(id, doneLabel = "✓ Done! 1/1", resetLabel = null, resetMs = 3
   btn.classList.add("btn-done");
   // Scroll button into view so user always sees the result
   btn.scrollIntoView({ behavior: "smooth", block: "center" });
+  // Refresh ads on every completed action
+  refreshAds();
   if (resetLabel) {
     setTimeout(() => {
       btn.disabled = false;
@@ -280,6 +282,7 @@ class BatchProcessor {
       btn.textContent = `✓ Done! ${results.length}/${total}`;
       btn.classList.add("btn-done");
       btn.scrollIntoView({ behavior: "smooth", block: "center" });
+      refreshAds();
       setTimeout(() => {
         btn.textContent = `${this.btnLabel} — 0/${total}`;
         btn.classList.remove("btn-done");
@@ -347,6 +350,29 @@ function makeDraggable(containerEl, items, onReorder) {
 }
 
 
+/* ── AD REFRESH ──
+   Refreshes all ad slots on the page after a user action completes.
+   Called automatically from btnDone and BatchProcessor.
+   Works with Google AdSense — replace with your network's refresh API if different.
+*/
+function refreshAds() {
+  try {
+    const adSlots = document.querySelectorAll(".adsbygoogle");
+    adSlots.forEach(slot => {
+      // Only refresh slots that have already been filled
+      if (slot.dataset.adsbygoogleStatus === "done") {
+        const parent = slot.parentNode;
+        const clone  = slot.cloneNode(false);
+        parent.replaceChild(clone, slot);
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      }
+    });
+  } catch(e) {
+    // Silently fail — ads are non-critical
+  }
+}
+
+
 /* ── MAKE DROP ZONE ──
    Wires up a drop zone element for drag-and-drop and file input.
 
@@ -370,6 +396,15 @@ function makeDraggable(containerEl, items, onReorder) {
 function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinity, onFiles }) {
   if (!zoneEl || !onFiles) return;
 
+  // Inject premium upsell note after drop zone (only for limited free tier tools)
+  let upsellNote = null;
+  if (!IS_PREMIUM && maxFree !== Infinity) {
+    upsellNote = document.createElement("div");
+    upsellNote.style.cssText = "display:none; text-align:center; font-size:0.75rem; color:var(--faint); margin-top:8px; margin-bottom:4px;";
+    upsellNote.innerHTML = `Need to process multiple files? <span style="color:var(--premium); font-weight:500;">✦ Premium</span> lets you batch process them all at once.`;
+    zoneEl.insertAdjacentElement("afterend", upsellNote);
+  }
+
   function filterFiles(fileList) {
     let files = Array.from(fileList);
 
@@ -379,12 +414,12 @@ function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinit
     }
 
     // Apply free tier limit
-    if (!IS_PREMIUM && files.length > maxFree) {
+    if (!IS_PREMIUM && maxFree !== Infinity && files.length > maxFree) {
       const trimmed = files.length - maxFree;
       files = files.slice(0, maxFree);
       if (trimmed > 0) {
         showNotification(
-          `Free tier supports ${maxFree} file${maxFree !== 1 ? "s" : ""} at a time. ${trimmed} file${trimmed !== 1 ? "s were" : " was"} skipped.`,
+          `Free tier processes ${maxFree} file${maxFree !== 1 ? "s" : ""} at a time — ${trimmed} file${trimmed !== 1 ? "s were" : " was"} skipped. ✦ Upgrade to Premium to process multiple files at once.`,
           "info"
         );
       }
@@ -407,7 +442,10 @@ function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinit
     e.preventDefault();
     zoneEl.classList.remove("dragover");
     const files = filterFiles(e.dataTransfer.files);
-    if (files.length) onFiles(files);
+    if (files.length) {
+      if (upsellNote) upsellNote.style.display = "block";
+      onFiles(files);
+    }
   });
 
   // File input inside the drop zone
@@ -416,7 +454,10 @@ function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinit
     input.multiple = multiple;
     input.addEventListener("change", () => {
       const files = filterFiles(input.files);
-      if (files.length) onFiles(files);
+      if (files.length) {
+        if (upsellNote) upsellNote.style.display = "block";
+        onFiles(files);
+      }
       input.value = ""; // reset so same file can be re-selected
     });
   }
