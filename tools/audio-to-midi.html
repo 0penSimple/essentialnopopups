@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio to MIDI — EssentialNoPopups</title>
+<script src="../coi-serviceworker.js"></script>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* EXPERIMENTAL BADGE */
+  .experimental-banner {
+    display: flex; align-items: center; gap: 10px;
+    background: #fff8e6; border: 1px solid #f0c040;
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 1.25rem;
+    font-size: 0.82rem; color: #7a5c00;
+  }
+  .experimental-badge {
+    background: #f0c040; color: #5a4000; font-size: 0.7rem;
+    font-weight: 700; letter-spacing: 0.06em; padding: 3px 8px;
+    border-radius: 99px; white-space: nowrap; flex-shrink: 0;
+  }
+
+  /* FILE LIST */
+  .files-section { display:none; margin-bottom:1.25rem; }
+  .files-section.show { display:block; }
+  .files-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .files-count { font-size:0.78rem; color:var(--muted); }
+
+  .file-list { display:flex; flex-direction:column; gap:6px; }
+  .file-item { display:flex; align-items:center; gap:10px; background:var(--warm-bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:0.82rem; }
+  .file-icon { font-size:1.1rem; flex-shrink:0; }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:0.82rem; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-meta { font-size:0.72rem; color:var(--faint); margin-top:1px; }
+  .file-remove { background:none; border:none; color:var(--faint); font-size:1rem; cursor:pointer; padding:0 4px; flex-shrink:0; transition:color 0.15s; }
+  .file-remove:hover { color:var(--error); }
+
+  /* MODEL LOAD STATE */
+  .model-status { display:none; font-size:0.78rem; color:var(--muted); margin-bottom:1.25rem; padding:10px 14px; background:var(--warm-bg); border:1px solid var(--border); border-radius:8px; align-items:center; gap:8px; }
+  .model-status.show { display:flex; }
+  .model-status .spinner { width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--teal-mid); border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* PROGRESS */
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.3s; width:0%; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>Audio</span>
+      <span>›</span>
+      <span>Audio to MIDI</span>
+    </div>
+    <h1>Audio to MIDI <span style="font-size:0.55em; vertical-align:middle; color:#7a5c00; background:#fff8e6; border:1px solid #f0c040; padding:2px 8px; border-radius:99px; font-family:'DM Sans',sans-serif; font-weight:700; letter-spacing:0.05em;">EXPERIMENTAL</span></h1>
+    <div class="info-btn-row">
+      <p>Convert audio recordings into MIDI files using AI. Works best with piano — other instruments will give varying results.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <!-- EXPERIMENTAL WARNING -->
+    <div class="experimental-banner">
+      <span class="experimental-badge">⚗ EXPERIMENTAL</span>
+      <span>This tool uses AI to transcribe audio. Results vary — piano recordings work best. Other instruments may produce imperfect or noisy output.</span>
+    </div>
+
+    <label>Your audio or video file</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="audio/*,video/*,.mp3,.wav,.flac,.aac,.ogg,.m4a,.mp4,.mov,.mkv,.webm">
+      <div class="drop-icon">🎹</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag a file here</div>
+      <div class="drop-sub" id="dropSub">Audio or video — MP3, WAV, MP4, WebM and more</div>
+    </div>
+
+    <!-- FILE LIST -->
+    <div class="files-section" id="filesSection">
+      <div class="files-header">
+        <div class="files-count" id="filesCount">0 files</div>
+        <div class="btn-add-more" id="addMoreBtn" style="display:none;">
+          <input type="file" accept="audio/*,video/*,.mp3,.wav,.flac,.aac,.ogg,.m4a,.mp4,.mov,.mkv,.webm" multiple onchange="addFiles(this.files); this.value=''">
+          + Add more
+        </div>
+      </div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+
+    <!-- MODEL STATUS -->
+    <div class="model-status" id="modelStatus">
+      <div class="spinner"></div>
+      <span id="modelStatusText">Loading AI model...</span>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Transcribing...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="convertBtn" onclick="convert()" disabled>
+      Transcribe &amp; download — 0/1
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
+      <li>Piano recordings give the best results. Single-melody instruments (guitar, voice, violin) give decent results. Complex multi-instrument music may produce noisy output.</li>
+      <li>This tool supports clips up to 60 seconds. For longer recordings, split them into 60-second segments and convert each one — then merge the resulting MIDI files in your DAW.</li>
+      <li>Transcription takes roughly half the duration of the audio — a 60-second clip takes about 30 seconds to process. The page may feel unresponsive during this time, which is normal.</li>
+      <li>The AI model (~15MB) loads once on first use and is cached by your browser for future visits.</li>
+      <li>Video files are supported — the audio track is extracted automatically before transcription.</li>
+      <li>Output is a standard MIDI file you can open in any DAW (GarageBand, Ableton, Logic, FL Studio etc.).</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<!-- TensorFlow.js required by Magenta -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+<!-- Magenta transcription model -->
+<script src="https://cdn.jsdelivr.net/npm/@magenta/music@1.23.1/es6/transcription.js"></script>
+<!-- FFmpeg for pre-processing non-WAV files -->
+<script src="../shared.js"></script>
+<script>
+
+  /* ── STATE ── */
+  const state = {
+    files: [],       // { file, name, size }
+    isPremium: IS_PREMIUM
+  };
+
+  let model = null;
+  let modelLoaded = false;
+  let modelLoading = false;
+  let ffmpeg = null;
+  let ffmpegLoaded = false;
+
+  /* ── SETUP ── */
+  document.addEventListener("DOMContentLoaded", () => {
+    makeDropZone(document.getElementById("dropZone"), {
+      accept:   "",
+      multiple: state.isPremium,
+      maxFree:  1,
+      onFiles:  (files) => {
+        const toLoad = IS_PREMIUM ? files : files.slice(0, 1);
+        state.files = toLoad.map(f => ({ file: f, name: f.name, size: f.size }));
+        render();
+      }
+    });
+
+    if (state.isPremium) {
+      document.getElementById("addMoreBtn").style.display = "block";
+      document.getElementById("dropSub").textContent = "Drop multiple files at once";
+    }
+
+    // Start loading model in background
+    loadModel();
+  });
+
+  function addFiles(fileList) {
+    const newFiles = Array.from(fileList).map(f => ({ file: f, name: f.name, size: f.size }));
+    state.files = [...state.files, ...newFiles];
+    render();
+  }
+
+  /* ── RENDER ── */
+  function render() {
+    const { files } = state;
+    const list    = document.getElementById("fileList");
+    const section = document.getElementById("filesSection");
+    const btn     = document.getElementById("convertBtn");
+
+    list.innerHTML = "";
+    files.forEach((item, i) => {
+      const isVideo = item.file.type.startsWith("video/");
+      const div = document.createElement("div");
+      div.className = "file-item";
+      div.innerHTML = `
+        <div class="file-icon">${isVideo ? "🎬" : "🎵"}</div>
+        <div class="file-info">
+          <div class="file-name">${item.name}</div>
+          <div class="file-meta">${formatBytes(item.size)}${isVideo ? " — audio will be extracted" : ""}</div>
+        </div>
+        <button class="file-remove" onclick="removeFile(${i})" title="Remove">×</button>
+      `;
+      list.appendChild(div);
+    });
+
+    section.classList.toggle("show", files.length > 0);
+    document.getElementById("filesCount").textContent =
+      `${files.length} file${files.length !== 1 ? "s" : ""}`;
+
+    const dropText = document.querySelector("#dropZone .drop-text");
+    if (files.length === 0) {
+      dropText.innerHTML = `<strong>Click to choose</strong> or drag a file here`;
+    } else if (files.length === 1) {
+      dropText.innerHTML = `<strong>${files[0].name}</strong>`;
+    } else {
+      dropText.innerHTML = `<strong>${files.length} files loaded</strong>`;
+    }
+
+    btn.disabled = files.length === 0;
+    btn.textContent = files.length === 0
+      ? "Transcribe & download — 0/1"
+      : `Transcribe & download — 0/${files.length}`;
+    btn.classList.remove("btn-done");
+  }
+
+  function removeFile(index) {
+    state.files.splice(index, 1);
+    render();
+  }
+
+  /* ── LOAD MAGENTA MODEL ── */
+  async function loadModel() {
+    if (modelLoaded || modelLoading) return;
+    modelLoading = true;
+
+    document.getElementById("modelStatus").classList.add("show");
+    document.getElementById("modelStatusText").textContent = "Loading AI transcription model...";
+
+    try {
+      const CHECKPOINT = "https://storage.googleapis.com/magentadata/js/checkpoints/transcription/onsets_frames_uni";
+      model = new transcription.OnsetsAndFrames(CHECKPOINT);
+      await model.initialize();
+      modelLoaded = true;
+      modelLoading = false;
+      document.getElementById("modelStatus").classList.remove("show");
+      console.log("Magenta model loaded");
+    } catch(e) {
+      modelLoading = false;
+      document.getElementById("modelStatus").classList.add("show");
+      document.getElementById("modelStatusText").textContent =
+        `⚠️ Failed to load AI model: ${e.message}. Please refresh and try again.`;
+      console.error("Model load error:", e);
+    }
+  }
+
+  /* ── LOAD FFMPEG (for video/non-WAV files) ── */
+  async function ensureFFmpeg() {
+    if (ffmpegLoaded) return true;
+
+    document.getElementById("modelStatus").classList.add("show");
+    document.getElementById("modelStatusText").textContent = "Loading FFmpeg for audio extraction...";
+
+    try {
+      await loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
+      const { createFFmpeg, fetchFile } = FFmpeg;
+      window._fetchFile = fetchFile;
+      ffmpeg = createFFmpeg({
+        log: false,
+        corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
+      });
+      await ffmpeg.load();
+      ffmpegLoaded = true;
+      document.getElementById("modelStatus").classList.remove("show");
+      return true;
+    } catch(e) {
+      document.getElementById("modelStatus").classList.add("show");
+      document.getElementById("modelStatusText").textContent =
+        `⚠️ Failed to load FFmpeg: ${e.message}`;
+      return false;
+    }
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+      const s = document.createElement("script");
+      s.src = src; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  /* ── CONVERT AUDIO TO WAV USING FFMPEG ── */
+  async function toWav(file) {
+    // If already WAV, return as-is
+    if (file.type === "audio/wav" || file.name.toLowerCase().endsWith(".wav")) {
+      return file;
+    }
+
+    // Need FFmpeg to convert to WAV first
+    if (!ffmpegLoaded) {
+      const ok = await ensureFFmpeg();
+      if (!ok) throw new Error("FFmpeg failed to load");
+    }
+
+    ffmpeg.FS("writeFile", "input", await window._fetchFile(file));
+
+    // Convert to 16kHz mono WAV — optimal for Magenta
+    await ffmpeg.run(
+      "-i", "input",
+      "-ar", "16000",   // 16kHz sample rate
+      "-ac", "1",       // mono
+      "-y", "output.wav"
+    );
+
+    const data = ffmpeg.FS("readFile", "output.wav");
+    ffmpeg.FS("unlink", "input");
+    ffmpeg.FS("unlink", "output.wav");
+
+    return new File([data.buffer], file.name.replace(/\.[^.]+$/, ".wav"), { type: "audio/wav" });
+  }
+
+  /* ── TRANSCRIBE ── */
+  async function convert() {
+    if (state.files.length === 0) return;
+
+    if (!modelLoaded) {
+      await loadModel();
+      if (!modelLoaded) return;
+    }
+
+    const total = state.files.length;
+    document.getElementById("progressSection").classList.add("show");
+
+    const batch = new BatchProcessor({
+      items:    state.files,
+      btnId:    "convertBtn",
+      btnLabel: "Transcribe",
+      zipName:  "midi_transcriptions.zip",
+
+      processOne: async (item, index) => {
+        const baseName = item.name.replace(/\.[^.]+$/, "");
+
+        document.getElementById("progressLabel").textContent =
+          `Preparing ${index + 1}/${total}: ${item.name}`;
+        document.getElementById("progressFill").style.width = "10%";
+        document.getElementById("progressPct").textContent  = "10%";
+
+        // Convert to WAV if needed
+        let wavFile;
+        try {
+          wavFile = await toWav(item.file);
+        } catch(e) {
+          throw new Error(`Could not prepare audio: ${e.message}`);
+        }
+
+        // Check duration — refuse files over 60 seconds before Magenta freezes
+        try {
+          const buf      = await wavFile.arrayBuffer();
+          const audioCtx = new AudioContext();
+          const decoded  = await audioCtx.decodeAudioData(buf);
+          audioCtx.close();
+          if (decoded.duration > 60) {
+            throw new Error(
+              `"${item.name}" is ${Math.round(decoded.duration)} seconds long. ` +
+              `This tool supports clips up to 60 seconds — longer files will freeze the browser. ` +
+              `Split your file into 60-second clips and convert each one separately.`
+            );
+          }
+        } catch(e) {
+          if (e.message.includes("seconds long")) throw e;
+          // Ignore other audio decode errors — let Magenta try anyway
+        }
+
+        document.getElementById("progressLabel").textContent =
+          `Transcribing ${index + 1}/${total}: ${item.name} (this may take a while...)`;
+
+        // Simulate progress during transcription (Magenta doesn't report progress)
+        let fakeProgress = 10;
+        const progressInterval = setInterval(() => {
+          fakeProgress = Math.min(fakeProgress + 2, 90);
+          document.getElementById("progressFill").style.width = fakeProgress + "%";
+          document.getElementById("progressPct").textContent  = fakeProgress + "%";
+        }, 1000);
+
+        // Timeout after 90 seconds — should be plenty for a 60-second clip
+        const TIMEOUT_MS = 90 * 1000;
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(
+            "Transcription timed out. The audio may be too complex — try a cleaner recording with a single instrument."
+          )), TIMEOUT_MS)
+        );
+
+        let midiBytes;
+        try {
+          const noteSequence = await Promise.race([
+            model.transcribeFromAudioFile(wavFile),
+            timeoutPromise
+          ]);
+          midiBytes = mm.sequenceProtoToMidi(noteSequence);
+        } finally {
+          clearInterval(progressInterval);
+        }
+
+        document.getElementById("progressFill").style.width = "100%";
+        document.getElementById("progressPct").textContent  = "100%";
+
+        return {
+          filename: `${baseName}.mid`,
+          data: new Blob([midiBytes], { type: "audio/midi" })
+        };
+      },
+
+      onComplete: (results) => {
+        document.getElementById("progressLabel").textContent = "Done!";
+      }
+    });
+
+    await batch.run();
+  }
+</script>
+
+</body>
+</html>
