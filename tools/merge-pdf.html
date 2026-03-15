@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Merge PDFs — EssentialNoPopups</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* FILE LIST */
+  .files-section { display: none; margin-bottom: 1.25rem; }
+  .files-section.show { display: block; }
+  .files-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .files-count { font-size: 0.78rem; color: var(--muted); }
+  .btn-add-more { font-size: 0.75rem; font-weight: 500; color: var(--teal); background: var(--teal-light); border: 1px solid var(--teal-border); border-radius: 6px; padding: 4px 10px; cursor: pointer; position: relative; overflow: hidden; transition: background 0.15s; }
+  .btn-add-more input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .btn-add-more:hover { background: #c5eddc; }
+
+  .file-list { display: flex; flex-direction: column; gap: 6px; }
+
+  .file-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--warm-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px;
+    cursor: grab; transition: box-shadow 0.15s;
+  }
+  .file-item:active { cursor: grabbing; }
+  .file-item.dragging { opacity: 0.4; }
+  .file-item.drag-over { border-color: var(--teal-mid); box-shadow: 0 0 0 2px var(--teal-light); }
+
+  .file-drag-handle { color: var(--faint); font-size: 0.9rem; flex-shrink: 0; cursor: grab; }
+  .file-icon { font-size: 1.1rem; flex-shrink: 0; }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-size: 0.82rem; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-meta { font-size: 0.72rem; color: var(--faint); margin-top: 1px; }
+  .file-remove { background: none; border: none; color: var(--faint); font-size: 1rem; cursor: pointer; padding: 0 4px; flex-shrink: 0; transition: color 0.15s; }
+  .file-remove:hover { color: var(--error); }
+
+  .drag-hint { font-size: 0.72rem; color: var(--faint); margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>PDF</span>
+      <span>›</span>
+      <span>Merge PDFs</span>
+    </div>
+    <h1>Merge PDFs</h1>
+    <div class="info-btn-row">
+      <p>Combine multiple PDF files into one. Drag to reorder, then download. Everything happens in your browser — nothing is uploaded.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <label>Your PDF files</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".pdf,application/pdf" multiple onchange="handleFiles(this.files)">
+      <div class="drop-icon">📄</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag PDF files here</div>
+      <div class="drop-sub">Select multiple PDFs — they will be merged in order</div>
+    </div>
+
+    <div class="files-section" id="filesSection">
+      <div class="files-header">
+        <div class="files-count" id="filesCount">0 files</div>
+        <div class="btn-add-more">
+          <input type="file" accept=".pdf,application/pdf" multiple onchange="addMoreFiles(this.files)">
+          + Add more
+        </div>
+      </div>
+      <div class="file-list" id="fileList"></div>
+      <div class="drag-hint">Drag files to reorder</div>
+    </div>
+
+    <button class="btn-primary" id="mergeBtn" onclick="mergePDFs()" disabled>
+      Merge &amp; download — 0/1
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
+      <li>Drag the files to set the order they appear in the merged PDF.</li>
+      <li>Password-protected PDFs cannot be merged — remove the password first.</li>
+      <li>The merged file keeps all pages from every PDF in the order you set.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="../shared.js"></script>
+<script>
+  let files = []; // array of { file, name, pages }
+  let dragSrcIndex = null;
+
+  const dropZone = document.getElementById("dropZone");
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault(); dropZone.classList.remove("dragover");
+    const pdfs = Array.from(e.dataTransfer.files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+    if (pdfs.length) handleFiles(pdfs);
+  });
+
+  function handleFiles(fileList) {
+    files = [];
+    loadFiles(Array.from(fileList));
+  }
+
+  function addMoreFiles(fileList) {
+    loadFiles(Array.from(fileList));
+  }
+
+  async function loadFiles(newFiles) {
+    const pdfs = newFiles.filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+    for (const file of pdfs) {
+      try {
+        const buf = await file.arrayBuffer();
+        const pdf = await PDFLib.PDFDocument.load(buf);
+        files.push({ file, name: file.name, pages: pdf.getPageCount(), buf });
+      } catch(e) {
+        showNotification(`Could not read "${file.name}": ${e.message}`, "error");
+      }
+    }
+    renderFileList();
+  }
+
+  function renderFileList() {
+    const list = document.getElementById("fileList");
+    list.innerHTML = "";
+
+    files.forEach((item, i) => {
+      const div = document.createElement("div");
+      div.className = "file-item"; div.draggable = true;
+
+      div.innerHTML = `
+        <div class="file-drag-handle">⠿</div>
+        <div class="file-icon">📄</div>
+        <div class="file-info">
+          <div class="file-name">${item.name}</div>
+          <div class="file-meta">${item.pages} page${item.pages !== 1 ? "s" : ""} · ${formatBytes(item.file.size)}</div>
+        </div>
+        <button class="file-remove" onclick="removeFile(${i})" title="Remove">×</button>
+      `;
+
+      div.addEventListener("dragstart", () => { dragSrcIndex = i; setTimeout(() => div.classList.add("dragging"), 0); });
+      div.addEventListener("dragend", () => div.classList.remove("dragging"));
+      div.addEventListener("dragover", e => { e.preventDefault(); div.classList.add("drag-over"); });
+      div.addEventListener("dragleave", () => div.classList.remove("drag-over"));
+      div.addEventListener("drop", e => {
+        e.preventDefault(); div.classList.remove("drag-over");
+        if (dragSrcIndex !== null && dragSrcIndex !== i) {
+          const moved = files.splice(dragSrcIndex, 1)[0];
+          files.splice(i, 0, moved);
+          renderFileList();
+        }
+      });
+
+      list.appendChild(div);
+    });
+
+    document.getElementById("filesCount").textContent = `${files.length} file${files.length !== 1 ? "s" : ""}`;
+    document.getElementById("filesSection").classList.toggle("show", files.length > 0);
+
+    const btn = document.getElementById("mergeBtn");
+    btn.disabled = files.length < 2;
+    btn.textContent = files.length < 2
+      ? "Add at least 2 PDFs to merge"
+      : `Merge & download — 0/1`;
+    btn.classList.remove("btn-done");
+  }
+
+  function removeFile(index) {
+    files.splice(index, 1);
+    renderFileList();
+  }
+
+  async function mergePDFs() {
+    if (files.length < 2) return;
+    btnLoading("mergeBtn", "Merging... 0/1");
+
+    try {
+      const merged = await PDFLib.PDFDocument.create();
+
+      for (const item of files) {
+        const srcDoc = await PDFLib.PDFDocument.load(item.buf);
+        const indices = srcDoc.getPageIndices();
+        const pages  = await merged.copyPages(srcDoc, indices);
+        pages.forEach(p => merged.addPage(p));
+      }
+
+      const pdfBytes = await merged.save();
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = "merged.pdf";
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      btnDone("mergeBtn", "✓ Done! 1/1", "Merge & download — 0/1");
+    } catch (err) {
+      showNotification(`Merge failed: ${err.message}`, "error");
+      btnReset("mergeBtn", "Merge & download — 0/1");
+    }
+  }
+</script>
+
+</body>
+</html>
