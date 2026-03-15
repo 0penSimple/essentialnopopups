@@ -211,7 +211,26 @@
       <span>Resize image</span>
     </div>
     <h1>Resize image</h1>
-    <p>Scale any image up or down by exact pixels or percentage. Everything happens in your browser — nothing is uploaded.</p>
+    <div style="display:flex; align-items:flex-start; gap:8px;">
+      <p style="flex:1;">Scale any image up or down by exact pixels or percentage. Everything happens in your browser — nothing is uploaded.</p>
+      <button onclick="toggleInfo()" id="infoBtn" title="Help & info" style="flex-shrink:0; margin-top:2px; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--teal); background:var(--teal); color:#fff; font-size:0.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;">?</button>
+    </div>
+    <div id="infoPanel" style="display:none; margin-top:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden;">
+      <div style="padding:14px 16px; border-bottom:1px solid var(--border); display:flex; gap:10px; align-items:flex-start;">
+        <div style="font-size:1rem; flex-shrink:0;">💡</div>
+        <div>
+          <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">Not sure what to do?</div>
+          <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+        </div>
+      </div>
+      <div style="padding:14px 16px; display:flex; gap:10px; align-items:flex-start;">
+        <div style="font-size:1rem; flex-shrink:0;">🙏</div>
+        <div>
+          <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">This site survives thanks to you</div>
+          <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="notification" class="notification"></div>
@@ -343,6 +362,16 @@
   let selectedMime = "image/jpeg";
   let selectedExt  = "jpg";
   let resizedBlob  = null;
+
+  function toggleInfo() {
+    const panel = document.getElementById("infoPanel");
+    const btn   = document.getElementById("infoBtn");
+    const open  = panel.style.display === "none";
+    panel.style.display = open ? "block" : "none";
+    btn.style.background = open ? "var(--teal-light)" : "var(--teal)";
+    btn.style.borderColor = open ? "var(--teal-border)" : "var(--teal)";
+    btn.style.color = open ? "var(--teal)" : "#fff";
+  }
 
   // Drag and drop
   const dropZone = document.getElementById("dropZone");
