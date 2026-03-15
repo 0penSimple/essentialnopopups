@@ -254,6 +254,13 @@
     font-size: 0.85rem;
     font-weight: 500;
     color: var(--text);
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+
+  .tool-experimental {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.05em;
+    background: #fff8e6; color: #7a5c00; border: 1px solid #f0c040;
+    padding: 1px 5px; border-radius: 99px; white-space: nowrap;
   }
 
   .tool-desc {
@@ -325,6 +332,7 @@
     <li><a href="#image">Images</a></li>
     <li><a href="#audio">Audio</a></li>
     <li><a href="#pdf">PDF</a></li>
+    <li><a href="premium.html" style="color:#6B4FBB; font-weight:500;">✦ Premium</a></li>
   </ul>
   <div class="nav-badge">Zero pop-ups, ever</div>
 </nav>
@@ -428,7 +436,7 @@
     <div class="category-header">
       <div class="cat-icon audio">🎵</div>
       <div class="cat-title">Audio</div>
-      <div class="cat-subtitle">2 tools</div>
+      <div class="cat-subtitle">3 tools</div>
     </div>
     <div class="tool-grid">
       <a href="tools/audio-converter.html" class="tool-card">
@@ -439,6 +447,11 @@
       <a href="tools/extract-audio.html" class="tool-card">
         <div class="tool-name">Extract audio from video</div>
         <div class="tool-desc">Pull the sound out of any video file</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/audio-to-midi.html" class="tool-card">
+        <div class="tool-name">Audio to MIDI <span class="tool-experimental">⚗ Experimental</span></div>
+        <div class="tool-desc">Convert recordings to MIDI using AI</div>
         <div class="tool-arrow">→</div>
       </a>
     </div>
