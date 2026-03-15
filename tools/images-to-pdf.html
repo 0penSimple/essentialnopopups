@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Images to PDF — EssentialNoPopups</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* THUMBNAILS */
+  .thumbs-section { display: none; margin-bottom: 1.25rem; }
+  .thumbs-section.show { display: block; }
+  .thumbs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .thumbs-count { font-size: 0.78rem; color: var(--muted); }
+  .btn-add-more { font-size: 0.75rem; font-weight: 500; color: var(--teal); background: var(--teal-light); border: 1px solid var(--teal-border); border-radius: 6px; padding: 4px 10px; cursor: pointer; position: relative; overflow: hidden; transition: background 0.15s; }
+  .btn-add-more input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .btn-add-more:hover { background: #c5eddc; }
+
+  .thumbs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+  }
+
+  .thumb-item {
+    position: relative; border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; cursor: grab; background: #f0ede8;
+    transition: box-shadow 0.15s;
+  }
+  .thumb-item:active { cursor: grabbing; }
+  .thumb-item.dragging { opacity: 0.4; }
+  .thumb-item.drag-over { border-color: var(--teal-mid); box-shadow: 0 0 0 2px var(--teal-light); }
+
+  .thumb-canvas-wrap {
+    width: 100%; aspect-ratio: 0.707; /* A4 ratio */
+    display: flex; align-items: center; justify-content: center;
+    background: #fff; overflow: hidden;
+  }
+  .thumb-canvas-wrap canvas { display: block; }
+
+  .thumb-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 6px; background: rgba(0,0,0,0.03);
+    border-top: 1px solid var(--border);
+  }
+  .thumb-num { font-size: 0.65rem; color: var(--faint); font-weight: 500; }
+  .thumb-remove {
+    background: none; border: none; color: var(--faint);
+    font-size: 0.8rem; cursor: pointer; padding: 0; line-height: 1;
+    transition: color 0.15s;
+  }
+  .thumb-remove:hover { color: var(--error); }
+  .thumb-hint { font-size: 0.72rem; color: var(--faint); margin-top: 6px; }
+
+  /* SETTINGS */
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.25rem; }
+  .setting-group { display: flex; flex-direction: column; gap: 6px; }
+  .setting-locked select, .setting-locked input[type="range"] { opacity: 0.5; pointer-events: none; }
+  .setting-coming { font-size: 0.7rem; color: var(--premium); margin-top: 3px; }
+
+  /* MARGIN SLIDER (premium — shown when fit mode selected) */
+  .margin-section { display: none; margin-bottom: 1.25rem; background: var(--premium-light); border: 1px solid var(--premium-border); border-radius: 10px; padding: 12px 14px; }
+  .margin-section.show { display: block; }
+  .margin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .margin-label { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--premium); }
+  .margin-value { font-size: 0.82rem; font-weight: 500; color: var(--premium); }
+  .margin-locked { font-size: 0.7rem; color: var(--premium); margin-top: 4px; opacity: 0.8; }
+
+  /* QUALITY SLIDER */
+  .quality-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .quality-value { font-size: 0.82rem; font-weight: 500; color: var(--teal); }
+
+  /* PROGRESS */
+  .progress-section { display: none; margin-bottom: 1.25rem; }
+  .progress-section.show { display: block; }
+  .progress-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .progress-track { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--teal-mid); border-radius: 99px; transition: width 0.2s; width: 0%; }
+
+  @media (max-width: 480px) { .settings-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>PDF</span>
+      <span>›</span>
+      <span>Images to PDF</span>
+    </div>
+    <h1>Images to PDF</h1>
+    <div class="info-btn-row">
+      <p>Combine multiple images into a single PDF. Drag to reorder pages, then download. Everything happens in your browser.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <label>Your images</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*" multiple>
+      <div class="drop-icon">🖼</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag images here</div>
+      <div class="drop-sub">JPG, PNG, WebP — multiple files supported</div>
+    </div>
+
+    <!-- THUMBNAILS -->
+    <div class="thumbs-section" id="thumbsSection">
+      <div class="thumbs-header">
+        <div class="thumbs-count" id="thumbsCount">0 images</div>
+        <div class="btn-add-more">
+          <input type="file" accept="image/*" multiple onchange="addFiles(this.files)">
+          + Add more
+        </div>
+      </div>
+      <div class="thumbs-grid" id="thumbsGrid"></div>
+      <div class="thumb-hint">Drag to reorder — each image becomes one page</div>
+      <div class="thumb-hint" style="margin-top:3px; color:var(--faint);">Preview quality is reduced for speed — the downloaded PDF will be full quality.</div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="settings-grid">
+
+      <div class="setting-group" id="settingPageSize">
+        <label>Page size <span class="premium-badge">✦ Premium</span></label>
+        <select id="pageSizeSelect" onchange="onStateChange('pageSize', this.value)">
+          <option value="a4" selected>A4</option>
+          <option value="letter">Letter</option>
+          <option value="auto">Match image size</option>
+        </select>
+        <div class="setting-coming" id="pageSizeComing">Coming with premium — free uses A4</div>
+      </div>
+
+      <div class="setting-group">
+        <label>Image fit</label>
+        <select id="imageFitSelect" onchange="onImageFitChange(this.value)">
+          <option value="fill" selected>Fill page</option>
+          <option value="fit">Fit with margins</option>
+        </select>
+      </div>
+
+    </div>
+
+    <!-- MARGIN SLIDER (premium — shown when fit is selected) -->
+    <div class="margin-section" id="marginSection">
+      <div class="margin-header">
+        <span class="margin-label">Margin size <span class="premium-badge">✦ Premium</span></span>
+        <span class="margin-value" id="marginVal">20 mm</span>
+      </div>
+      <input type="range" id="marginSlider" min="5" max="50" step="1" value="20"
+        oninput="onStateChange('margin', parseInt(this.value)); document.getElementById('marginVal').textContent = this.value + ' mm'"
+        style="accent-color: var(--premium);">
+      <div class="margin-locked" id="marginLocked">Coming with premium — free uses a standard margin</div>
+    </div>
+
+    <!-- QUALITY (premium) -->
+    <div class="setting-group" id="settingQuality" style="margin-bottom:1.25rem;">
+      <div class="quality-header">
+        <label style="margin:0">Output quality <span class="premium-badge">✦ Premium</span></label>
+        <div class="quality-value" id="qualityVal">92%</div>
+      </div>
+      <input type="range" id="qualitySlider" min="10" max="100" step="1" value="92"
+        oninput="onStateChange('quality', parseInt(this.value) / 100); document.getElementById('qualityVal').textContent = this.value + '%'">
+      <div class="setting-coming" id="qualityComing">Coming with premium — free uses standard quality</div>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Building PDF...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="convertBtn" onclick="convert()" disabled>
+      Convert &amp; download — 0/1
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your images are never uploaded anywhere.</li>
+      <li>Each image becomes one page in the PDF, in the order you set.</li>
+      <li>Fill page crops the image to cover the full page. Fit with margins keeps the full image with white space around it.</li>
+      <li>PNG transparency becomes white in the PDF — PDFs don't support transparent backgrounds.</li>
+      <li>Thumbnails are small and won't visually reflect quality or margin changes — the downloaded PDF will show the exact settings you chose.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="../shared.js"></script>
+<script>
+
+  /* ── STATE ── */
+  const state = {
+    files: [],       // { id, file, dataUrl, img }
+    pageSize: "a4",  // "a4" | "letter" | "auto" — premium
+    imageFit: "fill",// "fill" | "fit" — free
+    margin: 20,      // mm — premium (only used when imageFit === "fit")
+    quality: 0.92,   // 0.1–1.0 — premium
+    isPremium: IS_PREMIUM
+  };
+
+  let nextId = 0;
+  let thumbRenderQueue = []; // lazy render queue
+
+  /* ── PAGE SIZES (in PDF points: 1pt = 1/72 inch) ── */
+  const PAGE_SIZES = {
+    a4:     { w: 595, h: 842 },
+    letter: { w: 612, h: 792 }
+  };
+
+  /* ── PREMIUM GATE + SETUP ── */
+  document.addEventListener("DOMContentLoaded", () => {
+
+    // Wire up drop zone via shared helper
+    makeDropZone(document.getElementById("dropZone"), {
+      accept:   "image/",
+      multiple: true,
+      maxFree:  Infinity,
+      onFiles:  (files) => { state.files = []; loadImages(files); }
+    });
+
+    // Wire up "Add more" button
+    const addMoreInput = document.querySelector(".btn-add-more input");
+    if (addMoreInput) {
+      addMoreInput.addEventListener("change", function() {
+        const files = Array.from(this.files).filter(f => f.type.startsWith("image/"));
+        if (files.length) loadImages(files);
+        this.value = "";
+      });
+    }
+
+    if (state.isPremium) {
+      document.getElementById("pageSizeSelect").disabled  = false;
+      document.getElementById("qualitySlider").disabled   = false;
+      document.getElementById("pageSizeComing").style.display = "none";
+      document.getElementById("qualityComing").style.display  = "none";
+      document.getElementById("marginSlider").disabled = false;
+      document.getElementById("marginLocked").style.display = "none";
+    } else {
+      document.getElementById("pageSizeSelect").disabled  = true;
+      document.getElementById("qualitySlider").disabled   = true;
+      document.getElementById("pageSizeSelect").style.opacity = "0.5";
+      document.getElementById("qualitySlider").style.opacity  = "0.5";
+      document.getElementById("marginSlider").disabled = true;
+      document.getElementById("marginSlider").style.opacity = "0.5";
+    }
+  });
+
+  /* ── STATE CHANGE ── */
+  function onStateChange(key, value) {
+    if (key !== "imageFit" && !state.isPremium) return;
+    state[key] = value;
+    render();
+  }
+
+  function onImageFitChange(value) {
+    state.imageFit = value;
+    document.getElementById("marginSection").classList.toggle("show", value === "fit");
+    render();
+  }
+
+  function addFiles(fileList) {
+    const files = Array.from(fileList).filter(f => f.type.startsWith("image/"));
+    if (!files.length) return;
+    loadImages(files);
+  }
+
+  function loadImages(files) {
+    let loaded = 0;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          state.files.push({ id: nextId++, file, dataUrl: e.target.result, img });
+          loaded++;
+          if (loaded === files.length) render();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /* ── RENDER (single source of truth) ── */
+  function render() {
+    const { files } = state;
+    const grid = document.getElementById("thumbsGrid");
+    const section = document.getElementById("thumbsSection");
+    const btn = document.getElementById("convertBtn");
+
+    // Show/hide thumbnail section
+    section.classList.toggle("show", files.length > 0);
+
+    // Update count
+    document.getElementById("thumbsCount").textContent =
+      `${files.length} image${files.length !== 1 ? "s" : ""}`;
+
+    // Update drop zone text
+    if (files.length === 0) {
+      dropZone.querySelector(".drop-text").innerHTML = `<strong>Click to choose</strong> or drag images here`;
+    } else if (files.length === 1) {
+      dropZone.querySelector(".drop-text").innerHTML = `<strong>${files[0].file.name}</strong>`;
+    } else {
+      dropZone.querySelector(".drop-text").innerHTML = `<strong>${files.length} images loaded</strong>`;
+    }
+
+    // Build thumbnail grid
+    grid.innerHTML = "";
+    files.forEach((item, i) => {
+      const div = document.createElement("div");
+      div.className = "thumb-item";
+      div.draggable = true;
+      div.dataset.id = item.id;
+
+      // Canvas placeholder — will be rendered lazily
+      const wrap = document.createElement("div");
+      wrap.className = "thumb-canvas-wrap";
+      wrap.dataset.index = i;
+      const canvas = document.createElement("canvas");
+      canvas.width  = 100;
+      canvas.height = Math.round(100 / getPageAspect());
+      wrap.appendChild(canvas);
+
+      const footer = document.createElement("div");
+      footer.className = "thumb-footer";
+      footer.innerHTML = `
+        <span class="thumb-num">Page ${i + 1}</span>
+        <button class="thumb-remove" onclick="removeFile(${item.id})" title="Remove">×</button>
+      `;
+
+      div.appendChild(wrap);
+      div.appendChild(footer);
+      grid.appendChild(div);
+
+      // Queue lazy thumbnail render
+      thumbRenderQueue.push({ canvas, item, index: i });
+    });
+
+    // Wire up drag-to-reorder via shared helper
+    makeDraggable(grid, state.files, (reordered) => {
+      state.files = reordered;
+      thumbRenderQueue = [];
+      render();
+    });
+
+    // Render thumbnails lazily
+    renderNextThumbnail();
+
+    // Update button
+    btn.disabled = files.length === 0;
+    btn.textContent = files.length === 0
+      ? "Convert & download — 0/1"
+      : `Convert & download — 0/1`;
+    btn.classList.remove("btn-done");
+  }
+
+  /* ── LAZY THUMBNAIL RENDERING ── */
+  function renderNextThumbnail() {
+    if (thumbRenderQueue.length === 0) return;
+    const { canvas, item } = thumbRenderQueue.shift();
+    drawThumb(canvas, item);
+    // Schedule next one so browser stays responsive
+    requestAnimationFrame(renderNextThumbnail);
+  }
+
+  function drawThumb(canvas, item) {
+    const aspect = getPageAspect();
+    canvas.width  = 100;
+    canvas.height = Math.round(100 / aspect);
+    const ctx = canvas.getContext("2d");
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const { img } = item;
+    const fit = state.imageFit; // now free for all users
+
+    if (fit === "fill") {
+      const scale = Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+      const sw = img.naturalWidth  * scale;
+      const sh = img.naturalHeight * scale;
+      ctx.drawImage(img, (canvas.width - sw) / 2, (canvas.height - sh) / 2, sw, sh);
+    } else {
+      // Margin proportional to thumbnail size (~10px for 100px wide)
+      const MARGIN = Math.round(canvas.width * 0.1);
+      const maxW = canvas.width  - MARGIN * 2;
+      const maxH = canvas.height - MARGIN * 2;
+      const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+      const sw = img.naturalWidth  * scale;
+      const sh = img.naturalHeight * scale;
+      ctx.drawImage(img, (canvas.width - sw) / 2, (canvas.height - sh) / 2, sw, sh);
+    }
+  }
+
+  function getPageAspect() {
+    const size = state.isPremium ? state.pageSize : "a4";
+    if (size === "auto") return 1; // square placeholder for auto
+    const { w, h } = PAGE_SIZES[size];
+    return w / h;
+  }
+
+  /* ── REMOVE FILE ── */
+  function removeFile(id) {
+    state.files = state.files.filter(f => f.id !== id);
+    thumbRenderQueue = []; // cancel pending renders
+    render();
+  }
+
+  /* ── CONVERT ── */
+  async function convert() {
+    if (state.files.length === 0) return;
+
+    const btn = document.getElementById("convertBtn");
+    btn.disabled = true;
+    btn.textContent = "Building PDF... 0/1";
+    thumbRenderQueue = [];
+
+    const progress = document.getElementById("progressSection");
+    const fill     = document.getElementById("progressFill");
+    const pct      = document.getElementById("progressPct");
+    const lbl      = document.getElementById("progressLabel");
+    progress.classList.add("show");
+    fill.style.width = "0%";
+
+    try {
+      const pdfDoc   = await PDFLib.PDFDocument.create();
+      const total    = state.files.length;
+      const pageSize = state.isPremium ? state.pageSize : "a4";
+      const imageFit = state.imageFit; // free for all
+      const quality  = state.isPremium ? state.quality : 0.92;
+      const marginMM = state.isPremium ? state.margin : 20;
+      const MARGIN_PT = marginMM * 2.835; // mm to points (1mm = 2.835pt)
+      const MAX_DIM  = 2400;
+
+      for (let i = 0; i < total; i++) {
+        const { img, file } = state.files[i];
+
+        // Determine page dimensions
+        let pageW, pageH;
+        if (pageSize === "auto") {
+          pageW = img.naturalWidth;
+          pageH = img.naturalHeight;
+        } else {
+          const s = PAGE_SIZES[pageSize];
+          pageW = s.w; pageH = s.h;
+        }
+
+        // Draw image to canvas (capped at MAX_DIM)
+        const canvas = document.createElement("canvas");
+        let cw = img.naturalWidth, ch = img.naturalHeight;
+        if (cw > MAX_DIM || ch > MAX_DIM) {
+          const scale = MAX_DIM / Math.max(cw, ch);
+          cw = Math.round(cw * scale);
+          ch = Math.round(ch * scale);
+        }
+        canvas.width = cw; canvas.height = ch;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.drawImage(img, 0, 0, cw, ch);
+
+        // Convert canvas to PNG bytes for pdf-lib
+        const imgData = canvas.toDataURL("image/jpeg", quality);
+        const imgBytes = Uint8Array.from(atob(imgData.split(",")[1]), c => c.charCodeAt(0));
+        const embeddedImg = await pdfDoc.embedJpg(imgBytes);
+
+        // Add page
+        const page = pdfDoc.addPage([pageW, pageH]);
+
+        // Calculate draw dimensions based on fit
+        let drawX, drawY, drawW, drawH;
+        if (imageFit === "fill") {
+          const scale = Math.max(pageW / embeddedImg.width, pageH / embeddedImg.height);
+          drawW = embeddedImg.width  * scale;
+          drawH = embeddedImg.height * scale;
+          drawX = (pageW - drawW) / 2;
+          drawY = (pageH - drawH) / 2;
+        } else {
+          const maxW = pageW - MARGIN_PT * 2;
+          const maxH = pageH - MARGIN_PT * 2;
+          const scale = Math.min(maxW / embeddedImg.width, maxH / embeddedImg.height);
+          drawW = embeddedImg.width  * scale;
+          drawH = embeddedImg.height * scale;
+          drawX = (pageW - drawW) / 2;
+          drawY = (pageH - drawH) / 2;
+        }
+
+        page.drawImage(embeddedImg, { x: drawX, y: drawY, width: drawW, height: drawH });
+
+        // Update progress
+        const p = Math.round(((i + 1) / total) * 100);
+        fill.style.width = p + "%";
+        pct.textContent  = p + "%";
+        lbl.textContent  = `Adding page ${i + 1} of ${total}...`;
+        await new Promise(r => setTimeout(r, 0));
+      }
+
+      lbl.textContent = "Saving PDF...";
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = "images.pdf";
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      btnDone("convertBtn", "✓ Done! 1/1", "Convert & download — 0/1");
+
+    } catch(err) {
+      showNotification(`Failed: ${err.message}`, "error");
+      btn.disabled = false;
+      btn.textContent = "Convert & download — 0/1";
+    }
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Split PDF — EssentialNoPopups</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* PDF INFO */
+  .pdf-info { display: none; background: var(--warm-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 1.25rem; font-size: 0.82rem; color: var(--muted); gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pdf-info.show { display: flex; }
+  .pdf-info strong { color: var(--text); }
+  .pdf-info .sep { color: var(--border); }
+
+  /* FILE QUEUE (batch — premium locked) */
+  .file-queue { display: none; margin-bottom: 1.25rem; }
+  .file-queue.show { display: block; }
+  .queue-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .queue-item { display: flex; align-items: center; gap: 10px; background: var(--warm-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 0.82rem; }
+  .queue-item-name { flex: 1; color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .queue-item-meta { font-size: 0.72rem; color: var(--faint); flex-shrink: 0; }
+  .queue-item-remove { background: none; border: none; color: var(--faint); font-size: 1rem; cursor: pointer; padding: 0 4px; transition: color 0.15s; }
+  .queue-item-remove:hover { color: var(--error); }
+
+  .btn-add-more { font-size: 0.75rem; font-weight: 500; color: var(--teal); background: var(--teal-light); border: 1px solid var(--teal-border); border-radius: 6px; padding: 4px 10px; cursor: pointer; position: relative; overflow: hidden; transition: background 0.15s; }
+  .btn-add-more input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .btn-add-more:hover { background: #c5eddc; }
+
+  /* MODE NOTE */
+  .mode-note { font-size: 0.75rem; color: var(--faint); margin-top: 6px; line-height: 1.5; }
+  .mode-note a { color: var(--teal); font-weight: 500; }
+  .mode-note a:hover { text-decoration: underline; }
+
+  /* PREMIUM SECTION */
+  .premium-section { background: var(--premium-light); border: 1px solid var(--premium-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 1.25rem; display: none; }
+  .premium-section.show { display: block; }
+  .premium-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .premium-title { font-size: 0.82rem; font-weight: 500; color: var(--premium); }
+  .premium-desc { font-size: 0.75rem; color: var(--premium); opacity: 0.8; line-height: 1.5; margin-bottom: 10px; }
+  .ranges-input { width: 100%; background: #fff; border: 1px solid var(--premium-border); border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 0.875rem; padding: 10px 14px; outline: none; opacity: 0.5; pointer-events: none; }
+  .ranges-hint { font-size: 0.72rem; color: var(--premium); opacity: 0.7; margin-top: 5px; }
+
+  /* BATCH PREMIUM SECTION */
+  .batch-section { background: var(--premium-light); border: 1px solid var(--premium-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 1.25rem; }
+  .batch-locked { font-size: 0.75rem; color: var(--premium); opacity: 0.8; line-height: 1.5; margin-top: 6px; }
+
+  /* PROGRESS */
+  .progress-section { display: none; margin-bottom: 1.25rem; }
+  .progress-section.show { display: block; }
+  .progress-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .progress-track { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--teal-mid); border-radius: 99px; transition: width 0.2s; width: 0%; }
+
+  /* RESULT */
+  .result-section { display: none; margin-bottom: 1.25rem; }
+  .result-section.show { display: block; }
+  .result-info { background: var(--teal-light); border: 1px solid var(--teal-border); border-radius: 10px; padding: 12px 16px; font-size: 0.82rem; color: var(--teal-text); }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>PDF</span>
+      <span>›</span>
+      <span>Split PDF</span>
+    </div>
+    <h1>Split PDF</h1>
+    <div class="info-btn-row">
+      <p>Split a PDF into individual pages. Everything happens in your browser — nothing is uploaded.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <label>Your PDF</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".pdf,application/pdf" onchange="handleFiles(this.files)">
+      <div class="drop-icon">📄</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag a PDF here</div>
+      <div class="drop-sub" id="dropSub">One PDF file — upgrade to Premium to split multiple at once</div>
+    </div>
+
+    <!-- BATCH: premium locked -->
+    <div class="batch-section" style="display:none;" id="batchSection">
+      <div class="premium-header">
+        <span class="premium-badge">✦ Premium</span>
+        <span class="premium-title">Split multiple PDFs at once</span>
+      </div>
+      <div class="file-queue show" id="fileQueue">
+        <div class="queue-list" id="queueList"></div>
+        <div class="btn-add-more">
+          <input type="file" accept=".pdf,application/pdf" multiple onchange="addToBatch(this.files)">
+          + Add more PDFs
+        </div>
+      </div>
+      <div class="batch-locked" id="batchLocked">Coming with premium — free tier processes one PDF at a time.</div>
+    </div>
+
+    <div class="pdf-info" id="pdfInfo">
+      <strong id="pdfName">—</strong>
+      <span class="sep">·</span>
+      <span id="pdfPages">—</span>
+      <span class="sep">·</span>
+      <span id="pdfSize">—</span>
+    </div>
+
+    <!-- SPLIT MODE TABS -->
+    <label>Split mode</label>
+    <div class="mode-tabs">
+      <div class="mode-tab active" onclick="setMode('all')">Split all pages</div>
+      <div class="mode-tab" onclick="setMode('ranges')">Custom ranges <span class="premium-badge">✦ Premium</span></div>
+    </div>
+    <div class="mode-note" id="modeNote">
+      Splits every page into its own PDF file, downloaded as a ZIP.
+      Need specific page ranges? Split first, then use our <a href="merge-pdf.html">Merge PDFs</a> tool to recombine the pages you want.
+    </div>
+
+    <!-- PREMIUM RANGES (locked) -->
+    <!-- TO UNLOCK: add .show to premium-section, remove disabled + opacity:0.5 + pointer-events:none from ranges-input -->
+    <div class="premium-section" id="premiumSection">
+      <div class="premium-header">
+        <span class="premium-badge">✦ Premium</span>
+        <span class="premium-title">Custom page ranges</span>
+      </div>
+      <div class="premium-desc">Define exactly which pages go into each output PDF. For example: "1-4, 5-6, 7-12" creates three separate PDFs. Pages not included in any range are excluded from the output.</div>
+      <input class="ranges-input" id="rangesInput" type="text" placeholder='e.g. 1-4, 5-6, 7-12 — only these pages will be kept'>
+      <div class="ranges-hint">Coming with premium — free tier splits all pages individually.</div>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Splitting...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <!-- RESULT -->
+    <div class="result-section" id="resultSection">
+      <div class="result-info" id="resultInfo">—</div>
+    </div>
+
+    <button class="btn-primary" id="splitBtn" onclick="runSplit()" disabled>
+      Split &amp; download — 0/1
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your file is never uploaded anywhere.</li>
+      <li>Each page becomes its own PDF file, all bundled into a ZIP for easy download.</li>
+      <li>Need specific page ranges for free? Split first, then use our <a href="merge-pdf.html" style="color:var(--teal);font-weight:500;">Merge PDFs</a> tool to recombine exactly the pages you want.</li>
+      <li>Password-protected PDFs cannot be split — remove the password first.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="../shared.js"></script>
+<script>
+  // Apply premium gates on load
+  document.addEventListener("DOMContentLoaded", () => {
+    if (IS_PREMIUM) {
+      // Unlock batch section
+      document.getElementById("batchSection").style.display = "block";
+      document.getElementById("batchLocked").style.display = "none";
+      // Allow multiple files in drop zone
+      document.getElementById("fileInput").multiple = true;
+      document.getElementById("dropSub").textContent = "Drop one or multiple PDFs at once";
+      // Unlock ranges input styling
+      const rangesInput = document.getElementById("rangesInput");
+      if (rangesInput) {
+        rangesInput.style.opacity = "1";
+        rangesInput.style.pointerEvents = "auto";
+      }
+    }
+  });
+
+  let currentFile = null;
+  let pdfDoc      = null;
+  let currentMode = "all";
+  let batchFiles  = []; // for premium batch — array of { file, buf, pages }
+
+  const dropZone = document.getElementById("dropZone");
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault(); dropZone.classList.remove("dragover");
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+    if (files.length) handleFiles(files);
+  });
+
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+    if (!files.length) return;
+
+    // Free tier: only use first file
+    const toLoad = IS_PREMIUM ? files : [files[0]];
+    if (!IS_PREMIUM && files.length > 1) {
+      showNotification("Free tier supports one PDF at a time. Only the first file was loaded.", "info");
+    }
+
+    batchFiles = [];
+    for (const file of toLoad) {
+      try {
+        const buf = await file.arrayBuffer();
+        const doc = await PDFLib.PDFDocument.load(buf);
+        batchFiles.push({ file, buf, pages: doc.getPageCount() });
+      } catch(e) {
+        showNotification(`Could not read "${file.name}": ${e.message}`, "error");
+      }
+    }
+
+    if (batchFiles.length > 0) {
+      currentFile = batchFiles[0].file;
+      pdfDoc = await PDFLib.PDFDocument.load(batchFiles[0].buf);
+      const item = batchFiles[0];
+      document.getElementById("pdfName").textContent  = item.file.name;
+      document.getElementById("pdfPages").textContent = `${item.pages} page${item.pages !== 1 ? "s" : ""}`;
+      document.getElementById("pdfSize").textContent  = formatBytes(item.file.size);
+      document.getElementById("pdfInfo").classList.add("show");
+      dropZone.querySelector(".drop-text").innerHTML  = IS_PREMIUM && batchFiles.length > 1
+        ? `<strong>${batchFiles.length} PDFs loaded</strong>`
+        : `<strong>${item.file.name}</strong>`;
+      document.getElementById("resultSection").classList.remove("show");
+    }
+
+    renderBatchQueue();
+  }
+
+  // BATCH: add more PDFs to queue (premium)
+  async function addToBatch(fileList) {
+    const pdfs = Array.from(fileList).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+    for (const file of pdfs) {
+      try {
+        const buf = await file.arrayBuffer();
+        const doc = await PDFLib.PDFDocument.load(buf);
+        batchFiles.push({ file, buf, pages: doc.getPageCount() });
+      } catch(e) {
+        showNotification(`Could not read "${file.name}": ${e.message}`, "error");
+      }
+    }
+    renderBatchQueue();
+  }
+
+  function renderBatchQueue() {
+    const list = document.getElementById("queueList");
+    if (!list) return;
+    list.innerHTML = "";
+
+    const isMulti = batchFiles.length > 1;
+
+    batchFiles.forEach((item, i) => {
+      const div = document.createElement("div");
+      div.className = "queue-item";
+      div.style.cssText = "flex-direction:column; align-items:stretch; gap:8px;";
+
+      const topRow = document.createElement("div");
+      topRow.style.cssText = "display:flex; align-items:center; gap:10px;";
+      topRow.innerHTML = `
+        <span class="queue-item-name">📄 ${item.file.name}</span>
+        <span class="queue-item-meta">${item.pages} pages · ${formatBytes(item.file.size)}</span>
+        <button class="queue-item-remove" onclick="removeBatchItem(${i})">×</button>
+      `;
+      div.appendChild(topRow);
+
+      // Per-file range input only shown when:
+      // - ranges mode is active AND
+      // - there are multiple files (single file uses the bottom premium box instead)
+      if (currentMode === "ranges" && isMulti) {
+        const rangeInput = document.createElement("input");
+        rangeInput.type        = "text";
+        rangeInput.id          = `range_${i}`;
+        rangeInput.placeholder = `Pages 1–${item.pages}, e.g. 1-4, 5-6 (only selected pages are kept)`;
+        rangeInput.style.cssText = "font-size:0.8rem; padding:7px 10px; border:1px solid var(--teal-border); border-radius:8px; background:var(--warm-bg); color:var(--text); font-family:'DM Sans',sans-serif; outline:none; width:100%;";
+        div.appendChild(rangeInput);
+      }
+
+      list.appendChild(div);
+    });
+
+    // Show/hide bottom single-file range box:
+    // only show it when ranges mode + exactly 1 file
+    const premiumSection = document.getElementById("premiumSection");
+    if (premiumSection) {
+      const showSingleRangeBox = currentMode === "ranges" && !isMulti;
+      premiumSection.classList.toggle("show", showSingleRangeBox);
+    }
+
+    // Update drop zone text to match actual loaded count
+    updateDropZoneText();
+    updateSplitBtn();
+  }
+
+  function updateDropZoneText() {
+    const count = batchFiles.length;
+    const dropText = dropZone.querySelector(".drop-text");
+    const dropSub  = document.getElementById("dropSub");
+    if (count === 0) {
+      dropText.innerHTML = `<strong>Click to choose</strong> or drag a PDF here`;
+      if (dropSub) dropSub.textContent = IS_PREMIUM
+        ? "Drop one or multiple PDFs at once"
+        : "One PDF file — upgrade to Premium to split multiple at once";
+    } else if (count === 1) {
+      dropText.innerHTML = `<strong>${batchFiles[0].file.name}</strong>`;
+      if (dropSub) dropSub.textContent = IS_PREMIUM
+        ? "Drop more PDFs to add to batch"
+        : "Click to choose a different PDF";
+    } else {
+      dropText.innerHTML = `<strong>${count} PDFs loaded</strong>`;
+      if (dropSub) dropSub.textContent = "Drop more PDFs to add to batch";
+    }
+  }
+
+  function removeBatchItem(index) {
+    batchFiles.splice(index, 1);
+    if (batchFiles.length === 0) {
+      currentFile = null; pdfDoc = null;
+      document.getElementById("pdfInfo").classList.remove("show");
+    } else {
+      currentFile = batchFiles[0].file;
+      // Update single-file info bar to show first remaining file
+      const item = batchFiles[0];
+      document.getElementById("pdfName").textContent  = item.file.name;
+      document.getElementById("pdfPages").textContent = `${item.pages} page${item.pages !== 1 ? "s" : ""}`;
+      document.getElementById("pdfSize").textContent  = formatBytes(item.file.size);
+    }
+    renderBatchQueue();
+  }
+
+  function updateSplitBtn() {
+    const btn = document.getElementById("splitBtn");
+    const count = batchFiles.length || (currentFile ? 1 : 0);
+    btn.disabled    = count === 0;
+    btn.textContent = count === 0 ? "Split & download — 0/1" : `Split & download — 0/${count}`;
+    btn.classList.remove("btn-done");
+  }
+
+  function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll(".mode-tab").forEach((t, i) => {
+      t.classList.toggle("active", (i === 0 && mode === "all") || (i === 1 && mode === "ranges"));
+    });
+    document.getElementById("modeNote").style.display = mode === "all" ? "block" : "none";
+    // renderBatchQueue handles showing/hiding premiumSection and per-file inputs
+    renderBatchQueue();
+  }
+
+  async function runSplit() {
+    if (!currentFile && batchFiles.length === 0) return;
+
+    // Determine which files to process
+    // FREE: uses currentFile only (single)
+    // PREMIUM BATCH: uses batchFiles array
+    const filesToProcess = batchFiles.length > 0 ? batchFiles : [{ file: currentFile, buf: null, pages: pdfDoc?.getPageCount() }];
+
+    document.getElementById("resultSection").classList.remove("show");
+
+    const batch = new BatchProcessor({
+      items: filesToProcess,
+      btnId: "splitBtn",
+      btnLabel: "Split",
+      zipName: filesToProcess.length === 1
+        ? `${filesToProcess[0].file.name.replace(/\.pdf$/i, "")}_split.zip`
+        : "split_results.zip",
+
+      processOne: async (item, index) => {
+        // Load PDF
+        let buf = item.buf;
+        if (!buf) buf = await item.file.arrayBuffer();
+        const doc       = await PDFLib.PDFDocument.load(buf);
+        const pageCount = doc.getPageCount();
+        const baseName  = item.file.name.replace(/\.pdf$/i, "");
+
+        if (currentMode === "ranges") {
+          // PREMIUM: read per-file range input (id="range_N") or fall back to global
+          const perFileInput = document.getElementById(`range_${index}`);
+          const globalInput  = document.getElementById("rangesInput");
+          const rawRanges    = (perFileInput ? perFileInput.value : globalInput?.value || "").trim();
+          if (!rawRanges) throw new Error(`No ranges entered for "${item.file.name}"`);
+          const ranges = parseRanges(rawRanges, pageCount);
+          if (!ranges) throw new Error(`Invalid ranges for "${item.file.name}" — max page is ${pageCount}`);
+
+          // Create a ZIP for this file's ranges
+          const zip = new JSZip();
+          for (let r = 0; r < ranges.length; r++) {
+            const rangeDoc = await PDFLib.PDFDocument.create();
+            const pages    = await rangeDoc.copyPages(doc, ranges[r].map(p => p - 1));
+            pages.forEach(p => rangeDoc.addPage(p));
+            const bytes = await rangeDoc.save();
+            const label = ranges[r].length === 1
+              ? `page_${ranges[r][0]}`
+              : `pages_${ranges[r][0]}-${ranges[r][ranges[r].length - 1]}`;
+            zip.file(`${baseName}_${label}.pdf`, bytes);
+          }
+          const zipBlob = await zip.generateAsync({ type: "uint8array" });
+          return { filename: `${baseName}_ranges.zip`, data: zipBlob };
+
+        } else {
+          // FREE: split all pages
+          const zip = new JSZip();
+          for (let i = 0; i < pageCount; i++) {
+            const singleDoc  = await PDFLib.PDFDocument.create();
+            const [copied]   = await singleDoc.copyPages(doc, [i]);
+            singleDoc.addPage(copied);
+            const bytes      = await singleDoc.save();
+            const padded     = String(i + 1).padStart(String(pageCount).length, "0");
+            zip.file(`${baseName}_page_${padded}.pdf`, bytes);
+            await new Promise(r => setTimeout(r, 0));
+          }
+          const zipBlob = await zip.generateAsync({ type: "uint8array" });
+          return { filename: `${baseName}_split.zip`, data: zipBlob };
+        }
+      },
+
+      onComplete: (results) => {
+        const total = results.length;
+        document.getElementById("resultInfo").textContent =
+          `✓ Successfully split ${total} PDF${total !== 1 ? "s" : ""}.`;
+        document.getElementById("resultSection").classList.add("show");
+      }
+    });
+
+    await batch.run();
+  }
+
+  function parseRanges(input, maxPage) {
+    const parts = input.split(",").map(s => s.trim()).filter(Boolean);
+    const result = [];
+    for (const part of parts) {
+      if (part.includes("-")) {
+        const [a, b] = part.split("-").map(n => parseInt(n.trim()));
+        if (isNaN(a) || isNaN(b) || a < 1 || b < a || b > maxPage) return null;
+        const pages = [];
+        for (let i = a; i <= b; i++) pages.push(i);
+        result.push(pages);
+      } else {
+        const n = parseInt(part);
+        if (isNaN(n) || n < 1 || n > maxPage) return null;
+        result.push([n]);
+      }
+    }
+    return result.length > 0 ? result : null;
+  }
+</script>
+
+</body>
+</html>

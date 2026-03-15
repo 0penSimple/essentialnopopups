@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF to Images — EssentialNoPopups</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* FILE INFO BAR */
+  .file-info-bar { display:none; background:var(--warm-bg); border:1px solid var(--border); border-radius:10px; padding:12px 16px; margin-bottom:1.25rem; font-size:0.82rem; color:var(--muted); gap:8px; align-items:center; flex-wrap:wrap; }
+  .file-info-bar.show { display:flex; }
+  .file-info-bar strong { color:var(--text); }
+  .file-info-bar .sep { color:var(--border); }
+
+  /* SETTINGS ROW */
+  .settings-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:1.25rem; }
+  .setting-group { display:flex; flex-direction:column; gap:6px; }
+  .setting-coming { font-size:0.7rem; color:var(--premium); margin-top:3px; }
+  @media(max-width:480px) { .settings-row { grid-template-columns:1fr; } }
+
+  /* PREMIUM SECTION */
+  .premium-section { background:var(--premium-light); border:1px solid var(--premium-border); border-radius:10px; padding:14px 16px; margin-bottom:1.25rem; display:none; }
+  .premium-section.show { display:block; }
+  .premium-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px; }
+  .premium-section-title { display:flex; align-items:center; gap:8px; font-size:0.82rem; font-weight:500; color:var(--premium); }
+
+  /* PDF SWITCHER DROPDOWN */
+  .pdf-switcher { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+  .pdf-switcher label { font-size:0.78rem; color:var(--premium); white-space:nowrap; }
+  .pdf-switcher select { flex:1; font-size:0.8rem; padding:6px 10px; border:1px solid var(--premium-border); border-radius:8px; background:#fff; color:var(--text); font-family:'DM Sans',sans-serif; outline:none; }
+
+  /* SELECTION MODE TOGGLE */
+  .mode-toggle { display:flex; gap:6px; margin-bottom:12px; }
+  .mode-toggle-btn { flex:1; font-size:0.75rem; font-weight:500; padding:6px 10px; border:1px solid var(--premium-border); border-radius:8px; background:#fff; color:var(--premium); cursor:pointer; transition:all 0.15s; text-align:center; }
+  .mode-toggle-btn.active { background:var(--premium); color:#fff; border-color:var(--premium); }
+
+  /* SELECT ALL / NONE */
+  .select-actions { display:flex; gap:6px; margin-bottom:10px; }
+  .select-action-btn { font-size:0.72rem; color:var(--premium); background:none; border:1px solid var(--premium-border); border-radius:6px; padding:3px 8px; cursor:pointer; transition:background 0.15s; }
+  .select-action-btn:hover { background:var(--premium-light); }
+
+  /* VISUAL MODE — CHECKBOX THUMBNAILS */
+  .visual-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(80px, 1fr)); gap:8px; }
+  .visual-thumb { position:relative; border:2px solid var(--border); border-radius:8px; overflow:hidden; cursor:pointer; transition:border-color 0.15s; background:#f0ede8; }
+  .visual-thumb.selected { border-color:var(--premium); }
+  .visual-thumb canvas { display:block; width:100%; }
+  .visual-thumb-footer { display:flex; align-items:center; justify-content:space-between; padding:3px 6px; background:rgba(0,0,0,0.03); border-top:1px solid var(--border); }
+  .visual-thumb-num { font-size:0.6rem; color:var(--faint); font-weight:500; }
+  .visual-thumb-check { width:14px; height:14px; accent-color:var(--premium); cursor:pointer; }
+
+  /* RANGE MODE */
+  .range-input { width:100%; font-size:0.875rem; padding:10px 14px; border:1px solid var(--premium-border); border-radius:8px; background:#fff; color:var(--text); font-family:'DM Sans',sans-serif; outline:none; }
+  .range-hint { font-size:0.72rem; color:var(--premium); opacity:0.7; margin-top:5px; }
+
+  /* FREE PREVIEW THUMBNAILS */
+  .preview-section { display:none; margin-bottom:1.25rem; }
+  .preview-section.show { display:block; }
+  .preview-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(80px, 1fr)); gap:8px; }
+  .preview-thumb { border:1px solid var(--border); border-radius:8px; overflow:hidden; background:#f0ede8; }
+  .preview-thumb canvas { display:block; width:100%; }
+  .preview-thumb-footer { padding:3px 6px; background:rgba(0,0,0,0.03); border-top:1px solid var(--border); font-size:0.6rem; color:var(--faint); font-weight:500; }
+  .preview-hint { font-size:0.72rem; color:var(--faint); margin-top:6px; }
+
+  /* PROGRESS */
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>PDF</span>
+      <span>›</span>
+      <span>PDF to Images</span>
+    </div>
+    <h1>PDF to Images</h1>
+    <div class="info-btn-row">
+      <p>Convert every page of a PDF into an image file. Everything happens in your browser — nothing is uploaded.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <label>Your PDF</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".pdf,application/pdf">
+      <div class="drop-icon">📄</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag a PDF here</div>
+      <div class="drop-sub" id="dropSub">One PDF — upgrade to Premium to convert multiple at once</div>
+    </div>
+
+    <!-- FILE INFO BAR -->
+    <div class="file-info-bar" id="fileInfoBar">
+      <strong id="infoName">—</strong>
+      <span class="sep">·</span>
+      <span id="infoPages">—</span>
+      <span class="sep">·</span>
+      <span id="infoSize">—</span>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="settings-row">
+      <div class="setting-group">
+        <label>Format</label>
+        <select id="formatSelect" onchange="onStateChange('format', this.value)">
+          <option value="jpg" selected>JPG</option>
+          <option value="png">PNG</option>
+          <option value="webp">WebP</option>
+        </select>
+      </div>
+      <div class="setting-group">
+        <label>Resolution <span class="premium-badge">✦ Premium</span></label>
+        <select id="resolutionSelect" onchange="onStateChange('resolution', parseInt(this.value))">
+          <option value="150" selected>Standard (150 DPI)</option>
+          <option value="200">High (200 DPI)</option>
+          <option value="300">Max (300 DPI)</option>
+        </select>
+        <div class="setting-coming" id="resolutionComing">Coming with premium — free uses standard</div>
+      </div>
+    </div>
+
+    <!-- PREMIUM: PAGE SELECTION -->
+    <div class="premium-section" id="premiumSection">
+      <div class="premium-section-header">
+        <div class="premium-section-title">
+          <span class="premium-badge">✦ Premium</span>
+          <span>Select specific pages</span>
+        </div>
+        <!-- PDF switcher dropdown (shown when >1 PDF loaded) -->
+        <div class="pdf-switcher" id="pdfSwitcher" style="display:none;">
+          <label>PDF:</label>
+          <select id="pdfSwitcherSelect" onchange="switchPDF(parseInt(this.value))"></select>
+        </div>
+      </div>
+
+      <!-- Mode toggle -->
+      <div class="mode-toggle">
+        <div class="mode-toggle-btn active" id="modeVisual" onclick="setSelectionMode('visual')">🖼 Visual</div>
+        <div class="mode-toggle-btn" id="modeRange" onclick="setSelectionMode('range')">⌨ Range</div>
+      </div>
+
+      <!-- Select all / none -->
+      <div class="select-actions">
+        <button class="select-action-btn" onclick="selectAll()">Select all</button>
+        <button class="select-action-btn" onclick="selectNone()">Deselect all</button>
+        <span id="selectionCount" style="font-size:0.72rem; color:var(--premium); margin-left:4px; align-self:center;"></span>
+      </div>
+
+      <!-- Visual mode -->
+      <div id="visualMode">
+        <div class="visual-grid" id="visualGrid"></div>
+        <div class="preview-hint" style="margin-top:6px;">Thumbnails are low resolution previews — exported images will be full quality.</div>
+      </div>
+
+      <!-- Range mode -->
+      <div id="rangeMode" style="display:none;">
+        <input class="range-input" id="rangeInput" type="text" placeholder='e.g. 1-4, 6, 8-12'
+          oninput="onRangeInput(this.value)">
+        <div class="range-hint" id="rangeHint">Enter page numbers or ranges. Leave empty to convert all pages.</div>
+      </div>
+    </div>
+
+    <!-- FREE PREVIEW -->
+    <div class="preview-section" id="previewSection">
+      <div style="font-size:0.78rem; color:var(--muted); margin-bottom:8px;" id="previewLabel">Page previews</div>
+      <div class="preview-grid" id="previewGrid"></div>
+      <div class="preview-hint">Thumbnails are low resolution previews — exported images will be full quality.</div>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Converting...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="convertBtn" onclick="convert()" disabled>
+      Convert &amp; download — 0/1
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your PDF is never uploaded anywhere.</li>
+      <li>Each page becomes one image file, all bundled into a ZIP for easy download.</li>
+      <li>JPG is smaller and better for photos. PNG is lossless and better for text or diagrams. WebP gives the best quality-to-size ratio.</li>
+      <li>Higher resolution means larger file sizes but sharper images — 150 DPI is good for screen use, 300 DPI for print.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="../shared.js"></script>
+<script>
+  // Configure PDF.js worker
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+
+  /* ── STATE ── */
+  const state = {
+    files: [],            // { id, file, buf, pageCount, name, pdfDoc }
+    currentFileIndex: 0,  // which PDF is active in premium switcher
+    format: "jpg",        // "jpg" | "png" | "webp"
+    resolution: 150,      // DPI
+    selectionMode: "visual", // "visual" | "range"
+    selections: {},       // { [fileIndex]: Set of page numbers (1-based) }
+    rangeInputs: {},      // { [fileIndex]: string }
+    isPremium: IS_PREMIUM
+  };
+
+  let thumbQueue = [];    // lazy render queue for visual thumbnails
+  let thumbCache = {};    // { "fileIndex_pageNum": canvas } — avoids re-rendering
+
+  /* ── SETUP ── */
+  document.addEventListener("DOMContentLoaded", () => {
+    makeDropZone(document.getElementById("dropZone"), {
+      accept:  "application/pdf",
+      multiple: state.isPremium,
+      maxFree:  1,
+      onFiles:  loadFiles
+    });
+
+    if (state.isPremium) {
+      document.getElementById("dropSub").textContent = "Drop one or multiple PDFs";
+      document.getElementById("resolutionSelect").disabled = false;
+      document.getElementById("resolutionComing").style.display = "none";
+      document.getElementById("premiumSection").classList.add("show");
+    } else {
+      document.getElementById("resolutionSelect").disabled = true;
+      document.getElementById("resolutionSelect").style.opacity = "0.5";
+    }
+  });
+
+  /* ── STATE CHANGE ── */
+  function onStateChange(key, value) {
+    if (key === "resolution" && !state.isPremium) return;
+    state[key] = value;
+    render();
+  }
+
+  /* ── LOAD FILES ── */
+  async function loadFiles(fileList) {
+    state.files = [];
+    state.selections = {};
+    state.rangeInputs = {};
+    state.currentFileIndex = 0;
+    thumbCache = {};
+    thumbQueue = [];
+
+    for (const file of fileList) {
+      try {
+        const buf    = await file.arrayBuffer();
+        const pdfDoc = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+        state.files.push({
+          id: state.files.length,
+          file, buf, name: file.name,
+          pageCount: pdfDoc.numPages,
+          pdfDoc
+        });
+        // Default: all pages selected
+        state.selections[state.files.length - 1] = new Set(
+          Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1)
+        );
+        state.rangeInputs[state.files.length - 1] = "";
+      } catch(e) {
+        showNotification(`Could not read "${file.name}": ${e.message}`, "error");
+      }
+    }
+    render();
+  }
+
+  /* ── SWITCH PDF (premium) ── */
+  function switchPDF(index) {
+    // Save current range input before switching
+    if (state.selectionMode === "range") {
+      state.rangeInputs[state.currentFileIndex] =
+        document.getElementById("rangeInput").value;
+    }
+    thumbQueue = []; // cancel pending renders for old PDF
+    state.currentFileIndex = index;
+    render();
+  }
+
+  /* ── SELECTION MODE ── */
+  function setSelectionMode(mode) {
+    if (mode === "range" && state.selectionMode === "visual") {
+      // Convert current selection to range string
+      const sel = state.selections[state.currentFileIndex];
+      if (sel && sel.size > 0) {
+        state.rangeInputs[state.currentFileIndex] = selectionToRangeStr(sel);
+      }
+    } else if (mode === "visual" && state.selectionMode === "range") {
+      // Parse range string back to selection set
+      const raw = document.getElementById("rangeInput").value.trim();
+      state.rangeInputs[state.currentFileIndex] = raw;
+      const file = state.files[state.currentFileIndex];
+      if (file) {
+        const parsed = parseRanges(raw, file.pageCount);
+        if (parsed) {
+          state.selections[state.currentFileIndex] =
+            new Set(parsed.flat());
+        }
+      }
+    }
+    state.selectionMode = mode;
+    render();
+  }
+
+  /* ── SELECT ALL / NONE ── */
+  function selectAll() {
+    const file = state.files[state.currentFileIndex];
+    if (!file) return;
+    state.selections[state.currentFileIndex] =
+      new Set(Array.from({ length: file.pageCount }, (_, i) => i + 1));
+    if (state.selectionMode === "range") {
+      state.rangeInputs[state.currentFileIndex] = "";
+    }
+    render();
+  }
+
+  function selectNone() {
+    state.selections[state.currentFileIndex] = new Set();
+    if (state.selectionMode === "range") {
+      state.rangeInputs[state.currentFileIndex] = "";
+      document.getElementById("rangeInput").value = "";
+    }
+    render();
+  }
+
+  /* ── RANGE INPUT HANDLER ── */
+  function onRangeInput(value) {
+    state.rangeInputs[state.currentFileIndex] = value;
+    const file = state.files[state.currentFileIndex];
+    if (!file) return;
+    const parsed = parseRanges(value.trim(), file.pageCount);
+    if (parsed || value.trim() === "") {
+      // Valid or empty (means all) — update selection set
+      state.selections[state.currentFileIndex] = parsed
+        ? new Set(parsed.flat())
+        : new Set(Array.from({ length: file.pageCount }, (_, i) => i + 1));
+      document.getElementById("rangeHint").textContent =
+        value.trim() === ""
+          ? "Leave empty to convert all pages."
+          : `${state.selections[state.currentFileIndex].size} page(s) selected.`;
+      document.getElementById("rangeHint").style.color = "";
+    } else {
+      document.getElementById("rangeHint").textContent =
+        `Invalid range — max page is ${file.pageCount}.`;
+      document.getElementById("rangeHint").style.color = "var(--error)";
+    }
+    updateConvertBtn();
+  }
+
+  /* ── TOGGLE VISUAL CHECKBOX ── */
+  function togglePage(fileIndex, pageNum) {
+    const sel = state.selections[fileIndex];
+    if (sel.has(pageNum)) sel.delete(pageNum);
+    else sel.add(pageNum);
+    updateSelectionCount();
+    updateConvertBtn();
+    // Update just this thumb's visual state without full re-render
+    const thumb = document.querySelector(`.visual-thumb[data-page="${pageNum}"]`);
+    if (thumb) {
+      thumb.classList.toggle("selected", sel.has(pageNum));
+      const cb = thumb.querySelector(".visual-thumb-check");
+      if (cb) cb.checked = sel.has(pageNum);
+    }
+  }
+
+  /* ── RENDER ── */
+  function render() {
+    const { files, currentFileIndex, isPremium, selectionMode } = state;
+    const hasFiles = files.length > 0;
+
+    // Update drop zone text
+    const dropText = document.querySelector("#dropZone .drop-text");
+    if (dropText) {
+      if (!hasFiles) {
+        dropText.innerHTML = `<strong>Click to choose</strong> or drag a PDF here`;
+      } else if (files.length === 1) {
+        dropText.innerHTML = `<strong>${files[0].name}</strong>`;
+      } else {
+        dropText.innerHTML = `<strong>${files.length} PDFs loaded</strong>`;
+      }
+    }
+
+    // File info bar (shows first/current file info)
+    const file = files[currentFileIndex];
+    if (file) {
+      document.getElementById("infoName").textContent  = file.name;
+      document.getElementById("infoPages").textContent = `${file.pageCount} page${file.pageCount !== 1 ? "s" : ""}`;
+      document.getElementById("infoSize").textContent  = formatBytes(file.file.size);
+      document.getElementById("fileInfoBar").classList.add("show");
+    } else {
+      document.getElementById("fileInfoBar").classList.remove("show");
+    }
+
+    if (isPremium && hasFiles) {
+      // PDF switcher — only show when >1 file
+      const switcher    = document.getElementById("pdfSwitcher");
+      const switcherSel = document.getElementById("pdfSwitcherSelect");
+      if (files.length > 1) {
+        switcher.style.display = "flex";
+        switcherSel.innerHTML  = files.map((f, i) =>
+          `<option value="${i}" ${i === currentFileIndex ? "selected" : ""}>${f.name}</option>`
+        ).join("");
+      } else {
+        switcher.style.display = "none";
+      }
+
+      // Mode toggle buttons
+      document.getElementById("modeVisual").classList.toggle("active", selectionMode === "visual");
+      document.getElementById("modeRange").classList.toggle("active",  selectionMode === "range");
+
+      // Show correct mode UI
+      document.getElementById("visualMode").style.display = selectionMode === "visual" ? "block" : "none";
+      document.getElementById("rangeMode").style.display  = selectionMode === "range"  ? "block" : "none";
+
+      if (selectionMode === "visual" && file) {
+        renderVisualGrid(file, currentFileIndex);
+      } else if (selectionMode === "range") {
+        const savedRange = state.rangeInputs[currentFileIndex] || "";
+        document.getElementById("rangeInput").value = savedRange;
+        if (file) {
+          document.getElementById("rangeHint").textContent =
+            savedRange.trim() === ""
+              ? `Enter page numbers or ranges. Leave empty to convert all ${file.pageCount} pages.`
+              : `${state.selections[currentFileIndex]?.size || 0} page(s) selected.`;
+        }
+      }
+
+      updateSelectionCount();
+      document.getElementById("previewSection").classList.remove("show");
+
+    } else if (!isPremium && hasFiles && file) {
+      // Free tier — show preview thumbnails
+      renderFreePreview(file);
+    }
+
+    updateConvertBtn();
+  }
+
+  /* ── VISUAL GRID (premium) ── */
+  function renderVisualGrid(file, fileIndex) {
+    thumbQueue = [];
+    const grid = document.getElementById("visualGrid");
+    grid.innerHTML = "";
+    const sel = state.selections[fileIndex] || new Set();
+
+    for (let p = 1; p <= file.pageCount; p++) {
+      const isSelected = sel.has(p);
+      const div = document.createElement("div");
+      div.className = `visual-thumb${isSelected ? " selected" : ""}`;
+      div.dataset.page = p;
+      div.onclick = () => togglePage(fileIndex, p);
+
+      const canvas = document.createElement("canvas");
+      canvas.style.aspectRatio = "0.707";
+
+      const footer = document.createElement("div");
+      footer.className = "visual-thumb-footer";
+      footer.innerHTML = `
+        <span class="visual-thumb-num">p.${p}</span>
+        <input type="checkbox" class="visual-thumb-check" ${isSelected ? "checked" : ""}
+          onclick="event.stopPropagation(); togglePage(${fileIndex}, ${p})">
+      `;
+      div.appendChild(canvas);
+      div.appendChild(footer);
+      grid.appendChild(div);
+
+      // Queue lazy render
+      const cacheKey = `${fileIndex}_${p}`;
+      if (thumbCache[cacheKey]) {
+        // Already rendered — copy from cache
+        canvas.width  = thumbCache[cacheKey].width;
+        canvas.height = thumbCache[cacheKey].height;
+        canvas.getContext("2d").drawImage(thumbCache[cacheKey], 0, 0);
+      } else {
+        thumbQueue.push({ canvas, pdfDoc: file.pdfDoc, pageNum: p, cacheKey });
+      }
+    }
+    renderNextThumb();
+  }
+
+  /* ── FREE PREVIEW ── */
+  function renderFreePreview(file) {
+    thumbQueue = [];
+    const grid = document.getElementById("previewGrid");
+    grid.innerHTML = "";
+    document.getElementById("previewLabel").textContent =
+      `Page previews — ${file.pageCount} page${file.pageCount !== 1 ? "s" : ""}`;
+    document.getElementById("previewSection").classList.add("show");
+
+    for (let p = 1; p <= file.pageCount; p++) {
+      const div = document.createElement("div");
+      div.className = "preview-thumb";
+      const canvas = document.createElement("canvas");
+      canvas.style.aspectRatio = "0.707";
+      const footer = document.createElement("div");
+      footer.className = "preview-thumb-footer";
+      footer.textContent = `Page ${p}`;
+      div.appendChild(canvas);
+      div.appendChild(footer);
+      grid.appendChild(div);
+
+      const cacheKey = `0_${p}`;
+      if (thumbCache[cacheKey]) {
+        canvas.width  = thumbCache[cacheKey].width;
+        canvas.height = thumbCache[cacheKey].height;
+        canvas.getContext("2d").drawImage(thumbCache[cacheKey], 0, 0);
+      } else {
+        thumbQueue.push({ canvas, pdfDoc: file.pdfDoc, pageNum: p, cacheKey });
+      }
+    }
+    renderNextThumb();
+  }
+
+  /* ── LAZY THUMB RENDERER ── */
+  async function renderNextThumb() {
+    if (thumbQueue.length === 0) return;
+    const { canvas, pdfDoc, pageNum, cacheKey } = thumbQueue.shift();
+    try {
+      const page     = await pdfDoc.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 0.3 });
+      canvas.width   = viewport.width;
+      canvas.height  = viewport.height;
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      // Cache the rendered canvas
+      const cached   = document.createElement("canvas");
+      cached.width   = canvas.width;
+      cached.height  = canvas.height;
+      cached.getContext("2d").drawImage(canvas, 0, 0);
+      thumbCache[cacheKey] = cached;
+    } catch(e) {
+      // Silently skip failed pages
+    }
+    requestAnimationFrame(renderNextThumb);
+  }
+
+  /* ── SELECTION COUNT ── */
+  function updateSelectionCount() {
+    const sel   = state.selections[state.currentFileIndex];
+    const count = sel ? sel.size : 0;
+    const file  = state.files[state.currentFileIndex];
+    const total = file ? file.pageCount : 0;
+    document.getElementById("selectionCount").textContent =
+      `${count} of ${total} page${total !== 1 ? "s" : ""} selected`;
+  }
+
+  /* ── CONVERT BUTTON ── */
+  function updateConvertBtn() {
+    const btn   = document.getElementById("convertBtn");
+    const total = state.files.length;
+    btn.disabled = total === 0;
+    btn.textContent = total === 0
+      ? "Convert & download — 0/1"
+      : `Convert & download — 0/${total}`;
+    btn.classList.remove("btn-done");
+  }
+
+  /* ── CONVERT ── */
+  async function convert() {
+    if (state.files.length === 0) return;
+    thumbQueue = [];
+
+    const total = state.files.length;
+    document.getElementById("progressSection").classList.add("show");
+    document.getElementById("progressFill").style.width = "0%";
+
+    const batch = new BatchProcessor({
+      items:    state.files,
+      btnId:    "convertBtn",
+      btnLabel: "Convert",
+      zipName:  total === 1
+        ? `${state.files[0].name.replace(/\.pdf$/i, "")}_images.zip`
+        : "pdf_images.zip",
+
+      processOne: async (fileItem, fileIdx) => {
+        const { pdfDoc, name, pageCount } = fileItem;
+        const baseName = name.replace(/\.pdf$/i, "");
+        const format   = state.format;
+        const dpi      = state.isPremium ? state.resolution : 150;
+        const scale    = dpi / 72; // PDF points to pixels
+        const mimeType = format === "png" ? "image/png"
+                       : format === "webp" ? "image/webp"
+                       : "image/jpeg";
+        const ext      = format;
+
+        // Determine which pages to convert
+        let pagesToConvert;
+        if (state.isPremium) {
+          const sel = state.selections[fileIdx];
+          pagesToConvert = sel && sel.size > 0
+            ? Array.from(sel).sort((a, b) => a - b)
+            : Array.from({ length: pageCount }, (_, i) => i + 1);
+        } else {
+          pagesToConvert = Array.from({ length: pageCount }, (_, i) => i + 1);
+        }
+
+        if (pagesToConvert.length === 0) {
+          throw new Error(`No pages selected for "${name}"`);
+        }
+
+        // Create a ZIP for this PDF's images
+        const zip = new JSZip();
+        const pad = String(pageCount).length;
+
+        for (let i = 0; i < pagesToConvert.length; i++) {
+          const pageNum  = pagesToConvert[i];
+          const page     = await pdfDoc.getPage(pageNum);
+          const viewport = page.getViewport({ scale });
+          const canvas   = document.createElement("canvas");
+          canvas.width   = viewport.width;
+          canvas.height  = viewport.height;
+          const ctx      = canvas.getContext("2d");
+          ctx.fillStyle  = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          await page.render({ canvasContext: ctx, viewport }).promise;
+
+          const dataUrl  = canvas.toDataURL(mimeType, 0.92);
+          const b64      = dataUrl.split(",")[1];
+          const bytes    = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+          const padded   = String(pageNum).padStart(pad, "0");
+          zip.file(`${baseName}_page_${padded}.${ext}`, bytes);
+
+          // Update inner progress
+          const pct = Math.round(((i + 1) / pagesToConvert.length) * 100);
+          document.getElementById("progressFill").style.width = pct + "%";
+          document.getElementById("progressPct").textContent  = pct + "%";
+          document.getElementById("progressLabel").textContent =
+            `PDF ${fileIdx + 1}/${total} — page ${i + 1}/${pagesToConvert.length}`;
+          await new Promise(r => setTimeout(r, 0));
+        }
+
+        const zipData = await zip.generateAsync({ type: "uint8array" });
+        return { filename: `${baseName}_images.zip`, data: zipData };
+      },
+
+      onComplete: () => {
+        document.getElementById("progressLabel").textContent = "Done!";
+      }
+    });
+
+    await batch.run();
+  }
+
+  /* ── HELPERS ── */
+  function parseRanges(input, maxPage) {
+    if (!input || !input.trim()) return null;
+    const parts = input.split(",").map(s => s.trim()).filter(Boolean);
+    const result = [];
+    for (const part of parts) {
+      if (part.includes("-")) {
+        const [a, b] = part.split("-").map(n => parseInt(n.trim()));
+        if (isNaN(a) || isNaN(b) || a < 1 || b < a || b > maxPage) return null;
+        const pages = [];
+        for (let i = a; i <= b; i++) pages.push(i);
+        result.push(pages);
+      } else {
+        const n = parseInt(part);
+        if (isNaN(n) || n < 1 || n > maxPage) return null;
+        result.push([n]);
+      }
+    }
+    return result.length > 0 ? result : null;
+  }
+
+  function selectionToRangeStr(sel) {
+    const pages = Array.from(sel).sort((a, b) => a - b);
+    if (pages.length === 0) return "";
+    const ranges = [];
+    let start = pages[0], end = pages[0];
+    for (let i = 1; i < pages.length; i++) {
+      if (pages[i] === end + 1) { end = pages[i]; }
+      else {
+        ranges.push(start === end ? `${start}` : `${start}-${end}`);
+        start = end = pages[i];
+      }
+    }
+    ranges.push(start === end ? `${start}` : `${start}-${end}`);
+    return ranges.join(", ");
+  }
+</script>
+
+</body>
+</html>
