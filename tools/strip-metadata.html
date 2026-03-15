@@ -4,152 +4,32 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Strip Metadata — EssentialNoPopups</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared.css">
 <style>
-  :root {
-    --teal:        #0F6E56;
-    --teal-mid:    #1D9E75;
-    --teal-light:  #e1f5ee;
-    --teal-border: #9FE1CB;
-    --teal-text:   #085041;
-    --warm-bg:     #faf8f5;
-    --surface:     #ffffff;
-    --border:      #e8e4de;
-    --text:        #1a1a18;
-    --muted:       #6b6860;
-    --faint:       #a8a49e;
-    --error:       #c0392b;
-    --error-light: #fdf0ee;
-    --error-border:#e8b4af;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--warm-bg); color: var(--text); min-height: 100vh; }
-  a { text-decoration: none; color: inherit; }
-
-  nav {
-    position: sticky; top: 0; z-index: 100;
-    background: rgba(250,248,245,0.92);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--border);
-    padding: 0 clamp(1rem, 4vw, 3rem);
-    height: 56px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .nav-logo { font-family: 'Lora', serif; font-size: 1.1rem; letter-spacing: -0.01em; }
-  .nav-logo em { font-style: normal; color: var(--teal); }
-  .nav-back { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; transition: color 0.15s; }
-  .nav-back:hover { color: var(--teal); }
-  .nav-badge { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.06em; background: var(--teal-light); color: var(--teal-text); border: 1px solid var(--teal-border); border-radius: 99px; padding: 4px 12px; text-transform: uppercase; }
-
-  .page { max-width: 640px; margin: 0 auto; padding: clamp(2rem, 6vw, 3.5rem) clamp(1rem, 4vw, 2rem) 4rem; }
-
-  .page-header { margin-bottom: 2rem; opacity: 0; animation: fadeUp 0.4s 0.1s forwards; }
-  .breadcrumb { font-size: 0.75rem; color: var(--faint); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 6px; }
-  .breadcrumb a:hover { color: var(--teal); }
-  .page-header h1 { font-family: 'Lora', serif; font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 400; letter-spacing: -0.02em; margin-bottom: 0.4rem; }
-  .page-header p { font-size: 0.9rem; color: var(--muted); line-height: 1.6; }
-
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.75rem; margin-bottom: 1rem; opacity: 0; animation: fadeUp 0.4s 0.2s forwards; }
-
-  label { display: block; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
-
-  /* DROP ZONE */
-  .drop-zone {
-    border: 2px dashed var(--border); border-radius: 12px; padding: 2.5rem 1.5rem;
-    text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 1.25rem; position: relative;
-  }
-  .drop-zone:hover, .drop-zone.dragover { border-color: var(--teal-border); background: var(--teal-light); }
-  .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-  .drop-icon { font-size: 2rem; margin-bottom: 0.5rem; }
-  .drop-text { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.25rem; }
-  .drop-text strong { color: var(--teal); }
-  .drop-sub { font-size: 0.75rem; color: var(--faint); }
-
   /* METADATA TABLE */
   .meta-section { display: none; margin-bottom: 1.25rem; }
   .meta-section.show { display: block; }
-
-  .meta-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 10px;
-  }
+  .meta-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
   .meta-found { font-size: 0.82rem; color: var(--muted); }
   .meta-found strong { color: var(--text); }
-
-  .meta-table {
-    width: 100%; border-collapse: collapse;
-    font-size: 0.78rem;
-  }
+  .meta-scroll { background: var(--warm-bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; max-height: 240px; overflow-y: auto; }
+  .meta-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
   .meta-table tr { border-bottom: 1px solid var(--border); }
   .meta-table tr:last-child { border-bottom: none; }
   .meta-table td { padding: 7px 10px; vertical-align: top; }
-  .meta-table td:first-child {
-    color: var(--faint); font-weight: 500; white-space: nowrap;
-    width: 40%; padding-right: 16px;
-  }
+  .meta-table td:first-child { color: var(--faint); font-weight: 500; white-space: nowrap; width: 40%; padding-right: 16px; }
   .meta-table td:last-child { color: var(--text); word-break: break-word; }
-
-  .meta-scroll {
-    background: var(--warm-bg); border: 1px solid var(--border);
-    border-radius: 10px; overflow: hidden;
-    max-height: 240px; overflow-y: auto;
-  }
-
-  .meta-empty {
-    display: none;
-    background: var(--teal-light); border: 1px solid var(--teal-border);
-    border-radius: 10px; padding: 12px 16px;
-    font-size: 0.82rem; color: var(--teal-text);
-    margin-bottom: 1.25rem;
-  }
-  .meta-empty.show { display: block; }
-
-  /* GPS highlight */
   .gps-row td { background: #fff8e6; }
   .gps-row td:first-child { color: #8a6200; }
   .gps-row td:last-child { color: #5a3e00; }
 
-  /* BUTTON */
-  .btn-strip { width: 100%; background: var(--teal); border: none; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.875rem; font-weight: 500; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .btn-strip:hover { background: var(--teal-mid); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(15,110,86,0.25); }
-  .btn-strip:active { transform: translateY(0); box-shadow: none; }
-  .btn-strip:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-  .btn-strip.btn-done { background: var(--teal); opacity: 1; cursor: default; }
-
-  .notification { border-radius: 10px; padding: 12px 16px; font-size: 0.8rem; line-height: 1.5; display: none; margin-bottom: 1rem; border: 1px solid; }
-  .notification.show { display: block; }
-  .notification.error { background: var(--error-light); border-color: var(--error-border); color: var(--error); }
-
-  .info-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.25rem 1.5rem; opacity: 0; animation: fadeUp 0.4s 0.35s forwards; }
-  .info-card h3 { font-family: 'Lora', serif; font-size: 0.95rem; font-weight: 500; margin-bottom: 0.75rem; }
-  .info-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-  .info-list li { font-size: 0.8rem; color: var(--muted); line-height: 1.5; display: flex; gap: 8px; }
-  .info-list li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--teal-border); flex-shrink: 0; margin-top: 7px; }
-
-  .ad-slot { margin: 1rem 0; opacity: 0; animation: fadeUp 0.4s 0.4s forwards; }
-  .ad-slot-inner { background: var(--surface); border: 1px dashed var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; }
-
-  footer { border-top: 1px solid var(--border); background: var(--surface); padding: 1.5rem clamp(1rem, 4vw, 3rem); display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
-  .footer-logo { font-family: 'Lora', serif; font-size: 0.95rem; }
-  .footer-logo em { font-style: normal; color: var(--teal); }
-  .footer-tagline { font-size: 0.72rem; color: var(--faint); margin-top: 2px; }
-  .footer-right { font-size: 0.78rem; color: var(--muted); text-align: right; line-height: 1.8; }
-  .footer-right a { color: var(--teal); font-weight: 500; }
-  .footer-right a:hover { text-decoration: underline; }
-
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-  @media (max-width: 480px) { .footer-right { text-align: left; } }
+  .meta-empty { display: none; background: var(--teal-light); border: 1px solid var(--teal-border); border-radius: 10px; padding: 12px 16px; font-size: 0.82rem; color: var(--teal-text); margin-bottom: 1.25rem; }
+  .meta-empty.show { display: block; }
 </style>
 </head>
 <body>
 
-<nav>
-  <a href="../index.html" class="nav-logo">Essential<em>NoPopups</em></a>
-  <a href="../index.html" class="nav-back">← All tools</a>
-  <div class="nav-badge">Zero pop-ups, ever</div>
-</nav>
+<nav id="shared-nav"></nav>
 
 <div class="page">
 
@@ -162,23 +42,23 @@
       <span>Strip metadata</span>
     </div>
     <h1>Strip metadata</h1>
-    <div style="display:flex; align-items:flex-start; gap:8px;">
-      <p style="flex:1;">Remove hidden data from your photos before sharing — including GPS location, device info, and timestamps. The image itself is unchanged.</p>
-      <button onclick="toggleInfo()" id="infoBtn" title="Help & info" style="flex-shrink:0; margin-top:2px; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--teal); background:var(--teal); color:#fff; font-size:0.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;">?</button>
+    <div class="info-btn-row">
+      <p>Remove hidden data from your photos before sharing — including GPS location, device info, and timestamps. The image itself is unchanged.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
     </div>
-    <div id="infoPanel" style="display:none; margin-top:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden;">
-      <div style="padding:14px 16px; border-bottom:1px solid var(--border); display:flex; gap:10px; align-items:flex-start;">
-        <div style="font-size:1rem; flex-shrink:0;">💡</div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
         <div>
-          <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">Not sure what to do?</div>
-          <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
         </div>
       </div>
-      <div style="padding:14px 16px; display:flex; gap:10px; align-items:flex-start;">
-        <div style="font-size:1rem; flex-shrink:0;">🙏</div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
         <div>
-          <div style="font-size:0.8rem; font-weight:500; color:var(--text); margin-bottom:3px;">This site survives thanks to you</div>
-          <div style="font-size:0.78rem; color:var(--muted); line-height:1.5;">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
         </div>
       </div>
     </div>
@@ -186,7 +66,6 @@
 
   <div id="notification" class="notification"></div>
 
-  <!-- Top banner ad -->
   <div class="ad-slot" style="margin-bottom:1.25rem;">
     <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
   </div>
@@ -201,7 +80,6 @@
       <div class="drop-sub">JPG, PNG, WebP supported</div>
     </div>
 
-    <!-- METADATA FOUND -->
     <div class="meta-section" id="metaSection">
       <div class="meta-header">
         <div class="meta-found">Found <strong id="metaCount">0</strong> metadata fields</div>
@@ -211,18 +89,16 @@
       </div>
     </div>
 
-    <!-- NO METADATA -->
     <div class="meta-empty" id="metaEmpty">
       No readable metadata found in this image — it may have already been stripped.
     </div>
 
-    <button class="btn-strip" id="stripBtn" onclick="stripAndDownload()" disabled>
+    <button class="btn-primary" id="stripBtn" onclick="stripAndDownload()" disabled>
       Strip &amp; download — 0/1
     </button>
 
   </div>
 
-  <!-- Bottom 300x250 ad -->
   <div class="ad-slot">
     <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
   </div>
@@ -240,65 +116,35 @@
 
 </div>
 
-<footer>
-  <div>
-    <div class="footer-logo">Essential<em>NoPopups</em></div>
-    <div class="footer-tagline">Free tools. No pop-ups. Ever.</div>
-  </div>
-  <div class="footer-right">
-    Issues or suggestions?<br>
-    <a href="mailto:essentialsnopopups@gmail.com">essentialsnopopups@gmail.com</a>
-  </div>
-</footer>
-
-<!-- exif-js for reading metadata -->
+<footer id="shared-footer"></footer>
 <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js"></script>
-
+<script src="../shared.js"></script>
 <script>
   let currentFile = null;
-
-  function toggleInfo() {
-    const panel = document.getElementById("infoPanel");
-    const btn   = document.getElementById("infoBtn");
-    const open  = panel.style.display === "none";
-    panel.style.display = open ? "block" : "none";
-    btn.style.background = open ? "var(--teal-light)" : "var(--teal)";
-    btn.style.borderColor = open ? "var(--teal-border)" : "var(--teal)";
-    btn.style.color = open ? "var(--teal)" : "#fff";
-  }
 
   const dropZone = document.getElementById("dropZone");
   dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
   dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
   dropZone.addEventListener("drop", e => {
-    e.preventDefault();
-    dropZone.classList.remove("dragover");
+    e.preventDefault(); dropZone.classList.remove("dragover");
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith("image/")) handleFile(file);
   });
 
   function handleFile(file) {
-    if (!file || !file.type.startsWith("image/")) {
-      showError("Please choose an image file.");
-      return;
-    }
+    if (!file || !file.type.startsWith("image/")) return;
     currentFile = file;
-
     dropZone.querySelector(".drop-text").innerHTML = `<strong>${file.name}</strong>`;
     dropZone.querySelector(".drop-sub").textContent = "Click to choose a different image";
-
-    // Reset
     document.getElementById("metaSection").classList.remove("show");
     document.getElementById("metaEmpty").classList.remove("show");
     document.getElementById("stripBtn").disabled = true;
 
-    // Read EXIF
     EXIF.getData(file, function() {
       const allTags = EXIF.getAllTags(this);
       const entries = Object.entries(allTags).filter(([k, v]) =>
         v !== undefined && v !== null && v !== "" && !ArrayBuffer.isView(v)
       );
-
       if (entries.length === 0) {
         document.getElementById("metaEmpty").classList.add("show");
       } else {
@@ -306,7 +152,6 @@
         document.getElementById("metaCount").textContent = entries.length;
         document.getElementById("metaSection").classList.add("show");
       }
-
       document.getElementById("stripBtn").disabled = false;
     });
   }
@@ -314,117 +159,53 @@
   function renderMetaTable(entries) {
     const table = document.getElementById("metaTable");
     table.innerHTML = "";
-
-    // GPS fields to highlight
-    const gpsKeys = ["GPSLatitude", "GPSLongitude", "GPSAltitude",
-                     "GPSLatitudeRef", "GPSLongitudeRef", "GPSDateStamp", "GPSTimeStamp"];
-
-    // Sort: GPS first, then alphabetical
+    const gpsKeys = ["GPSLatitude","GPSLongitude","GPSAltitude","GPSLatitudeRef","GPSLongitudeRef","GPSDateStamp","GPSTimeStamp"];
     entries.sort(([a], [b]) => {
-      const aGps = a.startsWith("GPS");
-      const bGps = b.startsWith("GPS");
-      if (aGps && !bGps) return -1;
-      if (!aGps && bGps) return 1;
+      const aG = a.startsWith("GPS"), bG = b.startsWith("GPS");
+      if (aG && !bG) return -1; if (!aG && bG) return 1;
       return a.localeCompare(b);
     });
-
     entries.forEach(([key, value]) => {
       const tr = document.createElement("tr");
       const isGps = gpsKeys.includes(key) || key.startsWith("GPS");
       if (isGps) tr.className = "gps-row";
-
       const tdKey = document.createElement("td");
-      tdKey.textContent = formatKey(key) + (isGps ? " 📍" : "");
-
+      tdKey.textContent = key.replace(/([A-Z])/g, " $1").trim() + (isGps ? " 📍" : "");
       const tdVal = document.createElement("td");
-      tdVal.textContent = formatValue(value);
-
-      tr.appendChild(tdKey);
-      tr.appendChild(tdVal);
+      tdVal.textContent = Array.isArray(value) ? value.join(", ") :
+        (typeof value === "object" && value !== null && value.numerator !== undefined)
+          ? (value.numerator / value.denominator).toFixed(4) : String(value);
+      tr.appendChild(tdKey); tr.appendChild(tdVal);
       table.appendChild(tr);
     });
   }
 
-  function formatKey(key) {
-    // Convert camelCase/PascalCase to readable words
-    return key
-      .replace(/([A-Z])/g, " $1")
-      .replace(/^GPS /, "GPS ")
-      .trim();
-  }
-
-  function formatValue(val) {
-    if (Array.isArray(val)) return val.join(", ");
-    if (typeof val === "object" && val !== null) {
-      if (val.numerator !== undefined) return (val.numerator / val.denominator).toFixed(4);
-      return JSON.stringify(val);
-    }
-    return String(val);
-  }
-
   function stripAndDownload() {
     if (!currentFile) return;
-
-    const btn = document.getElementById("stripBtn");
-    btn.disabled = true;
-    btn.textContent = "Stripping... 0/1";
-
-    // Draw image to canvas — this naturally drops all metadata
+    btnLoading("stripBtn", "Stripping... 0/1");
     const reader = new FileReader();
     reader.onload = e => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        canvas.width  = img.naturalWidth;
-        canvas.height = img.naturalHeight;
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
         const ctx = canvas.getContext("2d");
-
-        // Preserve transparency for PNG
-        if (currentFile.type === "image/png") {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-        } else {
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-
+        if (currentFile.type !== "image/png") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
         ctx.drawImage(img, 0, 0);
-
         const mime = currentFile.type === "image/png" ? "image/png" : "image/jpeg";
         const ext  = currentFile.type === "image/png" ? "png" : "jpg";
-        const quality = mime === "image/jpeg" ? 0.95 : undefined;
-
         canvas.toBlob(blob => {
           const baseName = currentFile.name.replace(/\.[^.]+$/, "");
-          const filename  = `${baseName}_clean.${ext}`;
-
           const url = URL.createObjectURL(blob);
-          const a   = document.createElement("a");
-          a.href     = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
+          const a = document.createElement("a"); a.href = url; a.download = `${baseName}_clean.${ext}`;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
           URL.revokeObjectURL(url);
-
-          btn.textContent = "✓ Done! 1/1";
-          btn.className   = "btn-strip btn-done";
-          setTimeout(() => {
-            btn.disabled    = false;
-            btn.textContent = "Strip & download — 0/1";
-            btn.className   = "btn-strip";
-          }, 3000);
-
-        }, mime, quality);
+          btnDone("stripBtn", "✓ Done! 1/1", "Strip & download — 0/1");
+        }, mime, mime === "image/jpeg" ? 0.95 : undefined);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(currentFile);
-  }
-
-  function showError(msg) {
-    const el = document.getElementById("notification");
-    el.textContent = msg;
-    el.className = "notification show error";
   }
 </script>
 
