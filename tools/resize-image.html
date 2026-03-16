@@ -6,51 +6,59 @@
 <title>Resize Image — EssentialNoPopups</title>
 <link rel="stylesheet" href="../shared.css">
 <style>
-  /* ORIGINAL INFO BAR */
-  .orig-info { display: none; background: var(--warm-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 1.25rem; font-size: 0.82rem; color: var(--muted); gap: 8px; align-items: center; flex-wrap: wrap; }
-  .orig-info.show { display: flex; }
-  .orig-info strong { color: var(--text); }
-  .orig-info .sep { color: var(--border); }
+  .orig-info { display:none; background:var(--warm-bg); border:1px solid var(--border); border-radius:10px; padding:12px 16px; margin-bottom:1.25rem; font-size:0.82rem; color:var(--muted); gap:8px; align-items:center; flex-wrap:wrap; }
+  .orig-info.show { display:flex; }
+  .orig-info strong { color:var(--text); }
+  .orig-info .sep { color:var(--border); }
 
-  /* PIXEL INPUTS */
-  .pixel-inputs { display: none; gap: 12px; align-items: center; margin-bottom: 1.25rem; }
-  .pixel-inputs.show { display: flex; }
-  .dim-group { flex: 1; }
-  .dim-group label { margin-bottom: 6px; }
-  .dim-sep { color: var(--faint); font-size: 1.2rem; margin-top: 24px; flex-shrink: 0; }
-  .lock-row { display: flex; align-items: center; gap: 8px; margin-bottom: 1.25rem; }
-  .lock-checkbox { width: 15px; height: 15px; accent-color: var(--teal); cursor: pointer; }
-  .lock-label { font-size: 0.78rem; color: var(--muted); cursor: pointer; }
+  .pixel-inputs { display:none; gap:12px; align-items:center; margin-bottom:1.25rem; }
+  .pixel-inputs.show { display:flex; }
+  .dim-group { flex:1; }
+  .dim-group label { margin-bottom:6px; }
+  .dim-sep { color:var(--faint); font-size:1.2rem; margin-top:24px; flex-shrink:0; }
+  .lock-row { display:flex; align-items:center; gap:8px; margin-bottom:1.25rem; }
+  .lock-checkbox { width:15px; height:15px; accent-color:var(--teal); cursor:pointer; }
+  .lock-label { font-size:0.78rem; color:var(--muted); cursor:pointer; }
 
-  /* PERCENTAGE INPUT */
-  .pct-input { display: none; margin-bottom: 1.25rem; }
-  .pct-input.show { display: block; }
-  .pct-row { display: flex; align-items: center; gap: 12px; }
-  .pct-row input { flex: 1; }
-  .pct-unit { font-size: 0.9rem; color: var(--muted); flex-shrink: 0; }
-  .pct-result { font-size: 0.78rem; color: var(--faint); margin-top: 8px; }
-  .pct-result strong { color: var(--teal-text); }
+  .pct-input { display:none; margin-bottom:1.25rem; }
+  .pct-input.show { display:block; }
+  .pct-row { display:flex; align-items:center; gap:12px; }
+  .pct-row input { flex:1; }
+  .pct-unit { font-size:0.9rem; color:var(--muted); flex-shrink:0; }
+  .pct-result { font-size:0.78rem; color:var(--faint); margin-top:8px; }
+  .pct-result strong { color:var(--teal-text); }
 
-  /* UPSCALE WARNING */
-  .upscale-warn { display: none; background: #fef9ec; border: 1px solid #f5d98a; border-radius: 8px; padding: 10px 14px; font-size: 0.78rem; color: #92600a; margin-bottom: 1.25rem; line-height: 1.5; }
-  .upscale-warn.show { display: block; }
+  .upscale-warn { display:none; background:#fef9ec; border:1px solid #f5d98a; border-radius:8px; padding:10px 14px; font-size:0.78rem; color:#92600a; margin-bottom:1.25rem; line-height:1.5; }
+  .upscale-warn.show { display:block; }
 
-  @media (max-width: 480px) { .pixel-inputs { flex-direction: column; } .dim-sep { display: none; } }
+  .files-section { display:none; margin-bottom:1.25rem; }
+  .files-section.show { display:block; }
+  .files-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .files-count { font-size:0.78rem; color:var(--muted); }
+  .file-list { display:flex; flex-direction:column; gap:6px; }
+  .file-item { display:flex; align-items:center; gap:10px; background:var(--warm-bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .file-icon { font-size:1.1rem; flex-shrink:0; }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:0.82rem; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-meta { font-size:0.72rem; color:var(--faint); margin-top:1px; }
+  .file-remove { background:none; border:none; color:var(--faint); font-size:1rem; cursor:pointer; padding:0 4px; flex-shrink:0; transition:color 0.15s; }
+  .file-remove:hover { color:var(--error); }
+
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
+
+  @media(max-width:480px) { .pixel-inputs { flex-direction:column; } .dim-sep { display:none; } }
 </style>
 </head>
 <body>
-
 <nav id="shared-nav"></nav>
-
 <div class="page">
-
   <div class="page-header">
     <div class="breadcrumb">
-      <a href="../index.html">Home</a>
-      <span>›</span>
-      <span>Images</span>
-      <span>›</span>
-      <span>Resize image</span>
+      <a href="../index.html">Home</a><span>›</span><span>Images</span><span>›</span><span>Resize image</span>
     </div>
     <h1>Resize image</h1>
     <div class="info-btn-row">
@@ -62,41 +70,47 @@
         <div class="info-panel-icon">💡</div>
         <div>
           <div class="info-panel-title">Not sure what to do?</div>
-          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
         </div>
       </div>
       <div class="info-panel-row">
         <div class="info-panel-icon">🙏</div>
         <div>
           <div class="info-panel-title">This site survives thanks to you</div>
-          <div class="info-panel-text">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
         </div>
       </div>
     </div>
   </div>
 
   <div id="notification" class="notification"></div>
-
   <div class="ad-slot" style="margin-bottom:1.25rem;">
     <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
   </div>
 
   <div class="card">
-
     <label>Your image</label>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
+      <input type="file" id="fileInput" accept="image/*">
       <div class="drop-icon">🖼</div>
       <div class="drop-text"><strong>Click to choose</strong> or drag an image here</div>
-      <div class="drop-sub">Any image format supported</div>
+      <div class="drop-sub" id="dropSub">Any image format supported</div>
+    </div>
+
+    <div class="files-section" id="filesSection">
+      <div class="files-header">
+        <div class="files-count" id="filesCount">0 files</div>
+        <div class="btn-add-more" id="addMoreBtn" style="display:none;">
+          <input type="file" accept="image/*" multiple onchange="addFiles(this.files); this.value=''">
+          + Add more
+        </div>
+      </div>
+      <div class="file-list" id="fileList"></div>
     </div>
 
     <div class="orig-info" id="origInfo">
-      <strong id="origName">—</strong>
-      <span class="sep">·</span>
-      <span id="origDims">—</span>
-      <span class="sep">·</span>
-      <span id="origFileSize">—</span>
+      <strong id="origName">—</strong><span class="sep">·</span>
+      <span id="origDims">—</span><span class="sep">·</span><span id="origFileSize">—</span>
     </div>
 
     <label>Resize method</label>
@@ -131,7 +145,7 @@
     </div>
 
     <div class="upscale-warn" id="upscaleWarn">
-      ⚠ You're upscaling beyond the original size. The result may look blurry or pixelated — basic resizing cannot add detail that wasn't there.
+      ⚠ You're upscaling beyond the original size. The result may look blurry or pixelated.
     </div>
 
     <div class="format-row">
@@ -157,10 +171,16 @@
       </div>
     </div>
 
-    <button class="btn-primary" id="resizeBtn" onclick="downloadResized()" disabled>
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Resizing...</span><span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <button class="btn-primary" id="resizeBtn" onclick="resizeAll()" disabled>
       Resize &amp; download — 0/1
     </button>
-
   </div>
 
   <div class="ad-slot">
@@ -176,31 +196,61 @@
       <li>For the smallest file size at good quality, choose WebP.</li>
     </ul>
   </div>
-
 </div>
 
 <footer id="shared-footer"></footer>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="../shared.js"></script>
 <script>
-  let currentFile = null;
-  let origW = 0, origH = 0;
-  let currentMode = "pixels";
-  let selectedMime = "image/jpeg";
-  let selectedExt  = "jpg";
-  let resizedBlob  = null;
+  const state = { files: [], isPremium: IS_PREMIUM };
+  let origW = 0, origH = 0, currentMode = "pixels";
+  let selectedMime = "image/jpeg", selectedExt = "jpg";
 
-  const dropZone = document.getElementById("dropZone");
-  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-  dropZone.addEventListener("drop", e => {
-    e.preventDefault(); dropZone.classList.remove("dragover");
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) handleFile(file);
+  document.addEventListener("DOMContentLoaded", () => {
+    makeDropZone(document.getElementById("dropZone"), {
+      accept: "image/", multiple: state.isPremium, maxFree: 1,
+      onFiles: (files) => {
+        state.files = files.map(f => ({ file: f, name: f.name, size: f.size }));
+        render();
+        if (files.length === 1) loadSinglePreview(files[0]);
+        else { document.getElementById("origInfo").classList.remove("show"); document.getElementById("previewSection").classList.remove("show"); }
+      }
+    });
+    if (state.isPremium) {
+      document.getElementById("addMoreBtn").style.display = "block";
+      document.getElementById("dropSub").textContent = "Drop multiple images at once";
+    }
   });
 
-  function handleFile(file) {
-    if (!file || !file.type.startsWith("image/")) return;
-    currentFile = file;
+  function addFiles(fileList) {
+    const newFiles = Array.from(fileList).filter(f => f.type.startsWith("image/")).map(f => ({ file: f, name: f.name, size: f.size }));
+    state.files = [...state.files, ...newFiles]; render();
+  }
+
+  function render() {
+    const { files } = state;
+    const list = document.getElementById("fileList");
+    list.innerHTML = "";
+    files.forEach((item, i) => {
+      const div = document.createElement("div"); div.className = "file-item";
+      div.innerHTML = `<div class="file-icon">🖼</div><div class="file-info"><div class="file-name">${item.name}</div><div class="file-meta">${formatBytes(item.size)}</div></div><button class="file-remove" onclick="removeFile(${i})">×</button>`;
+      list.appendChild(div);
+    });
+    document.getElementById("filesSection").classList.toggle("show", files.length > 0);
+    document.getElementById("filesCount").textContent = `${files.length} image${files.length !== 1 ? "s" : ""}`;
+    const dropText = document.querySelector("#dropZone .drop-text");
+    if (files.length === 0) dropText.innerHTML = `<strong>Click to choose</strong> or drag an image here`;
+    else if (files.length === 1) dropText.innerHTML = `<strong>${files[0].name}</strong>`;
+    else dropText.innerHTML = `<strong>${files.length} images loaded</strong>`;
+    const btn = document.getElementById("resizeBtn");
+    btn.disabled = files.length === 0;
+    btn.textContent = files.length === 0 ? "Resize & download — 0/1" : `Resize & download — 0/${files.length}`;
+    btn.classList.remove("btn-done");
+  }
+
+  function removeFile(index) { state.files.splice(index, 1); render(); }
+
+  function loadSinglePreview(file) {
     const img = new Image();
     const reader = new FileReader();
     reader.onload = e => {
@@ -213,8 +263,6 @@
         document.getElementById("origImg").src = e.target.result;
         document.getElementById("origDimsLabel").textContent = `${origW} × ${origH}`;
         document.getElementById("lockRow").style.display = "flex";
-        dropZone.querySelector(".drop-text").innerHTML = `<strong>${file.name}</strong>`;
-        dropZone.querySelector(".drop-sub").textContent = "Click to choose a different image";
         document.getElementById("newW").value = origW;
         document.getElementById("newH").value = origH;
         onPctInput(); updatePreview();
@@ -226,17 +274,15 @@
 
   function setMode(mode) {
     currentMode = mode;
-    document.querySelectorAll(".mode-tab").forEach((t, i) => {
-      t.classList.toggle("active", (i === 0 && mode === "pixels") || (i === 1 && mode === "percent"));
-    });
+    document.querySelectorAll(".mode-tab").forEach((t, i) => t.classList.toggle("active", (i === 0 && mode === "pixels") || (i === 1 && mode === "percent")));
     document.getElementById("pixelInputs").classList.toggle("show", mode === "pixels");
-    document.getElementById("lockRow").style.display = mode === "pixels" && currentFile ? "flex" : "none";
+    document.getElementById("lockRow").style.display = mode === "pixels" && state.files.length === 1 ? "flex" : "none";
     document.getElementById("pctInput").classList.toggle("show", mode === "percent");
-    if (currentFile) updatePreview();
+    if (state.files.length) updatePreview();
   }
 
   function onWidthInput() {
-    if (!currentFile) return;
+    if (!state.files.length) return;
     if (document.getElementById("lockAspect").checked && origW) {
       const w = parseInt(document.getElementById("newW").value) || 0;
       document.getElementById("newH").value = Math.round(w * origH / origW) || "";
@@ -245,7 +291,7 @@
   }
 
   function onHeightInput() {
-    if (!currentFile) return;
+    if (!state.files.length) return;
     if (document.getElementById("lockAspect").checked && origH) {
       const h = parseInt(document.getElementById("newH").value) || 0;
       document.getElementById("newW").value = Math.round(h * origW / origH) || "";
@@ -264,24 +310,23 @@
   function onPctInput() {
     if (!origW) return;
     const pct = parseFloat(document.getElementById("pctVal").value) || 0;
-    const nw = Math.round(origW * pct / 100);
-    const nh = Math.round(origH * pct / 100);
+    const nw = Math.round(origW * pct / 100), nh = Math.round(origH * pct / 100);
     document.getElementById("pctResult").innerHTML = pct > 0 ? `Result: <strong>${nw} × ${nh} px</strong>` : "—";
-    if (currentFile) updatePreview();
+    if (state.files.length) updatePreview();
   }
 
-  function getTargetDims() {
+  function getTargetDims(iW, iH) {
     if (currentMode === "pixels") {
       return { w: parseInt(document.getElementById("newW").value) || 0, h: parseInt(document.getElementById("newH").value) || 0 };
     } else {
       const pct = parseFloat(document.getElementById("pctVal").value) || 0;
-      return { w: Math.round(origW * pct / 100), h: Math.round(origH * pct / 100) };
+      return { w: Math.round(iW * pct / 100), h: Math.round(iH * pct / 100) };
     }
   }
 
   function updatePreview() {
-    if (!currentFile) return;
-    const { w, h } = getTargetDims();
+    if (state.files.length !== 1) return;
+    const { w, h } = getTargetDims(origW, origH);
     if (!w || !h) return;
     document.getElementById("upscaleWarn").classList.toggle("show", w > origW || h > origH);
     const img = new Image();
@@ -292,42 +337,60 @@
       if (selectedMime === "image/jpeg") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h); }
       ctx.drawImage(img, 0, 0, w, h);
       canvas.toBlob(blob => {
-        resizedBlob = blob;
         document.getElementById("resizedImg").src = URL.createObjectURL(blob);
         document.getElementById("newDimsLabel").textContent = `${w} × ${h}`;
         document.getElementById("previewSection").classList.add("show");
-        const btn = document.getElementById("resizeBtn");
-        btn.disabled = false;
-        btn.textContent = "Resize & download — 0/1";
-        btn.classList.remove("btn-done");
       }, selectedMime, 0.92);
     };
     const reader = new FileReader();
     reader.onload = e => img.src = e.target.result;
-    reader.readAsDataURL(currentFile);
+    reader.readAsDataURL(state.files[0].file);
   }
 
   function selectFormat(el) {
     document.querySelectorAll(".format-pill").forEach(p => p.classList.remove("selected"));
     el.classList.add("selected");
     selectedMime = el.dataset.fmt; selectedExt = el.dataset.ext;
-    if (currentFile) updatePreview();
+    if (state.files.length) updatePreview();
   }
 
-  function downloadResized() {
-    if (!resizedBlob || !currentFile) return;
-    const { w, h } = getTargetDims();
-    const baseName = currentFile.name.replace(/\.[^.]+$/, "");
-    const filename  = `${baseName}_${w}x${h}.${selectedExt}`;
-    const url = URL.createObjectURL(resizedBlob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    btnDone("resizeBtn", "✓ Done! 1/1", "Resize & download — 0/1");
+  function resizeImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = e => {
+        img.onload = () => {
+          const { w, h } = getTargetDims(img.naturalWidth, img.naturalHeight);
+          if (!w || !h) { reject(new Error("Invalid dimensions")); return; }
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (selectedMime === "image/jpeg") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h); }
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob(blob => {
+            const base = file.name.replace(/\.[^.]+$/, "");
+            resolve({ filename: `${base}_${w}x${h}.${selectedExt}`, data: blob });
+          }, selectedMime, 0.92);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function resizeAll() {
+    if (!state.files.length) return;
+    document.getElementById("progressSection").classList.add("show");
+    const batch = new BatchProcessor({
+      items: state.files, btnId: "resizeBtn", btnLabel: "Resize", zipName: "resized_images.zip",
+      processOne: async (item, index) => {
+        document.getElementById("progressLabel").textContent = `Resizing ${index + 1}/${state.files.length}: ${item.name}`;
+        return await resizeImage(item.file);
+      },
+      onComplete: () => { document.getElementById("progressLabel").textContent = "Done!"; }
+    });
+    await batch.run();
   }
 </script>
-
 </body>
 </html>

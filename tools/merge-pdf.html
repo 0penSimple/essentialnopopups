@@ -205,7 +205,7 @@
 
   async function mergePDFs() {
     if (files.length < 2) return;
-    btnLoading("mergeBtn", "Merging... 0/1");
+    await btnLoading("mergeBtn", "Merging...", files.length);
 
     try {
       const merged = await PDFLib.PDFDocument.create();

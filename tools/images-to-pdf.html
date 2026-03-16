@@ -453,10 +453,8 @@
   async function convert() {
     if (state.files.length === 0) return;
 
-    const btn = document.getElementById("convertBtn");
-    btn.disabled = true;
-    btn.textContent = "Building PDF... 0/1";
     thumbRenderQueue = [];
+    await btnLoading("convertBtn", "Building PDF...", state.files.length);
 
     const progress = document.getElementById("progressSection");
     const fill     = document.getElementById("progressFill");

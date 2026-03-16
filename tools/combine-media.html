@@ -489,13 +489,12 @@
       if (!ffmpegReady) return;
     }
 
+    await btnLoading("combineBtn", "Combining...");
+
     document.getElementById("progressSection").classList.add("show");
     document.getElementById("progressFill").style.width = "0%";
     document.getElementById("progressPct").textContent  = "0%";
     document.getElementById("progressLabel").textContent = "Combining...";
-
-    const btn = document.getElementById("combineBtn");
-    btn.disabled = true;
 
     try {
       const ext     = state.videoFile.name.split(".").pop().toLowerCase();

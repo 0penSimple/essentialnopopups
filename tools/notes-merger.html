@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notes Merger — EssentialNoPopups</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* ── FILE CARDS ── */
+  .files-section { display:none; margin-bottom:1.25rem; }
+  .files-section.show { display:block; }
+  .files-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .files-count { font-size:0.78rem; color:var(--muted); }
+
+  .file-list { display:flex; flex-direction:column; gap:8px; }
+
+  .file-card {
+    background:var(--warm-bg);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 14px;
+    cursor:grab;
+    transition: background 0.15s, border-color 0.15s;
+    user-select: none;
+  }
+  .file-card:active { cursor:grabbing; }
+  .file-card.dragging { opacity:0.4; }
+  .file-card.drag-over { border-color:var(--teal-border); background:var(--teal-light); }
+
+  .file-card-top {
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:10px;
+  }
+  .file-drag-handle { color:var(--faint); font-size:0.85rem; flex-shrink:0; cursor:grab; }
+  .file-icon { font-size:1.1rem; flex-shrink:0; }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:0.82rem; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-meta { font-size:0.72rem; color:var(--faint); margin-top:1px; }
+  .file-status-ok  { font-size:0.72rem; color:var(--teal); margin-top:1px; }
+  .file-status-err { font-size:0.72rem; color:var(--error); margin-top:1px; }
+  .file-remove { background:none; border:none; color:var(--faint); font-size:1.1rem; cursor:pointer; padding:0 4px; flex-shrink:0; transition:color 0.15s; line-height:1; }
+  .file-remove:hover { color:var(--error); }
+
+  .file-card-settings {
+    display:grid;
+    grid-template-columns: 1fr auto;
+    gap:10px;
+    align-items:center;
+    padding-top:10px;
+    border-top:1px solid var(--border);
+  }
+
+  .file-heading-input {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:8px;
+    color:var(--text);
+    font-family:'DM Sans', sans-serif;
+    font-size:0.8rem;
+    padding:7px 10px;
+    outline:none;
+    transition:border-color 0.2s;
+    width:100%;
+  }
+  .file-heading-input:focus { border-color:var(--teal-border); }
+  .file-heading-input::placeholder { color:var(--faint); }
+  /* prevent card drag when typing */
+  .file-heading-input:focus { cursor:text; }
+
+  .file-page-toggle {
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:0.75rem;
+    color:var(--muted);
+    white-space:nowrap;
+    flex-shrink:0;
+    cursor:pointer;
+    user-select:none;
+  }
+  .toggle-switch {
+    position:relative; width:32px; height:18px;
+    background:var(--border); border-radius:99px;
+    transition:background 0.2s; flex-shrink:0;
+  }
+  .toggle-switch.on { background:var(--teal); }
+  .toggle-switch::after {
+    content:''; position:absolute;
+    top:3px; left:3px;
+    width:12px; height:12px;
+    background:#fff; border-radius:50%;
+    transition:transform 0.2s;
+  }
+  .toggle-switch.on::after { transform:translateX(14px); }
+
+  /* ── ADD MORE ── */
+  .add-more-label {
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:0.78rem; color:var(--teal); font-weight:500;
+    cursor:pointer; padding:4px 0;
+  }
+  .add-more-label input { display:none; }
+  .add-more-label:hover { opacity:0.8; }
+
+  /* ── OUTPUT SETTINGS ── */
+  .output-settings { margin-bottom:1.25rem; }
+  .settings-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+  .setting-group { display:flex; flex-direction:column; gap:6px; }
+  .setting-coming { font-size:0.7rem; color:var(--premium); margin-top:3px; }
+  @media(max-width:480px) { .settings-row { grid-template-columns:1fr; } }
+
+  /* ── PREMIUM LOCKED CONTROL ── */
+  .premium-locked { opacity:0.5; pointer-events:none; }
+
+  /* ── FIND & REPLACE RULES ── */
+  .rule-row { display:grid; grid-template-columns:1fr 1fr auto; gap:8px; align-items:center; }
+  .rule-input {
+    background:var(--surface); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); font-family:'DM Sans',sans-serif; font-size:0.8rem;
+    padding:7px 10px; outline:none; transition:border-color 0.2s; width:100%;
+  }
+  .rule-input:focus { border-color:var(--teal-border); }
+  .rule-input::placeholder { color:var(--faint); }
+  .rule-input:disabled { opacity:0.5; cursor:not-allowed; }
+  .rule-remove {
+    background:none; border:none; color:var(--faint); font-size:1.1rem;
+    cursor:pointer; padding:0 4px; flex-shrink:0; transition:color 0.15s; line-height:1;
+  }
+  .rule-remove:hover { color:var(--error); }
+  .rule-labels { display:grid; grid-template-columns:1fr 1fr auto; gap:8px; margin-bottom:4px; }
+  .rule-label { font-size:0.68rem; color:var(--faint); padding-left:2px; }
+
+  /* ── PROGRESS ── */
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.3s; width:0%; }
+
+  /* ── SEPARATOR PREVIEW ── */
+  .sep-line  { border:none; border-top:1px solid var(--border); margin:0; }
+  .sep-space { height:1.5rem; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>Productivity</span>
+      <span>›</span>
+      <span>Notes Merger</span>
+    </div>
+    <h1>Notes Merger</h1>
+    <div class="info-btn-row">
+      <p>Merge and export text files to PDF, Word, and more. Everything happens in your browser — nothing is uploaded.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <label>Your files</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".txt,.md,.docx,.pdf">
+      <div class="drop-icon">📄</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag files here</div>
+      <div class="drop-sub">.txt, .md, .docx, .pdf — drag to reorder after loading</div>
+    </div>
+
+    <!-- FILE LIST -->
+    <div class="files-section" id="filesSection">
+      <div class="files-header">
+        <div class="files-count" id="filesCount">0 files</div>
+        <label class="add-more-label">
+          <input type="file" accept=".txt,.md,.docx,.pdf" multiple onchange="addMoreFiles(this.files); this.value='';">
+          + Add more
+        </label>
+      </div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+
+    <!-- ADVANCED OPTIONS -->
+    <div id="advancedSection" style="display:none; margin-bottom:1.25rem;">
+      <button
+        id="advancedToggleBtn"
+        onclick="toggleAdvanced()"
+        style="width:100%; background:none; border:1px solid var(--border); border-radius:10px;
+               padding:11px 16px; font-family:'DM Sans',sans-serif; font-size:0.82rem;
+               color:var(--muted); cursor:pointer; display:flex; align-items:center;
+               justify-content:space-between; transition:all 0.15s;"
+        onmouseover="this.style.borderColor='var(--teal-border)';this.style.color='var(--teal)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"
+      >
+        <span>⚙ Advanced options</span>
+        <span id="advancedChevron" style="transition:transform 0.2s;">▾</span>
+      </button>
+
+      <div id="advancedPanel" style="display:none; margin-top:10px; background:var(--warm-bg);
+           border:1px solid var(--border); border-radius:10px; padding:16px;">
+
+        <!-- FIND & REPLACE -->
+        <div style="margin-bottom:4px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+            <label style="margin:0; font-size:0.72rem; font-weight:500; letter-spacing:0.08em;
+                          text-transform:uppercase; color:var(--faint);">
+              Find &amp; replace <span class="premium-badge">✦ Premium</span>
+            </label>
+            <button id="addRuleBtn" onclick="addRule()"
+              style="background:none; border:1px solid var(--teal-border); border-radius:8px;
+                     color:var(--teal); font-family:'DM Sans',sans-serif; font-size:0.75rem;
+                     font-weight:500; padding:4px 10px; cursor:pointer; transition:all 0.15s;"
+              onmouseover="this.style.background='var(--teal-light)'"
+              onmouseout="this.style.background='none'"
+            >+ Add rule</button>
+          </div>
+          <div id="ruleList" style="display:flex; flex-direction:column; gap:8px;"></div>
+          <div style="font-size:0.72rem; color:var(--faint); margin-top:8px; line-height:1.5;">
+            Runs across all files at export time, in order from top to bottom.
+            Leave "Replace with" empty to delete the matched text.
+          </div>
+          <div id="findReplacePremiumNote" style="font-size:0.7rem; color:var(--premium); margin-top:6px; display:none;">
+            Coming with premium — apply text replacements across all your files at once
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- OUTPUT SETTINGS -->
+    <div class="output-settings" id="outputSettings" style="display:none;">
+
+      <div class="settings-row">
+        <div class="setting-group">
+          <label>Export format</label>
+          <select id="formatSelect" onchange="onStateChange('format', this.value)">
+            <option value="pdf" selected>PDF</option>
+            <option value="docx">Word (.docx)</option>
+            <option value="txt">Plain text (.txt)</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label>Separator between files</label>
+          <select id="separatorSelect" onchange="onStateChange('separator', this.value)">
+            <option value="line" selected>Horizontal line</option>
+            <option value="space">Extra space</option>
+            <option value="none">Nothing</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="setting-group">
+          <label id="pageNumLabel">Page numbers in output</label>
+          <select id="pageNumSelect" onchange="onStateChange('pageNumbers', this.value)">
+            <option value="none" selected>None</option>
+            <option value="bottom-center">Bottom centre</option>
+            <option value="bottom-right">Bottom right</option>
+            <option value="bottom-left">Bottom left</option>
+            <option value="top-center">Top centre</option>
+            <option value="top-right">Top right</option>
+            <option value="top-left">Top left</option>
+          </select>
+        </div>
+        <div class="setting-group" id="tocGroup">
+          <label>Table of contents <span class="premium-badge">✦ Premium</span></label>
+          <select id="tocSelect" onchange="onStateChange('toc', this.value)" class="premium-locked" disabled>
+            <option value="none">None</option>
+            <option value="top">Add at top</option>
+          </select>
+          <div class="setting-coming">Coming with premium — organise large documents instantly</div>
+        </div>
+      </div>
+
+      <!-- Unicode font toggle — PDF only -->
+      <div id="unicodeRow" style="display:none; margin-bottom:1.25rem;">
+        <div style="background:var(--warn-light); border:1px solid var(--warn-border); border-radius:10px; padding:12px 16px;">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+            <div style="flex:1;">
+              <div style="font-size:0.82rem; font-weight:500; color:var(--warn); margin-bottom:3px;">
+                Unicode font &mdash; Hebrew, Arabic &amp; symbols
+              </div>
+              <div style="font-size:0.75rem; color:var(--muted); line-height:1.5;">
+                Enable for accurate PDF output of Hebrew (including vowel marks), Arabic, or special symbols. Loads once per session and is cached by your browser.
+              </div>
+            </div>
+            <label class="file-page-toggle" style="margin-top:2px; flex-shrink:0; cursor:pointer;" onclick="toggleUnicodeFont()">
+              <div class="toggle-switch" id="unicodeToggle"></div>
+            </label>
+          </div>
+          <div id="unicodeFontStatus" style="display:none; font-size:0.75rem; color:var(--muted); margin-top:8px; align-items:center; gap:6px;">
+            <div class="spinner" style="width:12px;height:12px;border-width:1.5px;border-color:var(--border);border-top-color:var(--teal-mid);"></div>
+            <span id="unicodeFontStatusText">Loading Unicode font...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Non-Latin warning shown if Unicode font is off but non-Latin detected -->
+      <div id="nonLatinWarning" style="display:none; margin-bottom:1.25rem;">
+        <div style="background:var(--error-light); border:1px solid var(--error-border); border-radius:10px; padding:12px 16px; font-size:0.8rem; color:var(--error); line-height:1.6;">
+          Your files contain Hebrew, Arabic, or special characters. Enable <strong>Unicode font</strong> above for accurate PDF output, or switch to <strong>Word (.docx)</strong> which supports all characters natively.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Merging...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="mergeBtn" onclick="merge()" disabled>
+      Merge &amp; export — 0 files
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
+      <li>Supported formats: plain text (.txt), Markdown (.md), Word documents (.docx), and PDFs (.pdf).</li>
+      <li>Images inside .docx or .pdf files are skipped — only the text is extracted and merged.</li>
+      <li>Drag the file cards to reorder them before exporting. The output follows the order shown.</li>
+      <li>Right-to-left text (Hebrew, Arabic) is detected automatically and preserved in Word and plain text exports.</li>
+      <li><strong>PDF and special characters:</strong> By default, PDF uses a basic font that cannot render Hebrew, Arabic, or symbols like arrows. If your files contain these, enable the <strong>Unicode font</strong> option that appears in settings when PDF is selected — it loads a ~400KB font once per session and renders everything correctly. Alternatively, export to Word (.docx) which supports all characters natively with no extra download.</li>
+      <li>Completely blank files are skipped and you will see a warning for each one. Files with very little content are included as-is.</li>
+      <li>Password-protected Word or PDF files cannot be read. Remove the password first, then re-upload.</li>
+      <li>Each file can optionally start on a new page — use the toggle on each file card.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+
+<!-- Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="../shared.js"></script>
+
+<script>
+/* ================================================================
+   NOTES MERGER — main script
+   Pipeline: parseFile(file) → buildSections(state) → generateDocument(sections, state)
+   ================================================================ */
+
+/* ── CONSTANTS ── */
+const MAX_FILE_BYTES  = 10 * 1024 * 1024;  // 10 MB per file
+const MAX_TOTAL_BYTES = 30 * 1024 * 1024;  // 30 MB total
+const FREE_MAX_FILES  = 3;
+
+/* ── STATE ── */
+const state = {
+  files: [],      // { id, file, name, size, heading, newPage, status, content }
+                  // status: "pending" | "ok" | "error" | "empty"
+                  // content: string (filled after parse) | null
+  format:       "pdf",
+  separator:    "line",
+  pageNumbers:  "none",
+  toc:          "none",
+  unicodeFont:  false,   // load Noto Sans for PDF Unicode support
+  rules: [],            // [{ id, find, replace, caseSensitive }] — find & replace rules
+  isPremium:    IS_PREMIUM
+};
+
+let nextId = 1;
+let nextRuleId = 1;
+
+/* ── UNICODE FONT CACHE ── */
+let unicodeFontBytes   = null;   // ArrayBuffer once loaded
+let unicodeFontLoading = false;
+
+/* ================================================================
+   STEP 1 — PARSE FILE
+   Reads a File object and returns a plain text string.
+   Throws a descriptive error on failure.
+   ================================================================ */
+async function parseFile(file) {
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  // Size guard
+  if (file.size > MAX_FILE_BYTES) {
+    throw new Error(`${file.name} is too large (max 10 MB). Please split it and try again.`);
+  }
+
+  if (ext === "txt" || ext === "md") {
+    return await readAsText(file);
+  }
+
+  if (ext === "docx") {
+    return await parseDocx(file);
+  }
+
+  if (ext === "pdf") {
+    return await parsePdf(file);
+  }
+
+  throw new Error(`${file.name} — unsupported format. Please upload .txt, .md, .docx, or .pdf files.`);
+}
+
+function readAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error(`${file.name} couldn't be read. Try re-saving it and uploading again.`));
+    reader.readAsText(file, "UTF-8");
+  });
+}
+
+async function parseDocx(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  let result;
+  try {
+    result = await mammoth.extractRawText({ arrayBuffer });
+  } catch(e) {
+    // mammoth throws on password-protected or corrupted files
+    if (e.message && e.message.toLowerCase().includes("password")) {
+      throw new Error(`${file.name} appears to be password-protected. Remove the password and re-upload.`);
+    }
+    throw new Error(`${file.name} couldn't be read. It may be corrupted — try re-saving it and uploading again.`);
+  }
+  return result.value;
+}
+
+async function parsePdf(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  let pdf;
+  try {
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer, password: "" });
+    pdf = await loadingTask.promise;
+  } catch(e) {
+    if (e.name === "PasswordException") {
+      throw new Error(`${file.name} appears to be password-protected. Remove the password and re-upload.`);
+    }
+    throw new Error(`${file.name} couldn't be read. It may be corrupted — try re-saving it and uploading again.`);
+  }
+
+  let fullText = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page    = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map(item => item.str)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (pageText) fullText += pageText + "\n";
+  }
+  return fullText;
+}
+
+/* ================================================================
+   STEP 2 — BUILD SECTIONS
+   Takes state.files (with content already parsed) and returns
+   an array of section objects ready for document generation.
+   ================================================================ */
+function buildSections(files) {
+  return files
+    .filter(f => f.status === "ok")
+    .map(f => {
+      const content = applyRules(f.content);
+      return {
+        heading: f.heading.trim(),
+        content,
+        newPage: f.newPage,
+        isRTL:   detectRTL(content)
+      };
+    });
+}
+
+/* Detect if the majority of text is RTL (Hebrew / Arabic) */
+function detectRTL(text) {
+  if (!text) return false;
+  const rtlChars = (text.match(/[\u0590-\u05FF\u0600-\u06FF]/g) || []).length;
+  const ltrChars = (text.match(/[a-zA-Z]/g) || []).length;
+  return rtlChars > 0 && rtlChars > ltrChars;
+}
+
+/* ================================================================
+   STEP 3 — GENERATE DOCUMENT
+   Takes sections + state and produces a downloadable Blob.
+   ================================================================ */
+async function generateDocument(sections, currentState) {
+  const { format, separator, pageNumbers, toc } = currentState;
+
+  if (format === "txt") {
+    return generateTxt(sections, separator);
+  }
+  if (format === "docx") {
+    return await generateDocx(sections, separator, pageNumbers, toc);
+  }
+  if (format === "pdf") {
+    return await generatePdf(sections, separator, pageNumbers, toc);
+  }
+  throw new Error("Unknown export format.");
+}
+
+/* ── TXT generator ── */
+function generateTxt(sections, separator) {
+  const sepStr = separator === "line"
+    ? "\n" + "─".repeat(40) + "\n\n"
+    : separator === "space"
+    ? "\n\n\n"
+    : "\n\n";
+
+  const parts = sections.map(s => {
+    let part = "";
+    if (s.heading) part += s.heading.toUpperCase() + "\n" + "=".repeat(s.heading.length) + "\n\n";
+    part += s.content.trim();
+    return part;
+  });
+
+  const blob = new Blob([parts.join(sepStr)], { type: "text/plain;charset=utf-8" });
+  return blob;
+}
+
+/* ── DOCX generator ── */
+async function generateDocx(sections, separator, pageNumbers, toc) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, PageBreak,
+          AlignmentType, Header, Footer, PageNumber, NumberFormat } = docx;
+
+  const children = [];
+
+  sections.forEach((section, idx) => {
+    // Page break (not on first section unless it explicitly wants one)
+    if (idx > 0 && section.newPage) {
+      children.push(new Paragraph({ children: [new PageBreak()] }));
+    }
+
+    // Section heading
+    if (section.heading) {
+      children.push(new Paragraph({
+        text:    section.heading,
+        heading: HeadingLevel.HEADING_1,
+        bidirectional: section.isRTL,
+        alignment: section.isRTL ? AlignmentType.RIGHT : AlignmentType.LEFT,
+      }));
+    }
+
+    // Separator (only between sections, not after last)
+    const addSep = idx < sections.length - 1 && !sections[idx + 1]?.newPage;
+    if (addSep && separator === "line") {
+      children.push(new Paragraph({
+        border: { bottom: { color: "e8e4de", space: 1, style: "single", size: 6 } },
+        spacing: { after: 200 },
+      }));
+    } else if (addSep && separator === "space") {
+      children.push(new Paragraph({ text: "" }));
+      children.push(new Paragraph({ text: "" }));
+    }
+
+    // Content — split into paragraphs
+    const lines = section.content.split(/\n+/);
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        children.push(new Paragraph({ text: "" }));
+        return;
+      }
+      children.push(new Paragraph({
+        children: [new TextRun({ text: trimmed })],
+        bidirectional: section.isRTL,
+        alignment: section.isRTL ? AlignmentType.RIGHT : AlignmentType.LEFT,
+      }));
+    });
+  });
+
+  // Page number setup
+  const footerChildren = pageNumbers === "bottom"
+    ? [new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ children: [PageNumber.CURRENT] })]
+      })]
+    : [];
+  const headerChildren = pageNumbers === "top"
+    ? [new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ children: [PageNumber.CURRENT] })]
+      })]
+    : [];
+
+  const doc = new Document({
+    sections: [{
+      headers: pageNumbers === "top" ? { default: new Header({ children: headerChildren }) } : undefined,
+      footers: pageNumbers === "bottom" ? { default: new Footer({ children: footerChildren }) } : undefined,
+      children
+    }]
+  });
+
+  const buffer = await Packer.toBlob(doc);
+  return buffer;
+}
+
+/* ── WinAnsi sanitiser ──
+   Standard PDF fonts (Helvetica etc.) only support WinAnsi (Latin-1 + extras).
+   This replaces the most common offenders with ASCII equivalents and strips
+   anything else outside the safe range so pdf-lib never throws.
+*/
+function sanitiseForPdf(text) {
+  return text
+    // Smart quotes → straight
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    // Dashes
+    .replace(/[\u2013\u2014]/g, '-')
+    // Arrows
+    .replace(/\u2192/g, '->').replace(/\u2190/g, '<-')
+    .replace(/\u2191/g, '^').replace(/\u2193/g, 'v')
+    .replace(/[\u21D0-\u21FF]/g, '->')
+    // Ellipsis
+    .replace(/\u2026/g, '...')
+    // Bullets & misc punctuation
+    .replace(/\u2022/g, '*').replace(/\u2023/g, '>').replace(/\u25CF/g, '*')
+    .replace(/\u2014/g, '--').replace(/\u2012/g, '-')
+    // Ligatures
+    .replace(/\uFB00/g,'ff').replace(/\uFB01/g,'fi').replace(/\uFB02/g,'fl')
+    // Strip anything outside WinAnsi range (0x00–0xFF) that wasn't already handled
+    .replace(/[^\x00-\xFF]/g, '?');
+}
+
+/* ── PDF generator ── */
+async function generatePdf(sections, separator, pageNumbers) {
+  const { PDFDocument, StandardFonts, rgb, degrees } = PDFLib;
+
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.registerFontkit(fontkit);
+  let font, fontBold;
+
+  if (state.unicodeFont && unicodeFontBytes) {
+    // Embed Noto Sans for full Unicode support
+    font     = await pdfDoc.embedFont(unicodeFontBytes, { subset: false });
+    fontBold = font; // Noto Sans 400 only — bold falls back to same weight
+  } else {
+    font     = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  }
+
+  const margin   = 60;
+  const fontSize = 11;
+  const headSize = 14;
+  const lineH    = fontSize * 1.6;
+  const pageW    = 595;  // A4 width
+  const pageH    = 842;  // A4 height
+  const maxWidth = pageW - margin * 2;
+
+  let page   = pdfDoc.addPage([pageW, pageH]);
+  let y      = pageH - margin;
+  let pageNum = 1;
+  const pages = [page];
+
+  function newPage() {
+    page = pdfDoc.addPage([pageW, pageH]);
+    pages.push(page);
+    pageNum++;
+    y = pageH - margin;
+    return page;
+  }
+
+  function ensureSpace(needed) {
+    if (y - needed < margin) {
+      newPage();
+    }
+  }
+
+  function drawText(text, x, currentY, size, f, color) {
+    page.drawText(text, {
+      x, y: currentY,
+      size,
+      font: f,
+      color: color || rgb(0.1, 0.1, 0.1),
+      maxWidth
+    });
+  }
+
+  // Word-wrap helper
+  function wrapText(text, f, size, width) {
+    const words = text.split(" ");
+    const lines = [];
+    let current = "";
+    for (const word of words) {
+      const test = current ? current + " " + word : word;
+      const w = f.widthOfTextAtSize(test, size);
+      if (w > width && current) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines.length ? lines : [""];
+  }
+
+  for (let si = 0; si < sections.length; si++) {
+    const section = sections[si];
+
+    // Start new page if requested (not for first section)
+    if (si > 0 && section.newPage) {
+      newPage();
+    }
+
+    // Heading
+    if (section.heading) {
+      ensureSpace(headSize * 2);
+      drawText(sanitiseForPdf(section.heading), margin, y, headSize, fontBold);
+      y -= headSize * 1.8;
+    }
+
+    // Content lines
+    const rawLines = section.content.split("\n");
+    for (const rawLine of rawLines) {
+      const trimmed = sanitiseForPdf(rawLine.trim());
+      if (!trimmed) {
+        y -= lineH * 0.5;
+        continue;
+      }
+      const wrapped = wrapText(trimmed, font, fontSize, maxWidth);
+      for (const wline of wrapped) {
+        ensureSpace(lineH);
+        const xPos = section.isRTL
+          ? pageW - margin - font.widthOfTextAtSize(wline, fontSize)
+          : margin;
+        drawText(wline, xPos, y, fontSize, font);
+        y -= lineH;
+      }
+    }
+
+    // Separator (not after last section, not before a page break)
+    const isLast = si === sections.length - 1;
+    const nextNewPage = !isLast && sections[si + 1]?.newPage;
+    if (!isLast && !nextNewPage) {
+      if (separator === "line") {
+        y -= 10;
+        ensureSpace(2);
+        page.drawLine({
+          start: { x: margin, y },
+          end:   { x: pageW - margin, y },
+          thickness: 0.5,
+          color: rgb(0.8, 0.8, 0.8)
+        });
+        y -= 16;
+      } else if (separator === "space") {
+        y -= lineH * 2;
+      }
+    }
+
+    y -= lineH * 0.5;
+  }
+
+  // Page numbers
+  if (pageNumbers !== "none") {
+    const [vPos, hPos] = pageNumbers.split("-"); // e.g. "bottom-right" → ["bottom","right"]
+    const allPages = pdfDoc.getPages();
+    allPages.forEach((pg, i) => {
+      const num = String(i + 1);
+      const tw  = font.widthOfTextAtSize(num, 9);
+      const yPos = vPos === "bottom" ? 28 : pageH - 28;
+      let xPos;
+      if (hPos === "left")        xPos = margin;
+      else if (hPos === "right")  xPos = pageW - margin - tw;
+      else                        xPos = (pageW - tw) / 2; // centre
+      pg.drawText(num, { x: xPos, y: yPos, size: 9, font, color: rgb(0.5,0.5,0.5) });
+    });
+  }
+
+  const pdfBytes = await pdfDoc.save();
+  return new Blob([pdfBytes], { type: "application/pdf" });
+}
+
+/* ================================================================
+   FILE LOADING — parse all files in state that are still "pending"
+   ================================================================ */
+async function parseAllPending() {
+  for (const item of state.files) {
+    if (item.status !== "pending") continue;
+    try {
+      const text = await parseFile(item.file);
+      if (!text || !text.trim()) {
+        item.status  = "empty";
+        item.content = "";
+      } else {
+        item.status  = "ok";
+        item.content = text;
+      }
+    } catch(e) {
+      item.status  = "error";
+      item.content = "";
+      item.errorMsg = e.message;
+    }
+  }
+}
+
+/* ================================================================
+   USER ACTIONS
+   ================================================================ */
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Configure PDF.js worker
+  if (typeof pdfjsLib !== "undefined") {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  }
+
+  // Wire drop zone
+  makeDropZone(document.getElementById("dropZone"), {
+    accept:   "",  // we validate ourselves for better error messages
+    multiple: true,
+    maxFree:  FREE_MAX_FILES,
+    onFiles:  handleNewFiles
+  });
+
+  // Premium UI tweaks
+  if (!state.isPremium) {
+    document.getElementById("tocSelect").disabled = true;
+  } else {
+    document.getElementById("tocSelect").disabled = false;
+    document.getElementById("tocSelect").classList.remove("premium-locked");
+    document.getElementById("tocGroup").querySelector(".setting-coming").style.display = "none";
+  }
+});
+
+function handleNewFiles(fileList) {
+  const validExts = ["txt", "md", "docx", "pdf"];
+
+  // Total size guard
+  const existingBytes = state.files.reduce((s, f) => s + f.file.size, 0);
+  let   addedBytes    = 0;
+  const toAdd = [];
+
+  for (const file of fileList) {
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!validExts.includes(ext)) {
+      showNotification(
+        `${file.name} — unsupported format. Please upload .txt, .md, .docx, or .pdf files.`,
+        "error"
+      );
+      continue;
+    }
+    if (existingBytes + addedBytes + file.size > MAX_TOTAL_BYTES) {
+      showNotification(
+        `Total file size limit (30 MB) reached. ${file.name} was not added.`,
+        "error"
+      );
+      continue;
+    }
+    toAdd.push(file);
+    addedBytes += file.size;
+  }
+
+  if (!toAdd.length) return;
+
+  const newItems = toAdd.map(f => ({
+    id:       nextId++,
+    file:     f,
+    name:     f.name,
+    size:     f.size,
+    heading:  "",
+    newPage:  false,
+    status:   "pending",
+    content:  null,
+    errorMsg: null
+  }));
+
+  state.files = [...state.files, ...newItems];
+  render();
+
+  // Parse new files in background, then re-render
+  parseAllPending().then(() => render());
+}
+
+function addMoreFiles(fileList) {
+  handleNewFiles(Array.from(fileList));
+}
+
+function removeFile(id) {
+  state.files = state.files.filter(f => f.id !== id);
+  render();
+}
+
+function onStateChange(key, value) {
+  if (key === "toc" && !state.isPremium) return;
+  state[key] = value;
+  render();
+}
+
+function toggleNewPage(id) {
+  const item = state.files.find(f => f.id === id);
+  if (item) {
+    item.newPage = !item.newPage;
+    render();
+  }
+}
+
+async function toggleUnicodeFont() {
+  state.unicodeFont = !state.unicodeFont;
+  document.getElementById("unicodeToggle").classList.toggle("on", state.unicodeFont);
+
+  if (state.unicodeFont && !unicodeFontBytes && !unicodeFontLoading) {
+    unicodeFontLoading = true;
+    const statusEl  = document.getElementById("unicodeFontStatus");
+    const statusTxt = document.getElementById("unicodeFontStatusText");
+    statusEl.style.display = "flex";
+    statusTxt.textContent  = "Loading Unicode font (~400KB)...";
+    try {
+      // Load Noto Sans Hebrew TTF directly from Google Fonts GitHub release
+      // This is the only reliable CDN source for the raw TTF (fontsource only ships woff2)
+      const res = await fetch("https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanshebrew/NotoSansHebrew%5Bwdth%2Cwght%5D.ttf");
+      unicodeFontBytes   = await res.arrayBuffer();
+      unicodeFontLoading = false;
+      statusTxt.textContent = "Unicode font ready.";
+      setTimeout(() => { statusEl.style.display = "none"; }, 2000);
+    } catch(e) {
+      unicodeFontLoading = false;
+      state.unicodeFont  = false;
+      document.getElementById("unicodeToggle").classList.remove("on");
+      statusTxt.textContent = "Failed to load font. Check your connection and try again.";
+    }
+  }
+  render();
+}
+
+function updateHeading(id, value) {
+  const item = state.files.find(f => f.id === id);
+  if (item) item.heading = value;
+  // don't re-render on every keystroke — heading is read at merge time
+}
+
+/* ================================================================
+   RENDER
+   ================================================================ */
+function render() {
+  const { files } = state;
+  const list      = document.getElementById("fileList");
+  const section   = document.getElementById("filesSection");
+  const settings  = document.getElementById("outputSettings");
+  const btn       = document.getElementById("mergeBtn");
+
+  // File cards
+  list.innerHTML = "";
+  files.forEach((item, i) => {
+    const card = document.createElement("div");
+    card.className = "file-card";
+    card.setAttribute("data-index", i);
+
+    const statusHtml = item.status === "pending"
+      ? `<div class="file-meta">Reading…</div>`
+      : item.status === "ok"
+      ? `<div class="file-status-ok">✓ Ready</div>`
+      : item.status === "empty"
+      ? `<div class="file-status-err">⚠ File appears empty — will be skipped</div>`
+      : `<div class="file-status-err">✕ ${item.errorMsg || "Could not read file"}</div>`;
+
+    card.innerHTML = `
+      <div class="file-card-top">
+        <div class="file-drag-handle" title="Drag to reorder">⠿</div>
+        <div class="file-icon">${iconFor(item.name)}</div>
+        <div class="file-info">
+          <div class="file-name">${escHtml(item.name)}</div>
+          <div class="file-meta">${formatBytes(item.size)}</div>
+          ${statusHtml}
+        </div>
+        <button class="file-remove" onclick="removeFile(${item.id})" title="Remove">×</button>
+      </div>
+      <div class="file-card-settings">
+        <input
+          class="file-heading-input"
+          type="text"
+          placeholder="Add a section heading (optional)"
+          value="${escHtml(item.heading)}"
+          oninput="updateHeading(${item.id}, this.value)"
+          onmousedown="event.stopPropagation()"
+        >
+        <label class="file-page-toggle" title="Start this section on a new page">
+          <div class="toggle-switch ${item.newPage ? 'on' : ''}" id="toggle-${item.id}"></div>
+          New page
+        </label>
+      </div>
+    `;
+
+    // Toggle click (on the whole label row)
+    card.querySelector(".file-page-toggle").addEventListener("click", () => toggleNewPage(item.id));
+
+    list.appendChild(card);
+  });
+
+  // Re-attach drag-to-reorder
+  makeDraggable(list, files, (reordered) => {
+    state.files = reordered;
+    render();
+  });
+
+  const hasFiles   = files.length > 0;
+  const readyCount = files.filter(f => f.status === "ok").length;
+
+  section.classList.toggle("show", hasFiles);
+  settings.style.display = hasFiles ? "block" : "none";
+  document.getElementById("advancedSection").style.display = hasFiles ? "block" : "none";
+
+  // Premium gate for find & replace
+  const addRuleBtn = document.getElementById("addRuleBtn");
+  const premiumNote = document.getElementById("findReplacePremiumNote");
+  if (addRuleBtn) {
+    addRuleBtn.style.opacity      = state.isPremium ? "1" : "0.5";
+    addRuleBtn.style.pointerEvents= state.isPremium ? "" : "none";
+  }
+  if (premiumNote) premiumNote.style.display = state.isPremium ? "none" : "block";
+  renderRules();
+
+  // Hide page numbers when exporting to .txt (not applicable)
+  const isTxt = state.format === "txt";
+  const isPdf = state.format === "pdf";
+  const pageNumGroup = document.getElementById("pageNumSelect").closest(".setting-group");
+  pageNumGroup.style.opacity       = isTxt ? "0.4" : "1";
+  pageNumGroup.style.pointerEvents = isTxt ? "none" : "";
+  document.getElementById("pageNumLabel").textContent = isTxt
+    ? "Page numbers (PDF/Word only)"
+    : "Page numbers in output";
+  if (isTxt) document.getElementById("pageNumSelect").value = "none";
+
+  // Show Unicode font toggle only for PDF
+  document.getElementById("unicodeRow").style.display = isPdf ? "block" : "none";
+
+  // Show non-Latin warning if PDF is selected, Unicode font is off, and non-Latin content exists
+  const hasNonLatin = isPdf && !state.unicodeFont &&
+    files.some(f => f.status === "ok" && f.content && /[\u0590-\u05FF\u0600-\u06FF\u2190-\u21FF\u2022\u2013\u2014\u2018\u2019\u201C\u201D]/.test(f.content));
+  document.getElementById("nonLatinWarning").style.display = hasNonLatin ? "block" : "none";
+
+  document.getElementById("filesCount").textContent =
+    `${files.length} file${files.length !== 1 ? "s" : ""}` +
+    (readyCount < files.length ? ` — ${readyCount} ready` : "");
+
+  // Drop zone text
+  const dropText = document.querySelector("#dropZone .drop-text");
+  if (files.length === 0) {
+    dropText.innerHTML = `<strong>Click to choose</strong> or drag files here`;
+  } else {
+    dropText.innerHTML = `<strong>${files.length} file${files.length !== 1 ? "s" : ""} loaded</strong> — drop more to add`;
+  }
+
+  // Button
+  btn.disabled = readyCount === 0;
+  btn.textContent = readyCount === 0
+    ? "Merge & export — 0 files ready"
+    : `Merge & export — ${readyCount} file${readyCount !== 1 ? "s" : ""}`;
+  btn.classList.remove("btn-done");
+}
+
+/* ================================================================
+   ADVANCED OPTIONS — FIND & REPLACE
+   ================================================================ */
+
+function toggleAdvanced() {
+  const panel    = document.getElementById("advancedPanel");
+  const chevron  = document.getElementById("advancedChevron");
+  const isOpen   = panel.style.display !== "none";
+  panel.style.display  = isOpen ? "none" : "block";
+  chevron.style.transform = isOpen ? "" : "rotate(180deg)";
+}
+
+function addRule() {
+  if (!state.isPremium) return;
+  state.rules.push({ id: nextRuleId++, find: "", replace: "", caseSensitive: false });
+  renderRules();
+}
+
+function removeRule(id) {
+  state.rules = state.rules.filter(r => r.id !== id);
+  renderRules();
+}
+
+function updateRule(id, key, value) {
+  const rule = state.rules.find(r => r.id === id);
+  if (rule) rule[key] = value;
+}
+
+function renderRules() {
+  const list = document.getElementById("ruleList");
+  if (!list) return;
+
+  if (state.rules.length === 0) {
+    list.innerHTML = `<div style="font-size:0.78rem; color:var(--faint); padding:4px 0;">
+      No rules yet — click "+ Add rule" to add one.
+    </div>`;
+    return;
+  }
+
+  // Column labels on first render
+  list.innerHTML = `<div class="rule-labels">
+    <div class="rule-label">Find</div>
+    <div class="rule-label">Replace with</div>
+    <div></div>
+  </div>`;
+
+  state.rules.forEach(rule => {
+    const row = document.createElement("div");
+    row.className = "rule-row";
+    row.innerHTML = `
+      <input class="rule-input" type="text" placeholder="Text to find"
+        value="${escHtml(rule.find)}"
+        oninput="updateRule(${rule.id}, 'find', this.value)"
+        ${!state.isPremium ? "disabled" : ""}>
+      <input class="rule-input" type="text" placeholder="Replace with (or leave empty to delete)"
+        value="${escHtml(rule.replace)}"
+        oninput="updateRule(${rule.id}, 'replace', this.value)"
+        ${!state.isPremium ? "disabled" : ""}>
+      <button class="rule-remove" onclick="removeRule(${rule.id})" title="Remove rule">×</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+/* Apply all find & replace rules to a text string */
+function applyRules(text) {
+  if (!state.isPremium || state.rules.length === 0) return text;
+  let result = text;
+  for (const rule of state.rules) {
+    if (!rule.find) continue; // skip empty find fields
+    const flags = rule.caseSensitive ? "g" : "gi";
+    const escaped = rule.find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    result = result.replace(new RegExp(escaped, flags), rule.replace);
+  }
+  return result;
+}
+
+/* ================================================================
+   MERGE ACTION
+   ================================================================ */
+async function merge() {
+  const readyFiles = state.files.filter(f => f.status === "ok");
+  if (readyFiles.length === 0) return;
+
+  // Warn about skipped empty/error files
+  const skipped = state.files.filter(f => f.status === "empty" || f.status === "error");
+  if (skipped.length > 0) {
+    const names = skipped.map(f => f.name).join(", ");
+    showNotification(
+      `Note: ${names} ${skipped.length === 1 ? "was" : "were"} skipped (empty or unreadable).`,
+      "info"
+    );
+  } else {
+    clearNotification();
+  }
+
+  // Warn if PDF + non-Latin content + Unicode font off (but still allow export)
+  if (state.format === "pdf" && !state.unicodeFont) {
+    const hasNonLatin = readyFiles.some(f =>
+      /[\u0590-\u05FF\u0600-\u06FF]/.test(f.content)
+    );
+    if (hasNonLatin) {
+      showNotification(
+        "Some characters may not display correctly in this PDF. Enable Unicode font in settings for full Hebrew/Arabic support.",
+        "info"
+      );
+    }
+  }
+
+  document.getElementById("progressSection").classList.add("show");
+  document.getElementById("progressFill").style.width = "10%";
+  document.getElementById("progressLabel").textContent = "Building document…";
+  document.getElementById("progressPct").textContent   = "10%";
+
+  btnLoading("mergeBtn", "Merging…");
+
+  try {
+    const sections = buildSections(state.files);
+
+    document.getElementById("progressFill").style.width = "40%";
+    document.getElementById("progressPct").textContent   = "40%";
+
+    await freeDelay(sections.length);
+
+    const blob = await generateDocument(sections, state);
+
+    document.getElementById("progressFill").style.width = "90%";
+    document.getElementById("progressPct").textContent   = "90%";
+
+    // Trigger download
+    const ext      = state.format === "docx" ? "docx" : state.format === "txt" ? "txt" : "pdf";
+    const filename = `merged_notes.${ext}`;
+    const url      = URL.createObjectURL(blob);
+    const a        = document.createElement("a");
+    a.href         = url;
+    a.download     = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    document.getElementById("progressFill").style.width = "100%";
+    document.getElementById("progressPct").textContent   = "100%";
+    document.getElementById("progressLabel").textContent = "Done!";
+
+    btnDone("mergeBtn", `✓ Done! ${readyFiles.length} file${readyFiles.length !== 1 ? "s" : ""} merged`, "Merge & export again");
+
+  } catch(e) {
+    document.getElementById("progressLabel").textContent = "Failed";
+    showNotification(`Export failed: ${e.message}`, "error");
+    btnReset("mergeBtn", `Merge & export — ${readyFiles.length} file${readyFiles.length !== 1 ? "s" : ""}`);
+  }
+}
+
+/* ================================================================
+   HELPERS
+   ================================================================ */
+function iconFor(name) {
+  const ext = name.split(".").pop().toLowerCase();
+  if (ext === "pdf")  return "📄";
+  if (ext === "docx") return "📝";
+  if (ext === "md")   return "🔖";
+  return "📃";
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+</script>
+
+</body>
+</html>

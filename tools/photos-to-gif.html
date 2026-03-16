@@ -293,9 +293,7 @@
   async function createGif() {
     if (frames.length < 2) return;
 
-    const btn = document.getElementById("createBtn");
-    btn.disabled = true;
-    btn.innerHTML = `<span class="spinner"></span> Building GIF...`;
+    await btnLoading("createBtn", "Building GIF...", frames.length);
 
     document.getElementById("progressSection").classList.add("show");
     document.getElementById("progressFill").style.width = "0%";
