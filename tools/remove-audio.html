@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Remove Audio from Video — EssentialNoPopups</title>
+<script src="../coi-serviceworker.js"></script>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* FILE LIST */
+  .files-section { display:none; margin-bottom:1.25rem; }
+  .files-section.show { display:block; }
+  .files-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .files-count { font-size:0.78rem; color:var(--muted); }
+  .file-list { display:flex; flex-direction:column; gap:6px; }
+  .file-item { display:flex; align-items:center; gap:10px; background:var(--warm-bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .file-icon { font-size:1.1rem; flex-shrink:0; }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:0.82rem; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-meta { font-size:0.72rem; color:var(--faint); margin-top:1px; }
+  .file-remove { background:none; border:none; color:var(--faint); font-size:1rem; cursor:pointer; padding:0 4px; flex-shrink:0; transition:color 0.15s; }
+  .file-remove:hover { color:var(--error); }
+
+  /* FFMPEG STATUS */
+  .ffmpeg-status { display:none; font-size:0.78rem; color:var(--muted); margin-bottom:1.25rem; padding:10px 14px; background:var(--warm-bg); border:1px solid var(--border); border-radius:8px; align-items:center; gap:8px; }
+  .ffmpeg-status.show { display:flex; }
+  .ffmpeg-status .spinner { width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--teal-mid); border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* PROGRESS */
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>Video</span>
+      <span>›</span>
+      <span>Remove audio</span>
+    </div>
+    <h1>Remove audio from video</h1>
+    <div class="info-btn-row">
+      <p>Strip the audio track from any video file. The video itself is unchanged. Everything happens in your browser.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <label>Your video file</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.flv,.wmv,.m4v">
+      <div class="drop-icon">🔇</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag a video file here</div>
+      <div class="drop-sub" id="dropSub">MP4, MOV, AVI, MKV, WebM and more</div>
+    </div>
+
+    <!-- FILE LIST -->
+    <div class="files-section" id="filesSection">
+      <div class="files-header">
+        <div class="files-count" id="filesCount">0 files</div>
+        <div class="btn-add-more" id="addMoreBtn" style="display:none;">
+          <input type="file" accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.flv,.wmv,.m4v" multiple
+                 onchange="addFiles(this.files); this.value=''">
+          + Add more
+        </div>
+      </div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+
+    <!-- FFMPEG STATUS -->
+    <div class="ffmpeg-status" id="ffmpegStatus">
+      <div class="spinner"></div>
+      <span id="ffmpegStatusText">Loading FFmpeg (~20MB, once per session)...</span>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Processing...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="removeBtn" onclick="removeAudio()" disabled>
+      Remove audio &amp; download — 0/1
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
+      <li>The video stream is copied as-is with no re-encoding — the process is fast and there's no quality loss.</li>
+      <li>If a video has no audio track to begin with, the output will be identical to the input.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="../shared.js"></script>
+<script>
+  const state = {
+    files: [],
+    isPremium: IS_PREMIUM
+  };
+
+  let ffmpeg      = null;
+  let ffmpegReady = false;
+
+  const VIDEO_EXTS = /\.(mp4|mov|avi|mkv|webm|flv|wmv|m4v|mpeg|mpg|3gp)$/i;
+
+  /* ── SETUP ── */
+  document.addEventListener("DOMContentLoaded", () => {
+    makeDropZone(document.getElementById("dropZone"), {
+      accept:   "",
+      multiple: state.isPremium,
+      maxFree:  1,
+      onFiles:  (files) => {
+        state.files = [];
+        addFiles(files);
+      }
+    });
+
+    if (state.isPremium) {
+      document.getElementById("addMoreBtn").style.display = "block";
+      document.getElementById("dropSub").textContent = "Drop multiple video files at once";
+    }
+
+    loadFFmpeg();
+  });
+
+  /* ── ADD FILES ── */
+  function addFiles(fileList) {
+    const files = Array.from(fileList).filter(f =>
+      f.type.startsWith("video/") || VIDEO_EXTS.test(f.name)
+    );
+    const rejected = Array.from(fileList).filter(f => !files.includes(f));
+    if (rejected.length) {
+      showNotification(
+        `${rejected.map(f => f.name).join(", ")} — please drop video files only.`,
+        "error"
+      );
+    }
+    const toAdd = state.isPremium ? files : files.slice(0, 1 - state.files.length);
+    if (!toAdd.length) return;
+    state.files = [...state.files, ...toAdd.map(f => ({ file: f, name: f.name, size: f.size }))];
+    render();
+  }
+
+  /* ── RENDER ── */
+  function render() {
+    const { files } = state;
+    const list = document.getElementById("fileList");
+    list.innerHTML = "";
+    files.forEach((item, i) => {
+      const div = document.createElement("div");
+      div.className = "file-item";
+      div.innerHTML = `
+        <div class="file-icon">🎬</div>
+        <div class="file-info">
+          <div class="file-name">${item.name}</div>
+          <div class="file-meta">${formatBytes(item.size)}</div>
+        </div>
+        <button class="file-remove" onclick="removeFile(${i})">×</button>
+      `;
+      list.appendChild(div);
+    });
+
+    document.getElementById("filesSection").classList.toggle("show", files.length > 0);
+    document.getElementById("filesCount").textContent =
+      `${files.length} file${files.length !== 1 ? "s" : ""}`;
+
+    const dropText = document.querySelector("#dropZone .drop-text");
+    if (files.length === 0) dropText.innerHTML = `<strong>Click to choose</strong> or drag a video file here`;
+    else if (files.length === 1) dropText.innerHTML = `<strong>${files[0].name}</strong>`;
+    else dropText.innerHTML = `<strong>${files.length} files loaded</strong>`;
+
+    const btn = document.getElementById("removeBtn");
+    btn.disabled = files.length === 0;
+    btn.textContent = files.length === 0
+      ? "Remove audio & download — 0/1"
+      : `Remove audio & download — 0/${files.length}`;
+    btn.classList.remove("btn-done");
+  }
+
+  function removeFile(index) {
+    state.files.splice(index, 1);
+    render();
+  }
+
+  /* ── FFMPEG ── */
+  async function loadFFmpeg() {
+    if (ffmpegReady) return;
+
+    if (typeof SharedArrayBuffer === "undefined") {
+      document.getElementById("ffmpegStatus").classList.add("show");
+      document.getElementById("ffmpegStatusText").textContent =
+        "⚠️ Your browser does not support the required features. Please try Chrome or Firefox.";
+      return;
+    }
+
+    document.getElementById("ffmpegStatus").classList.add("show");
+
+    try {
+      await loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
+      const { createFFmpeg, fetchFile } = FFmpeg;
+      window._fetchFile = fetchFile;
+      ffmpeg = createFFmpeg({
+        log: false,
+        corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js",
+        progress: ({ ratio }) => {
+          const pct = Math.round(ratio * 100);
+          document.getElementById("progressFill").style.width = pct + "%";
+          document.getElementById("progressPct").textContent  = pct + "%";
+        }
+      });
+      await ffmpeg.load();
+      ffmpegReady = true;
+      document.getElementById("ffmpegStatus").classList.remove("show");
+    } catch(e) {
+      document.getElementById("ffmpegStatusText").textContent =
+        `⚠️ Failed to load FFmpeg: ${e.message}. Please refresh and try again.`;
+    }
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+      const s = document.createElement("script");
+      s.src = src; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  /* ── REMOVE AUDIO ── */
+  async function removeAudio() {
+    if (!state.files.length) return;
+
+    if (!ffmpegReady) {
+      document.getElementById("ffmpegStatus").classList.add("show");
+      await loadFFmpeg();
+      if (!ffmpegReady) return;
+    }
+
+    const total = state.files.length;
+    document.getElementById("progressSection").classList.add("show");
+
+    const batch = new BatchProcessor({
+      items:    state.files,
+      btnId:    "removeBtn",
+      btnLabel: "Remove audio",
+      zipName:  "muted_videos.zip",
+
+      processOne: async (item, index) => {
+        const ext     = item.name.split(".").pop().toLowerCase();
+        const outName = item.name.replace(/\.[^.]+$/, `_muted.${ext}`);
+
+        document.getElementById("progressLabel").textContent =
+          `Processing ${index + 1}/${total}: ${item.name}`;
+        document.getElementById("progressFill").style.width = "0%";
+        document.getElementById("progressPct").textContent  = "0%";
+
+        ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
+
+        // -an = no audio, -c:v copy = keep video stream as-is
+        await ffmpeg.run(
+          "-i",    "input",
+          "-an",
+          "-c:v",  "copy",
+          "-y",    `output.${ext}`
+        );
+
+        const data = ffmpeg.FS("readFile", `output.${ext}`);
+        const blob = new Blob([data.buffer], { type: item.file.type || "video/mp4" });
+
+        ffmpeg.FS("unlink", "input");
+        ffmpeg.FS("unlink", `output.${ext}`);
+
+        return { filename: outName, data: blob };
+      },
+
+      onComplete: () => {
+        document.getElementById("progressLabel").textContent = "Done!";
+        document.getElementById("progressFill").style.width = "100%";
+        document.getElementById("progressPct").textContent  = "100%";
+      }
+    });
+
+    await batch.run();
+  }
+</script>
+
+</body>
+</html>
