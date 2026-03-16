@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Combine Video & Audio — EssentialNoPopups</title>
+<script src="../coi-serviceworker.js"></script>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* FILE PAIR */
+  .file-pair { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:1.25rem; }
+  @media(max-width:520px) { .file-pair { grid-template-columns:1fr; } }
+
+  .file-slot {
+    background:var(--warm-bg); border:2px dashed var(--border);
+    border-radius:12px; padding:16px; text-align:center;
+    cursor:pointer; transition:all 0.2s; position:relative;
+  }
+  .file-slot:hover, .file-slot.dragover { border-color:var(--teal-border); background:var(--teal-light); }
+  .file-slot input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .file-slot-icon { font-size:1.5rem; margin-bottom:6px; }
+  .file-slot-label { font-size:0.72rem; font-weight:500; letter-spacing:0.08em; text-transform:uppercase; color:var(--faint); margin-bottom:6px; }
+  .file-slot-text { font-size:0.82rem; color:var(--muted); }
+  .file-slot-text strong { color:var(--teal); }
+  .file-slot.loaded { border-style:solid; border-color:var(--teal-border); background:var(--teal-light); }
+  .file-slot.loaded .file-slot-text { color:var(--text); font-weight:500; font-size:0.78rem; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-all; }
+  .file-slot-meta { font-size:0.7rem; color:var(--faint); margin-top:3px; }
+  .file-slot-clear { position:absolute; top:8px; right:8px; background:none; border:none; color:var(--faint); font-size:1rem; cursor:pointer; padding:2px 4px; transition:color 0.15s; z-index:2; }
+  .file-slot-clear:hover { color:var(--error); }
+
+  /* ALIGNMENT */
+  .alignment-group { margin-bottom:1.25rem; }
+  .alignment-options { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+  @media(max-width:480px) { .alignment-options { grid-template-columns:1fr; } }
+
+  .alignment-option {
+    background:var(--warm-bg); border:2px solid var(--border);
+    border-radius:10px; padding:12px; cursor:pointer;
+    transition:all 0.15s; display:flex; flex-direction:column; gap:4px;
+  }
+  .alignment-option:hover { border-color:var(--teal-border); }
+  .alignment-option.selected { border-color:var(--teal); background:var(--teal-light); }
+  .alignment-option-title { font-size:0.82rem; font-weight:500; color:var(--text); display:flex; align-items:center; gap:6px; }
+  .alignment-option-desc { font-size:0.72rem; color:var(--muted); line-height:1.4; }
+  .alignment-dot { width:14px; height:14px; border-radius:50%; border:2px solid var(--border); flex-shrink:0; transition:all 0.15s; }
+  .alignment-option.selected .alignment-dot { border-color:var(--teal); background:var(--teal); }
+
+  /* OFFSET SLIDER (premium) */
+  .offset-group { margin-bottom:1.25rem; }
+  .offset-row { display:flex; align-items:center; gap:10px; margin-top:8px; }
+  .offset-slider { flex:1; accent-color:var(--teal); height:4px; cursor:pointer; }
+  .offset-value { font-size:0.82rem; color:var(--text); font-weight:500; min-width:48px; text-align:right; }
+  .offset-hint { font-size:0.72rem; color:var(--muted); margin-top:4px; }
+
+  /* VOLUME SLIDERS (premium) */
+  .volume-group { margin-bottom:1.25rem; }
+  .volume-rows { display:flex; flex-direction:column; gap:12px; margin-top:8px; }
+  .volume-row { display:flex; flex-direction:column; gap:4px; }
+  .volume-label-row { display:flex; justify-content:space-between; align-items:center; }
+  .volume-label { font-size:0.8rem; font-weight:500; color:var(--text); }
+  .volume-note { font-size:0.7rem; color:var(--faint); }
+  .volume-val { font-size:0.8rem; color:var(--teal); font-weight:500; }
+  .volume-slider { width:100%; accent-color:var(--teal); height:4px; cursor:pointer; }
+  .setting-coming { font-size:0.7rem; color:var(--premium); margin-top:4px; }
+
+  /* FFMPEG STATUS */
+  .ffmpeg-status { display:none; font-size:0.78rem; color:var(--muted); margin-bottom:1.25rem; padding:10px 14px; background:var(--warm-bg); border:1px solid var(--border); border-radius:8px; align-items:center; gap:8px; }
+  .ffmpeg-status.show { display:flex; }
+  .ffmpeg-status .spinner { width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--teal-mid); border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* PROGRESS */
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>Video</span>
+      <span>›</span>
+      <span>Combine video & audio</span>
+    </div>
+    <h1>Combine video & audio</h1>
+    <div class="info-btn-row">
+      <p>Add or mix an audio track into a video. Set how they align, then download. Everything happens in your browser.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <!-- FILE PAIR -->
+    <label>Your files</label>
+    <div class="file-pair">
+
+      <!-- VIDEO SLOT -->
+      <div class="file-slot" id="videoSlot">
+        <input type="file" id="videoInput" accept="video/*,.mp4,.mov,.avi,.mkv,.webm"
+               onchange="handleSlot('video', this.files[0]); this.value=''">
+        <button class="file-slot-clear" id="videoClear" style="display:none"
+                onclick="clearSlot('video', event)">×</button>
+        <div class="file-slot-icon">🎬</div>
+        <div class="file-slot-label">Video</div>
+        <div class="file-slot-text" id="videoText"><strong>Click or drag</strong> a video here</div>
+        <div class="file-slot-meta" id="videoMeta"></div>
+      </div>
+
+      <!-- AUDIO SLOT -->
+      <div class="file-slot" id="audioSlot">
+        <input type="file" id="audioInput" accept="audio/*,.mp3,.wav,.aac,.ogg,.m4a,.flac"
+               onchange="handleSlot('audio', this.files[0]); this.value=''">
+        <button class="file-slot-clear" id="audioClear" style="display:none"
+                onclick="clearSlot('audio', event)">×</button>
+        <div class="file-slot-icon">🎵</div>
+        <div class="file-slot-label">Audio</div>
+        <div class="file-slot-text" id="audioText"><strong>Click or drag</strong> an audio file here</div>
+        <div class="file-slot-meta" id="audioMeta"></div>
+      </div>
+
+    </div>
+
+    <!-- ALIGNMENT (free) -->
+    <div class="alignment-group" id="alignmentGroup" style="display:none;">
+      <label>Audio alignment</label>
+      <div class="alignment-options">
+        <div class="alignment-option selected" id="optStart" onclick="selectAlignment('start')">
+          <div class="alignment-option-title">
+            <div class="alignment-dot"></div>
+            Start together
+          </div>
+          <div class="alignment-option-desc">Audio begins at the start of the video</div>
+        </div>
+        <div class="alignment-option" id="optEnd" onclick="selectAlignment('end')">
+          <div class="alignment-option-title">
+            <div class="alignment-dot"></div>
+            End together
+          </div>
+          <div class="alignment-option-desc">Audio and video finish at the same time</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OFFSET SLIDER (premium) -->
+    <div class="offset-group" id="offsetGroup" style="display:none;">
+      <label>Audio start offset <span class="premium-badge">✦ Premium</span></label>
+      <div class="offset-row">
+        <input type="range" class="offset-slider" id="offsetSlider"
+               min="0" max="100" value="0" step="0.1"
+               oninput="onOffsetChange(this.value)">
+        <div class="offset-value" id="offsetValue">0:00</div>
+      </div>
+      <div class="offset-hint" id="offsetHint">Audio will play from 0:00 to —</div>
+    </div>
+
+    <!-- VOLUME SLIDERS (premium) -->
+    <div class="volume-group" id="volumeGroup" style="display:none;">
+      <label>Volume mix <span class="premium-badge">✦ Premium</span></label>
+      <div class="volume-rows" id="volumeRows">
+        <div class="volume-row">
+          <div class="volume-label-row">
+            <span class="volume-label">Video volume</span>
+            <span class="volume-val" id="videoVolVal">100%</span>
+          </div>
+          <input type="range" class="volume-slider" id="videoVolSlider"
+                 min="0" max="100" value="100"
+                 oninput="document.getElementById('videoVolVal').textContent = this.value + '%'">
+          <div class="volume-note">If your video has no sound, this has no effect.</div>
+        </div>
+        <div class="volume-row">
+          <div class="volume-label-row">
+            <span class="volume-label">Audio volume</span>
+            <span class="volume-val" id="audioVolVal">100%</span>
+          </div>
+          <input type="range" class="volume-slider" id="audioVolSlider"
+                 min="0" max="100" value="100"
+                 oninput="document.getElementById('audioVolVal').textContent = this.value + '%'">
+        </div>
+      </div>
+      <div class="setting-coming" id="volumeComing">Coming with premium — free uses equal mix</div>
+    </div>
+
+    <!-- FFMPEG STATUS -->
+    <div class="ffmpeg-status" id="ffmpegStatus">
+      <div class="spinner"></div>
+      <span id="ffmpegStatusText">Loading FFmpeg (~20MB, once per session)...</span>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Combining...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="combineBtn" onclick="combine()" disabled>
+      Combine &amp; download
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
+      <li>The new audio is mixed with the video's existing sound. To replace the sound entirely, use the Remove audio tool first.</li>
+      <li><strong>Start together</strong> — audio starts at the beginning of the video and stops when it ends or the video ends, whichever comes first.</li>
+      <li><strong>End together</strong> — audio is delayed so it finishes exactly when the video does. Only shown when audio is shorter than the video.</li>
+      <li>The output keeps the video's original format and quality — only the audio track is changed.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="../shared.js"></script>
+<script>
+  const state = {
+    videoFile:  null,
+    audioFile:  null,
+    videoDur:   0,
+    audioDur:   0,
+    alignment:  "start",  // "start" | "end"
+    offset:     0,        // seconds (premium)
+    isPremium:  IS_PREMIUM
+  };
+
+  let ffmpeg      = null;
+  let ffmpegReady = false;
+
+  /* ── SETUP ── */
+  document.addEventListener("DOMContentLoaded", () => {
+    // Wire drag-and-drop on each slot
+    ["videoSlot", "audioSlot"].forEach(id => {
+      const slot = document.getElementById(id);
+      slot.addEventListener("dragover",  e => { e.preventDefault(); slot.classList.add("dragover"); });
+      slot.addEventListener("dragleave", () => slot.classList.remove("dragover"));
+      slot.addEventListener("drop", e => {
+        e.preventDefault();
+        slot.classList.remove("dragover");
+        const file = e.dataTransfer.files[0];
+        if (file) handleSlot(id === "videoSlot" ? "video" : "audio", file);
+      });
+    });
+
+    if (state.isPremium) {
+      // Show offset slider instead of alignment options
+      document.getElementById("volumeRows").querySelectorAll("input").forEach(el => {
+        el.disabled = false;
+      });
+      document.getElementById("volumeComing").style.display = "none";
+    } else {
+      // Disable volume sliders for free
+      document.getElementById("volumeRows").querySelectorAll("input").forEach(el => {
+        el.disabled = true;
+        el.style.opacity = "0.5";
+      });
+    }
+
+    loadFFmpeg();
+  });
+
+  /* ── FILE SLOTS ── */
+  function handleSlot(type, file) {
+    if (!file) return;
+
+    if (type === "video") {
+      if (!file.type.startsWith("video/") && !/\.(mp4|mov|avi|mkv|webm|flv|wmv|m4v)$/i.test(file.name)) {
+        showNotification(`"${file.name}" doesn't look like a video file.`, "error");
+        return;
+      }
+      state.videoFile = file;
+      // Get duration via video element
+      const vid = document.createElement("video");
+      vid.preload = "metadata";
+      vid.onloadedmetadata = () => {
+        URL.revokeObjectURL(vid.src);
+        state.videoDur = vid.duration;
+        updateUI();
+      };
+      vid.src = URL.createObjectURL(file);
+
+      document.getElementById("videoSlot").classList.add("loaded");
+      document.getElementById("videoText").textContent = file.name;
+      document.getElementById("videoMeta").textContent = formatBytes(file.size);
+      document.getElementById("videoClear").style.display = "block";
+
+    } else {
+      if (!file.type.startsWith("audio/") && !/\.(mp3|wav|aac|ogg|m4a|flac|opus)$/i.test(file.name)) {
+        showNotification(`"${file.name}" doesn't look like an audio file.`, "error");
+        return;
+      }
+      state.audioFile = file;
+      // Get duration via audio element
+      const aud = new Audio();
+      aud.preload = "metadata";
+      aud.onloadedmetadata = () => {
+        URL.revokeObjectURL(aud.src);
+        state.audioDur = aud.duration;
+        updateUI();
+      };
+      aud.src = URL.createObjectURL(file);
+
+      document.getElementById("audioSlot").classList.add("loaded");
+      document.getElementById("audioText").textContent = file.name;
+      document.getElementById("audioMeta").textContent = formatBytes(file.size);
+      document.getElementById("audioClear").style.display = "block";
+    }
+
+    updateBtn();
+  }
+
+  function clearSlot(type, e) {
+    e.stopPropagation();
+    if (type === "video") {
+      state.videoFile = null; state.videoDur = 0;
+      document.getElementById("videoSlot").classList.remove("loaded");
+      document.getElementById("videoText").innerHTML = `<strong>Click or drag</strong> a video here`;
+      document.getElementById("videoMeta").textContent = "";
+      document.getElementById("videoClear").style.display = "none";
+    } else {
+      state.audioFile = null; state.audioDur = 0;
+      document.getElementById("audioSlot").classList.remove("loaded");
+      document.getElementById("audioText").innerHTML = `<strong>Click or drag</strong> an audio file here`;
+      document.getElementById("audioMeta").textContent = "";
+      document.getElementById("audioClear").style.display = "none";
+    }
+    updateUI();
+    updateBtn();
+  }
+
+  /* ── UI UPDATE ── */
+  function updateUI() {
+    const bothLoaded = state.videoFile && state.audioFile;
+    const audioDur   = state.audioDur;
+    const videoDur   = state.videoDur;
+
+    // Show/hide alignment and controls only when both files loaded
+    document.getElementById("alignmentGroup").style.display = bothLoaded && !state.isPremium ? "block" : "none";
+    document.getElementById("offsetGroup").style.display    = bothLoaded && state.isPremium  ? "block" : "none";
+    document.getElementById("volumeGroup").style.display    = bothLoaded ? "block" : "none";
+
+    if (bothLoaded) {
+      // Hide "end together" if audio is longer than video — it doesn't make sense
+      const endOption = document.getElementById("optEnd");
+      if (audioDur > videoDur) {
+        endOption.style.display = "none";
+        if (state.alignment === "end") selectAlignment("start");
+      } else {
+        endOption.style.display = "block";
+      }
+
+      // Update offset slider max to video duration
+      if (state.isPremium) {
+        const slider = document.getElementById("offsetSlider");
+        slider.max   = Math.max(0, (videoDur - 1)).toFixed(1);
+        slider.value = Math.min(state.offset, parseFloat(slider.max));
+        onOffsetChange(slider.value);
+      }
+    }
+
+    updateBtn();
+  }
+
+  function updateBtn() {
+    const btn = document.getElementById("combineBtn");
+    btn.disabled = !(state.videoFile && state.audioFile);
+    btn.classList.remove("btn-done");
+  }
+
+  /* ── ALIGNMENT ── */
+  function selectAlignment(type) {
+    state.alignment = type;
+    document.getElementById("optStart").classList.toggle("selected", type === "start");
+    document.getElementById("optEnd").classList.toggle("selected",   type === "end");
+  }
+
+  /* ── OFFSET (premium) ── */
+  function onOffsetChange(val) {
+    state.offset = parseFloat(val);
+    document.getElementById("offsetValue").textContent = fmtTime(state.offset);
+
+    const endTime = state.offset + state.audioDur;
+    const endStr  = state.audioDur
+      ? `Audio will play from ${fmtTime(state.offset)} to ${fmtTime(Math.min(endTime, state.videoDur))}`
+      : "Load an audio file to see the timeline";
+    document.getElementById("offsetHint").textContent = endStr;
+  }
+
+  function fmtTime(secs) {
+    if (!secs || isNaN(secs)) return "0:00";
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  /* ── FFMPEG ── */
+  async function loadFFmpeg() {
+    if (ffmpegReady) return;
+
+    if (typeof SharedArrayBuffer === "undefined") {
+      document.getElementById("ffmpegStatus").classList.add("show");
+      document.getElementById("ffmpegStatusText").textContent =
+        "⚠️ Your browser does not support the required features. Please try Chrome or Firefox.";
+      return;
+    }
+
+    document.getElementById("ffmpegStatus").classList.add("show");
+
+    try {
+      await loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
+      const { createFFmpeg, fetchFile } = FFmpeg;
+      window._fetchFile = fetchFile;
+      ffmpeg = createFFmpeg({
+        log: false,
+        corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js",
+        progress: ({ ratio }) => {
+          const pct = Math.round(ratio * 100);
+          document.getElementById("progressFill").style.width = pct + "%";
+          document.getElementById("progressPct").textContent  = pct + "%";
+        }
+      });
+      await ffmpeg.load();
+      ffmpegReady = true;
+      document.getElementById("ffmpegStatus").classList.remove("show");
+    } catch(e) {
+      document.getElementById("ffmpegStatusText").textContent =
+        `⚠️ Failed to load FFmpeg: ${e.message}. Please refresh and try again.`;
+    }
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+      const s = document.createElement("script");
+      s.src = src; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  /* ── COMBINE ── */
+  async function combine() {
+    if (!state.videoFile || !state.audioFile) return;
+
+    if (!ffmpegReady) {
+      document.getElementById("ffmpegStatus").classList.add("show");
+      await loadFFmpeg();
+      if (!ffmpegReady) return;
+    }
+
+    document.getElementById("progressSection").classList.add("show");
+    document.getElementById("progressFill").style.width = "0%";
+    document.getElementById("progressPct").textContent  = "0%";
+    document.getElementById("progressLabel").textContent = "Combining...";
+
+    const btn = document.getElementById("combineBtn");
+    btn.disabled = true;
+
+    try {
+      const ext     = state.videoFile.name.split(".").pop().toLowerCase();
+      const outName = state.videoFile.name.replace(/\.[^.]+$/, `_combined.${ext}`);
+
+      ffmpeg.FS("writeFile", "video", await window._fetchFile(state.videoFile));
+      ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
+
+      // Calculate audio offset in seconds
+      let audioOffset = 0;
+      if (state.isPremium) {
+        audioOffset = state.offset;
+      } else if (state.alignment === "end") {
+        audioOffset = Math.max(0, state.videoDur - state.audioDur);
+      }
+
+      const videoVol = state.isPremium
+        ? (parseInt(document.getElementById("videoVolSlider").value) / 100).toFixed(2)
+        : "1";
+      const audioVol = state.isPremium
+        ? (parseInt(document.getElementById("audioVolSlider").value) / 100).toFixed(2)
+        : "1";
+
+      const delayMs = Math.round(audioOffset * 1000);
+
+      // Build both filter variants
+      const mixFilter = delayMs > 0
+        ? `[1:a]adelay=${delayMs}|${delayMs},volume=${audioVol}[delayed];[0:a]volume=${videoVol}[va];[va][delayed]amix=inputs=2:duration=first[aout]`
+        : `[1:a]volume=${audioVol}[na];[0:a]volume=${videoVol}[va];[va][na]amix=inputs=2:duration=first[aout]`;
+
+      const audioOnlyFilter = delayMs > 0
+        ? `[1:a]adelay=${delayMs}|${delayMs},volume=${audioVol}[aout]`
+        : `[1:a]volume=${audioVol}[aout]`;
+
+      const runFFmpeg = async (filter) => {
+        await ffmpeg.run(
+          "-i",              "video",
+          "-i",              "audio",
+          "-filter_complex", filter,
+          "-map",            "0:v",
+          "-map",            "[aout]",
+          "-c:v",            "copy",
+          "-c:a",            "aac",
+          "-shortest",
+          "-y",              `output.${ext}`
+        );
+        // FFmpeg.wasm doesn't always throw on failure — check file exists
+        try {
+          const check = ffmpeg.FS("readFile", `output.${ext}`);
+          return check.length > 0;
+        } catch(e) {
+          return false;
+        }
+      };
+
+      // Try mixing first (video has audio), fall back to audio-only (muted video)
+      let success = await runFFmpeg(mixFilter);
+      if (!success) {
+        try { ffmpeg.FS("unlink", `output.${ext}`); } catch(_) {}
+        success = await runFFmpeg(audioOnlyFilter);
+        if (!success) throw new Error("Conversion failed — please check your files and try again.");
+      }
+
+      const data = ffmpeg.FS("readFile", `output.${ext}`);
+      const blob = new Blob([data.buffer], { type: state.videoFile.type || "video/mp4" });
+
+      ffmpeg.FS("unlink", "video");
+      ffmpeg.FS("unlink", "audio");
+      ffmpeg.FS("unlink", `output.${ext}`);
+
+      // Download
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement("a");
+      a.href = url; a.download = outName;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      document.getElementById("progressFill").style.width = "100%";
+      document.getElementById("progressPct").textContent  = "100%";
+      document.getElementById("progressLabel").textContent = "Done!";
+      btnDone("combineBtn", "✓ Done!", "Combine & download");
+      refreshAds();
+
+    } catch(e) {
+      showNotification(`Error: ${e.message}`, "error");
+      btn.disabled = false;
+    }
+  }
+</script>
+
+</body>
+</html>
