@@ -198,6 +198,7 @@
   .category:nth-child(2) { animation-delay: 0.65s; }
   .category:nth-child(3) { animation-delay: 0.75s; }
   .category:nth-child(4) { animation-delay: 0.85s; }
+  .category:nth-child(5) { animation-delay: 0.95s; }
 
   .category-header {
     display: flex; align-items: center; gap: 10px;
@@ -214,7 +215,8 @@
   .cat-icon.video { background: #fef3ec; }
   .cat-icon.image { background: var(--teal-light); }
   .cat-icon.audio { background: #e6f1fb; }
-  .cat-icon.pdf   { background: #fbeaf0; }
+  .cat-icon.pdf          { background: #fbeaf0; }
+  .cat-icon.productivity { background: #f0ecfb; }
 
   .cat-title {
     font-family: 'Lora', serif;
@@ -332,6 +334,7 @@
     <li><a href="#image">Images</a></li>
     <li><a href="#audio">Audio</a></li>
     <li><a href="#pdf">PDF</a></li>
+    <li><a href="#productivity">Productivity</a></li>
     <li><a href="premium.html" style="color:#6B4FBB; font-weight:500;">✦ Premium</a></li>
   </ul>
   <div class="nav-badge">Zero pop-ups, ever</div>
@@ -497,6 +500,22 @@
     </div>
   </div>
 
+
+  <div class="category" id="productivity">
+    <div class="category-header">
+      <div class="cat-icon productivity">⚡</div>
+      <div class="cat-title">Productivity</div>
+      <div class="cat-subtitle">1 tool</div>
+    </div>
+    <div class="tool-grid">
+      <a href="tools/notes-merger.html" class="tool-card">
+        <div class="tool-name">Notes Merger</div>
+        <div class="tool-desc">Merge and export text files to PDF, Word, and more</div>
+        <div class="tool-arrow">→</div>
+      </a>
+    </div>
+  </div>
+
 </section>
 
 <footer>
@@ -506,9 +525,4 @@
   </div>
   <div class="footer-right">
     Issues, questions, or suggestions? Always welcome.<br>
-    <a href="mailto:essentialsnopopups@gmail.com">essentialsnopopups@gmail.com</a>
-  </div>
-</footer>
-
-</body>
-</html>
+    <a href="/cdn-cgi/l/email-protection#cca9bfbfa9a2b8a5ada0bfa2a3bca3bcb9bcbf8caba1ada5a0e2afa3a1"><span class="__cf_

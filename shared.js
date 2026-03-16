@@ -106,12 +106,13 @@ function clearNotification() {
 /* ── BUTTON STATE HELPERS ── */
 
 // Set a button to loading state
-function btnLoading(id, label = "Loading...") {
+async function btnLoading(id, label = "Loading...", fileCount = 1) {
   const btn = document.getElementById(id);
   if (!btn) return;
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> ${label}`;
   btn.className = btn.className.replace(" btn-done", "");
+  await freeDelay(fileCount);
 }
 
 // Set a button to done state, then reset after delay
@@ -214,7 +215,8 @@ class BatchProcessor {
     const errors  = [];
     const results = []; // { filename, data }
 
-    this._setBtn(`${this.btnLabel} — 0/${total}`);
+    // Apply free tier delay before processing starts (hidden in button state)
+    await btnLoading(this.btnId, `${this.btnLabel} — 0/${total}`, total);
 
     for (let i = 0; i < total; i++) {
       this._setBtn(`${this.btnLabel} — ${i}/${total}`);
@@ -350,6 +352,43 @@ function makeDraggable(containerEl, items, onReorder) {
 }
 
 
+/* ── FREE TIER DELAY ──
+   Adds a realistic per-file processing delay for free tier users.
+   Premium users skip this entirely (IS_PREMIUM = true).
+
+   Usage (in any tool's process/convert/merge function):
+     await freeDelay(state.files.length);
+
+   Looks for the standard progress bar IDs:
+     #progressSection, #progressFill, #progressPct, #progressLabel
+   These are present in all tools that use BatchProcessor or manual progress bars.
+
+   The delay is 1.5s per file, animated smoothly from startPct to endPct.
+   Never mention this delay to users — only advertise the premium benefit.
+*/
+async function freeDelay(fileCount, startPct = 40, endPct = 85) {
+  if (IS_PREMIUM || fileCount === 0 || window.SERVER_SIDE_TOOL) return;
+
+  const MS_PER_FILE = 1500;
+  const totalMs     = fileCount * MS_PER_FILE;
+  const steps       = fileCount * 10;
+  const stepMs      = totalMs / steps;
+
+  const fill  = document.getElementById("progressFill");
+  const pct   = document.getElementById("progressPct");
+  const label = document.getElementById("progressLabel");
+
+  for (let i = 0; i < steps; i++) {
+    await new Promise(r => setTimeout(r, stepMs));
+    const p = Math.round(startPct + ((endPct - startPct) * (i + 1) / steps));
+    if (fill)  fill.style.width  = p + "%";
+    if (pct)   pct.textContent   = p + "%";
+    if (label) label.textContent =
+      `Processing file ${Math.min(Math.ceil((i + 1) / 10), fileCount)} of ${fileCount}…`;
+  }
+}
+
+
 /* ── AD REFRESH ──
    Refreshes all ad slots on the page after a user action completes.
    Called automatically from btnDone and BatchProcessor.
@@ -401,7 +440,7 @@ function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinit
   if (!IS_PREMIUM && maxFree !== Infinity) {
     upsellNote = document.createElement("div");
     upsellNote.style.cssText = "display:none; text-align:center; font-size:0.75rem; color:var(--faint); margin-top:8px; margin-bottom:4px;";
-    upsellNote.innerHTML = `Need to process multiple files? <span style="color:var(--premium); font-weight:500;">✦ Premium</span> lets you batch process them all at once.`;
+    upsellNote.innerHTML = `Need to process multiple files fast? <span style="color:var(--premium); font-weight:500;">✦ Premium</span> delivers instant batch processing.`;
     zoneEl.insertAdjacentElement("afterend", upsellNote);
   }
 
