@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trim Audio — EssentialNoPopups</title>
+<script src="../coi-serviceworker.js"></script>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* FILE CARDS */
+  .files-list { display:flex; flex-direction:column; gap:16px; margin-bottom:1.25rem; }
+
+  .file-card {
+    background:var(--warm-bg); border:1px solid var(--border);
+    border-radius:12px; padding:14px 16px;
+  }
+  .file-card-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .file-card-icon { font-size:1.1rem; flex-shrink:0; }
+  .file-card-info { flex:1; min-width:0; }
+  .file-card-name { font-size:0.85rem; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-card-meta { font-size:0.72rem; color:var(--faint); margin-top:2px; }
+  .file-card-remove { background:none; border:none; color:var(--faint); font-size:1rem; cursor:pointer; padding:0 4px; transition:color 0.15s; flex-shrink:0; }
+  .file-card-remove:hover { color:var(--error); }
+
+  /* TRIM SLIDER */
+  .trim-control { position:relative; margin-bottom:10px; }
+
+  .trim-track {
+    position:relative; height:36px;
+    background:var(--border); border-radius:6px; overflow:visible;
+    cursor:pointer;
+  }
+  .trim-range {
+    position:absolute; top:0; bottom:0;
+    background:var(--teal-light); border:2px solid var(--teal-border);
+    border-radius:4px; pointer-events:none;
+  }
+  .trim-handle {
+    position:absolute; top:50%; transform:translate(-50%, -50%);
+    width:18px; height:28px;
+    background:var(--teal); border-radius:4px;
+    cursor:ew-resize; z-index:2;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 1px 4px rgba(0,0,0,0.2);
+    transition:background 0.15s;
+  }
+  .trim-handle:hover, .trim-handle.active { background:var(--teal-mid); }
+  .trim-handle::after { content:'⋮'; color:#fff; font-size:0.8rem; letter-spacing:-1px; }
+
+  .trim-times {
+    display:flex; justify-content:space-between;
+    align-items:center; margin-top:6px;
+  }
+  .trim-time-inputs { display:flex; align-items:center; gap:6px; }
+  .trim-time-input {
+    width:72px; background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:5px 8px; font-family:'DM Sans',sans-serif;
+    font-size:0.8rem; color:var(--text); text-align:center; outline:none;
+    transition:border-color 0.15s;
+  }
+  .trim-time-input:focus { border-color:var(--teal-border); }
+  .trim-duration { font-size:0.75rem; color:var(--muted); }
+  .trim-duration strong { color:var(--teal); }
+
+  /* PROGRESS */
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
+
+  /* ADD MORE (premium) */
+  .add-more-row { margin-bottom:1.25rem; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>Audio</span>
+      <span>›</span>
+      <span>Trim audio</span>
+    </div>
+    <h1>Trim audio</h1>
+    <div class="info-btn-row">
+      <p>Cut an audio file to the exact section you want. Set start and end points, then download. Everything happens in your browser.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <!-- DROP ZONE -->
+    <label>Your audio file</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.aac,.ogg,.m4a,.webm,.opus">
+      <div class="drop-icon">✂️</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag an audio file here</div>
+      <div class="drop-sub" id="dropSub">MP3, WAV, FLAC, AAC, OGG, M4A and more</div>
+    </div>
+
+    <!-- FILE CARDS -->
+    <div id="filesList" class="files-list"></div>
+
+    <!-- ADD MORE (premium) -->
+    <div class="add-more-row" id="addMoreRow" style="display:none;">
+      <div class="btn-add-more">
+        <input type="file" accept="audio/*,.mp3,.wav,.flac,.aac,.ogg,.m4a,.webm,.opus" multiple
+               onchange="addFiles(this.files); this.value=''">
+        + Add more files
+      </div>
+    </div>
+
+    <!-- FFMPEG STATUS -->
+    <div class="model-status" id="ffmpegStatus" style="display:none;">
+      <div class="spinner"></div>
+      <span id="ffmpegStatusText">Loading FFmpeg (~20MB, once per session)...</span>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Trimming...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="trimBtn" onclick="trimAll()" disabled>
+      Trim &amp; download — 0/1
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
+      <li>Trimming uses stream copy — no re-encoding means it's nearly instant and there's no quality loss.</li>
+      <li>Cuts are made at the nearest keyframe, so the actual cut point may be a fraction of a second off from what you set.</li>
+      <li>Drag the handles on the timeline, or type exact times in the start/end fields (format: 0:00).</li>
+      <li>FFmpeg (~20MB) loads once on first use and is cached for future visits.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="../shared.js"></script>
+<script>
+  /* ── STATE ── */
+  const state = {
+    files: [],      // { file, name, size, duration, start, end }
+    isPremium: IS_PREMIUM
+  };
+
+  let ffmpeg     = null;
+  let ffmpegReady = false;
+
+  /* ── SETUP ── */
+  document.addEventListener("DOMContentLoaded", () => {
+    makeDropZone(document.getElementById("dropZone"), {
+      accept:   "",         // no pre-filtering — addFiles handles it with error messages
+      multiple: state.isPremium,
+      maxFree:  1,
+      onFiles:  (files) => {
+        state.files = [];
+        addFiles(files);
+      }
+    });
+
+    if (state.isPremium) {
+      document.getElementById("addMoreRow").style.display = "block";
+      document.getElementById("dropSub").textContent = "Drop multiple audio files at once";
+    }
+
+    loadFFmpeg();
+  });
+
+  /* ── ADD FILES ── */
+  const AUDIO_EXTS = /\.(mp3|wav|flac|aac|ogg|m4a|wma|webm|opus)$/i;
+
+  function addFiles(fileList) {
+    const files = Array.from(fileList).filter(f => {
+      const isAudioMime = f.type.startsWith("audio/");
+      const isWebm      = f.type === "video/webm" || f.name.toLowerCase().endsWith(".webm");
+      const hasAudioExt = AUDIO_EXTS.test(f.name);
+      const isVideoMime = f.type.startsWith("video/") && !isWebm;
+      // Accept audio MIME or audio extension, but never video MIME (except webm)
+      return (isAudioMime || isWebm || hasAudioExt) && !isVideoMime;
+    });
+
+    const rejected = Array.from(fileList).filter(f => !files.includes(f));
+    if (rejected.length) {
+      showNotification(
+        `${rejected.map(f => f.name).join(", ")} — video files are not supported here. Use the Extract audio tool to get audio from a video.`,
+        "error"
+      );
+    }
+    if (!files.length) return;
+
+    const toAdd = state.isPremium ? files : files.slice(0, 1 - state.files.length);
+    if (!toAdd.length) return;
+
+    let loaded = 0;
+    toAdd.forEach(file => {
+      // Use Web Audio API to get duration
+      const reader = new FileReader();
+      reader.onload = e => {
+        const ctx = new AudioContext();
+        ctx.decodeAudioData(e.target.result).then(buf => {
+          ctx.close();
+          state.files.push({
+            file,
+            name: file.name,
+            size: file.size,
+            duration: buf.duration,
+            start: 0,
+            end: buf.duration
+          });
+          loaded++;
+          if (loaded === toAdd.length) render();
+        }).catch(() => {
+          // Fallback — add without duration (FFmpeg will handle it)
+          state.files.push({ file, name: file.name, size: file.size, duration: 0, start: 0, end: 0 });
+          loaded++;
+          if (loaded === toAdd.length) render();
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  /* ── RENDER ── */
+  function render() {
+    const list = document.getElementById("filesList");
+    list.innerHTML = "";
+
+    state.files.forEach((item, i) => {
+      const card = document.createElement("div");
+      card.className = "file-card";
+      card.innerHTML = `
+        <div class="file-card-header">
+          <div class="file-card-icon">🎵</div>
+          <div class="file-card-info">
+            <div class="file-card-name">${item.name}</div>
+            <div class="file-card-meta">${formatBytes(item.size)} · ${fmtTime(item.duration)}</div>
+          </div>
+          <button class="file-card-remove" onclick="removeFile(${i})">×</button>
+        </div>
+        <div class="trim-control" id="trimControl${i}">
+          <div class="trim-track" id="trimTrack${i}">
+            <div class="trim-range"  id="trimRange${i}"></div>
+            <div class="trim-handle" id="trimHandleStart${i}" data-index="${i}" data-handle="start"></div>
+            <div class="trim-handle" id="trimHandleEnd${i}"   data-index="${i}" data-handle="end"></div>
+          </div>
+          <div class="trim-times">
+            <div class="trim-time-inputs">
+              <input class="trim-time-input" id="startInput${i}" value="${fmtTime(item.start)}"
+                     onchange="onTimeInput(${i}, 'start', this.value)"
+                     onblur="onTimeInput(${i}, 'start', this.value)">
+              <span style="color:var(--faint); font-size:0.8rem;">→</span>
+              <input class="trim-time-input" id="endInput${i}" value="${fmtTime(item.end)}"
+                     onchange="onTimeInput(${i}, 'end', this.value)"
+                     onblur="onTimeInput(${i}, 'end', this.value)">
+            </div>
+            <div class="trim-duration" id="trimDuration${i}">
+              <strong>${fmtTime(item.end - item.start)}</strong> selected
+            </div>
+          </div>
+        </div>
+      `;
+      list.appendChild(card);
+
+      // Wire slider handles after DOM insertion
+      if (item.duration > 0) {
+        initSlider(i);
+      }
+      updateSliderUI(i);
+    });
+
+    // Update button
+    const btn = document.getElementById("trimBtn");
+    btn.disabled = state.files.length === 0;
+    btn.textContent = state.files.length === 0
+      ? "Trim & download — 0/1"
+      : `Trim & download — 0/${state.files.length}`;
+    btn.classList.remove("btn-done");
+  }
+
+  function removeFile(index) {
+    state.files.splice(index, 1);
+    render();
+  }
+
+  /* ── SLIDER ── */
+  function initSlider(index) {
+    const track      = document.getElementById(`trimTrack${index}`);
+    const handleStart = document.getElementById(`trimHandleStart${index}`);
+    const handleEnd   = document.getElementById(`trimHandleEnd${index}`);
+
+    [handleStart, handleEnd].forEach(handle => {
+      handle.addEventListener("mousedown", e => {
+        e.preventDefault();
+        const isStart = handle.dataset.handle === "start";
+        handle.classList.add("active");
+
+        const onMove = mv => {
+          const rect = track.getBoundingClientRect();
+          const pct  = Math.max(0, Math.min(1, (mv.clientX - rect.left) / rect.width));
+          const time = pct * state.files[index].duration;
+
+          if (isStart) {
+            state.files[index].start = Math.min(time, state.files[index].end - 0.5);
+          } else {
+            state.files[index].end = Math.max(time, state.files[index].start + 0.5);
+          }
+          updateSliderUI(index);
+        };
+
+        const onUp = () => {
+          handle.classList.remove("active");
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+        };
+
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      });
+
+      // Touch support
+      handle.addEventListener("touchstart", e => {
+        e.preventDefault();
+        const isStart = handle.dataset.handle === "start";
+
+        const onMove = mv => {
+          const touch = mv.touches[0];
+          const rect  = track.getBoundingClientRect();
+          const pct   = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+          const time  = pct * state.files[index].duration;
+
+          if (isStart) {
+            state.files[index].start = Math.min(time, state.files[index].end - 0.5);
+          } else {
+            state.files[index].end = Math.max(time, state.files[index].start + 0.5);
+          }
+          updateSliderUI(index);
+        };
+
+        const onEnd = () => {
+          handle.removeEventListener("touchmove", onMove);
+          handle.removeEventListener("touchend", onEnd);
+        };
+
+        handle.addEventListener("touchmove", onMove, { passive: false });
+        handle.addEventListener("touchend", onEnd);
+      }, { passive: false });
+    });
+  }
+
+  function updateSliderUI(index) {
+    const item  = state.files[index];
+    if (!item || item.duration === 0) return;
+
+    const startPct = (item.start / item.duration) * 100;
+    const endPct   = (item.end   / item.duration) * 100;
+
+    document.getElementById(`trimRange${index}`).style.left  = startPct + "%";
+    document.getElementById(`trimRange${index}`).style.width = (endPct - startPct) + "%";
+    document.getElementById(`trimHandleStart${index}`).style.left = startPct + "%";
+    document.getElementById(`trimHandleEnd${index}`).style.left   = endPct + "%";
+
+    document.getElementById(`startInput${index}`).value = fmtTime(item.start);
+    document.getElementById(`endInput${index}`).value   = fmtTime(item.end);
+    document.getElementById(`trimDuration${index}`).innerHTML =
+      `<strong>${fmtTime(item.end - item.start)}</strong> selected`;
+  }
+
+  /* ── TIME INPUT ── */
+  function onTimeInput(index, handle, value) {
+    const secs = parseTime(value);
+    if (secs === null) return;
+    const item = state.files[index];
+    if (handle === "start") {
+      item.start = Math.max(0, Math.min(secs, item.end - 0.5));
+    } else {
+      item.end = Math.min(item.duration, Math.max(secs, item.start + 0.5));
+    }
+    updateSliderUI(index);
+  }
+
+  /* ── FORMAT HELPERS ── */
+  function fmtTime(secs) {
+    if (!secs || isNaN(secs)) return "0:00";
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  function parseTime(str) {
+    str = str.trim();
+    // Accepts "1:23", "83", "1:23.4"
+    const colonMatch = str.match(/^(\d+):(\d{1,2})(\.\d+)?$/);
+    if (colonMatch) return parseInt(colonMatch[1]) * 60 + parseFloat(colonMatch[2] + (colonMatch[3] || ""));
+    const numMatch = str.match(/^\d+(\.\d+)?$/);
+    if (numMatch) return parseFloat(str);
+    return null;
+  }
+
+  /* ── FFMPEG ── */
+  async function loadFFmpeg() {
+    if (ffmpegReady) return;
+
+    if (typeof SharedArrayBuffer === "undefined") {
+      showStatus("⚠️ Your browser does not support the required features. Please try Chrome or Firefox.", true);
+      return;
+    }
+
+    showStatus("Loading FFmpeg (~20MB, once per session)...");
+
+    try {
+      await loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
+      const { createFFmpeg, fetchFile } = FFmpeg;
+      window._fetchFile = fetchFile;
+      ffmpeg = createFFmpeg({
+        log: false,
+        corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js",
+        progress: ({ ratio }) => {
+          const pct = Math.round(ratio * 100);
+          document.getElementById("progressFill").style.width = pct + "%";
+          document.getElementById("progressPct").textContent  = pct + "%";
+        }
+      });
+      await ffmpeg.load();
+      ffmpegReady = true;
+      hideStatus();
+    } catch(e) {
+      showStatus(`⚠️ Failed to load FFmpeg: ${e.message}. Please refresh and try again.`, true);
+    }
+  }
+
+  function showStatus(msg, isError = false) {
+    const el = document.getElementById("ffmpegStatus");
+    el.style.display = "flex";
+    document.getElementById("ffmpegStatusText").textContent = msg;
+    if (isError) el.querySelector(".spinner").style.display = "none";
+  }
+
+  function hideStatus() {
+    document.getElementById("ffmpegStatus").style.display = "none";
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+      const s = document.createElement("script");
+      s.src = src; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  /* ── TRIM ── */
+  async function trimAll() {
+    if (!state.files.length) return;
+
+    if (!ffmpegReady) {
+      showStatus("Loading FFmpeg (~20MB)...");
+      await loadFFmpeg();
+      if (!ffmpegReady) return;
+    }
+
+    const total = state.files.length;
+    document.getElementById("progressSection").classList.add("show");
+
+    const batch = new BatchProcessor({
+      items:    state.files,
+      btnId:    "trimBtn",
+      btnLabel: "Trim",
+      zipName:  "trimmed_audio.zip",
+
+      processOne: async (item, index) => {
+        const ext     = item.name.split(".").pop().toLowerCase();
+        const outName = item.name.replace(/\.[^.]+$/, `_trimmed.${ext}`);
+
+        document.getElementById("progressLabel").textContent =
+          `Trimming ${index + 1}/${total}: ${item.name}`;
+        document.getElementById("progressFill").style.width = "0%";
+        document.getElementById("progressPct").textContent  = "0%";
+
+        ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
+
+        // -c copy = stream copy, no re-encoding — instant and lossless
+        await ffmpeg.run(
+          "-i",  "input",
+          "-ss", item.start.toFixed(3),
+          "-to", item.end.toFixed(3),
+          "-c",  "copy",
+          "-y",  `output.${ext}`
+        );
+
+        const data = ffmpeg.FS("readFile", `output.${ext}`);
+        const blob = new Blob([data.buffer], { type: item.file.type || "audio/mpeg" });
+
+        ffmpeg.FS("unlink", "input");
+        ffmpeg.FS("unlink", `output.${ext}`);
+
+        return { filename: outName, data: blob };
+      },
+
+      onComplete: () => {
+        document.getElementById("progressLabel").textContent = "Done!";
+        document.getElementById("progressFill").style.width = "100%";
+        document.getElementById("progressPct").textContent  = "100%";
+      }
+    });
+
+    await batch.run();
+  }
+</script>
+
+</body>
+</html>
