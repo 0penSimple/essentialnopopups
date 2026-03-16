@@ -6,27 +6,38 @@
 <title>Image Converter — EssentialNoPopups</title>
 <link rel="stylesheet" href="../shared.css">
 <style>
-  /* QUALITY SLIDER */
-  .quality-row { margin-bottom: 1.25rem; display: none; }
-  .quality-row.show { display: block; }
-  .quality-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-  .quality-value { font-size: 0.82rem; font-weight: 500; color: var(--teal); }
-  .slider-hints { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--faint); margin-top: 4px; }
+  .quality-row { margin-bottom:1.25rem; display:none; }
+  .quality-row.show { display:block; }
+  .quality-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .quality-value { font-size:0.82rem; font-weight:500; color:var(--teal); }
+  .slider-hints { display:flex; justify-content:space-between; font-size:0.68rem; color:var(--faint); margin-top:4px; }
+
+  .files-section { display:none; margin-bottom:1.25rem; }
+  .files-section.show { display:block; }
+  .files-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .files-count { font-size:0.78rem; color:var(--muted); }
+  .file-list { display:flex; flex-direction:column; gap:6px; }
+  .file-item { display:flex; align-items:center; gap:10px; background:var(--warm-bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .file-icon { font-size:1.1rem; flex-shrink:0; }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:0.82rem; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-meta { font-size:0.72rem; color:var(--faint); margin-top:1px; }
+  .file-remove { background:none; border:none; color:var(--faint); font-size:1rem; cursor:pointer; padding:0 4px; flex-shrink:0; transition:color 0.15s; }
+  .file-remove:hover { color:var(--error); }
+
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
 </style>
 </head>
 <body>
-
 <nav id="shared-nav"></nav>
-
 <div class="page">
-
   <div class="page-header">
     <div class="breadcrumb">
-      <a href="../index.html">Home</a>
-      <span>›</span>
-      <span>Images</span>
-      <span>›</span>
-      <span>Image converter</span>
+      <a href="../index.html">Home</a><span>›</span><span>Images</span><span>›</span><span>Image converter</span>
     </div>
     <h1>Image converter</h1>
     <div class="info-btn-row">
@@ -38,33 +49,42 @@
         <div class="info-panel-icon">💡</div>
         <div>
           <div class="info-panel-title">Not sure what to do?</div>
-          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page — it has tips that might help.</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
         </div>
       </div>
       <div class="info-panel-row">
         <div class="info-panel-icon">🙏</div>
         <div>
           <div class="info-panel-title">This site survives thanks to you</div>
-          <div class="info-panel-text">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
         </div>
       </div>
     </div>
   </div>
 
   <div id="notification" class="notification"></div>
-
   <div class="ad-slot" style="margin-bottom:1.25rem;">
     <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
   </div>
 
   <div class="card">
-
     <label>Your image</label>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
+      <input type="file" id="fileInput" accept="image/*">
       <div class="drop-icon">🖼</div>
       <div class="drop-text"><strong>Click to choose</strong> or drag an image here</div>
-      <div class="drop-sub">Any image format supported</div>
+      <div class="drop-sub" id="dropSub">Any image format supported</div>
+    </div>
+
+    <div class="files-section" id="filesSection">
+      <div class="files-header">
+        <div class="files-count" id="filesCount">0 files</div>
+        <div class="btn-add-more" id="addMoreBtn" style="display:none;">
+          <input type="file" accept="image/*" multiple onchange="addFiles(this.files); this.value=''">
+          + Add more
+        </div>
+      </div>
+      <div class="file-list" id="fileList"></div>
     </div>
 
     <div class="format-row">
@@ -82,7 +102,7 @@
         <div class="quality-value" id="qualityVal">92%</div>
       </div>
       <input type="range" id="qualitySlider" min="10" max="100" step="1" value="92"
-        oninput="document.getElementById('qualityVal').textContent = this.value + '%'; updatePreview()">
+        oninput="document.getElementById('qualityVal').textContent = this.value + '%'">
       <div class="slider-hints"><span>Smaller file</span><span>Better quality</span></div>
     </div>
 
@@ -100,10 +120,17 @@
       </div>
     </div>
 
-    <button class="btn-primary" id="convBtn" onclick="downloadConverted()" disabled>
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Converting...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <button class="btn-primary" id="convBtn" onclick="convert()" disabled>
       Convert &amp; download — 0/1
     </button>
-
   </div>
 
   <div class="ad-slot">
@@ -118,93 +145,129 @@
       <li>Quality setting only applies to JPG and WebP output.</li>
     </ul>
   </div>
-
 </div>
 
 <footer id="shared-footer"></footer>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="../shared.js"></script>
 <script>
-  let currentFile   = null;
-  let selectedMime  = "image/jpeg";
-  let selectedExt   = "jpg";
-  let convertedBlob = null;
+  const state = { files: [], isPremium: IS_PREMIUM };
+  let selectedMime = "image/jpeg";
+  let selectedExt  = "jpg";
+  let singlePreviewBlob = null;
 
-  const dropZone = document.getElementById("dropZone");
-  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-  dropZone.addEventListener("drop", e => {
-    e.preventDefault();
-    dropZone.classList.remove("dragover");
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) handleFile(file);
+  document.addEventListener("DOMContentLoaded", () => {
+    makeDropZone(document.getElementById("dropZone"), {
+      accept: "image/", multiple: state.isPremium, maxFree: 1,
+      onFiles: (files) => { state.files = files.map(f => ({ file: f, name: f.name, size: f.size })); render(); updateSinglePreview(); }
+    });
+    if (state.isPremium) {
+      document.getElementById("addMoreBtn").style.display = "block";
+      document.getElementById("dropSub").textContent = "Drop multiple images at once";
+    }
   });
 
-  function handleFile(file) {
-    if (!file || !file.type.startsWith("image/")) return;
-    currentFile = file;
-    clearNotification();
-    const reader = new FileReader();
-    reader.onload = e => {
-      document.getElementById("origImg").src = e.target.result;
-      document.getElementById("origSize").textContent = formatBytes(file.size);
-      document.getElementById("previewSection").classList.add("show");
-      dropZone.querySelector(".drop-text").innerHTML = `<strong>${file.name}</strong>`;
-      dropZone.querySelector(".drop-sub").textContent = "Click to choose a different image";
-      updatePreview();
-    };
-    reader.readAsDataURL(file);
+  function addFiles(fileList) {
+    const newFiles = Array.from(fileList).filter(f => f.type.startsWith("image/")).map(f => ({ file: f, name: f.name, size: f.size }));
+    state.files = [...state.files, ...newFiles];
+    render();
   }
+
+  function render() {
+    const { files } = state;
+    const list = document.getElementById("fileList");
+    list.innerHTML = "";
+    files.forEach((item, i) => {
+      const div = document.createElement("div");
+      div.className = "file-item";
+      div.innerHTML = `<div class="file-icon">🖼</div><div class="file-info"><div class="file-name">${item.name}</div><div class="file-meta">${formatBytes(item.size)}</div></div><button class="file-remove" onclick="removeFile(${i})">×</button>`;
+      list.appendChild(div);
+    });
+    document.getElementById("filesSection").classList.toggle("show", files.length > 0);
+    document.getElementById("filesCount").textContent = `${files.length} image${files.length !== 1 ? "s" : ""}`;
+    const dropText = document.querySelector("#dropZone .drop-text");
+    if (files.length === 0) dropText.innerHTML = `<strong>Click to choose</strong> or drag an image here`;
+    else if (files.length === 1) dropText.innerHTML = `<strong>${files[0].name}</strong>`;
+    else dropText.innerHTML = `<strong>${files.length} images loaded</strong>`;
+    const btn = document.getElementById("convBtn");
+    btn.disabled = files.length === 0;
+    btn.textContent = files.length === 0 ? "Convert & download — 0/1" : `Convert & download — 0/${files.length}`;
+    btn.classList.remove("btn-done");
+  }
+
+  function removeFile(index) { state.files.splice(index, 1); render(); updateSinglePreview(); }
 
   function selectFormat(el) {
     document.querySelectorAll(".format-pill").forEach(p => p.classList.remove("selected"));
     el.classList.add("selected");
-    selectedMime = el.dataset.fmt;
-    selectedExt  = el.dataset.ext;
-    const showQuality = selectedMime === "image/jpeg" || selectedMime === "image/webp";
-    document.getElementById("qualityRow").classList.toggle("show", showQuality);
-    if (currentFile) updatePreview();
+    selectedMime = el.dataset.fmt; selectedExt = el.dataset.ext;
+    document.getElementById("qualityRow").classList.toggle("show", selectedMime !== "image/png");
+    updateSinglePreview();
   }
 
-  function updatePreview() {
-    if (!currentFile) return;
+  function updateSinglePreview() {
+    if (state.files.length !== 1) { document.getElementById("previewSection").classList.remove("show"); return; }
+    const file = state.files[0].file;
     const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width  = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext("2d");
-      if (selectedMime === "image/jpeg") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-      ctx.drawImage(img, 0, 0);
-      const quality = parseInt(document.getElementById("qualitySlider").value) / 100;
-      const useQuality = selectedMime === "image/jpeg" || selectedMime === "image/webp";
-      canvas.toBlob(blob => {
-        convertedBlob = blob;
-        document.getElementById("convImg").src = URL.createObjectURL(blob);
-        document.getElementById("convSize").textContent = formatBytes(blob.size);
-        const btn = document.getElementById("convBtn");
-        btn.disabled = false;
-        btn.textContent = "Convert & download — 0/1";
-        btn.classList.remove("btn-done");
-      }, selectedMime, useQuality ? quality : undefined);
-    };
     const reader = new FileReader();
-    reader.onload = e => img.src = e.target.result;
-    reader.readAsDataURL(currentFile);
+    reader.onload = e => {
+      document.getElementById("origImg").src = e.target.result;
+      document.getElementById("origSize").textContent = formatBytes(file.size);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (selectedMime === "image/jpeg") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+        ctx.drawImage(img, 0, 0);
+        const quality = parseInt(document.getElementById("qualitySlider").value) / 100;
+        canvas.toBlob(blob => {
+          singlePreviewBlob = blob;
+          document.getElementById("convImg").src = URL.createObjectURL(blob);
+          document.getElementById("convSize").textContent = formatBytes(blob.size);
+          document.getElementById("previewSection").classList.add("show");
+        }, selectedMime, selectedMime !== "image/png" ? quality : undefined);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
   }
 
-  function downloadConverted() {
-    if (!convertedBlob || !currentFile) return;
-    const baseName = currentFile.name.replace(/\.[^.]+$/, "");
-    const filename  = `${baseName}.${selectedExt}`;
-    const url = URL.createObjectURL(convertedBlob);
-    const a   = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    btnDone("convBtn", "✓ Done! 1/1", "Convert & download — 0/1");
+  function convertImage(file) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = e => {
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d");
+          if (selectedMime === "image/jpeg") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+          ctx.drawImage(img, 0, 0);
+          const quality = parseInt(document.getElementById("qualitySlider").value) / 100;
+          canvas.toBlob(blob => {
+            const baseName = file.name.replace(/\.[^.]+$/, "");
+            resolve({ filename: `${baseName}.${selectedExt}`, data: blob });
+          }, selectedMime, selectedMime !== "image/png" ? quality : undefined);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function convert() {
+    if (!state.files.length) return;
+    document.getElementById("progressSection").classList.add("show");
+    const batch = new BatchProcessor({
+      items: state.files, btnId: "convBtn", btnLabel: "Convert", zipName: "converted_images.zip",
+      processOne: async (item, index) => {
+        document.getElementById("progressLabel").textContent = `Converting ${index + 1}/${state.files.length}: ${item.name}`;
+        return await convertImage(item.file);
+      },
+      onComplete: () => { document.getElementById("progressLabel").textContent = "Done!"; }
+    });
+    await batch.run();
   }
 </script>
-
 </body>
 </html>
