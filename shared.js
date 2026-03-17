@@ -14,6 +14,11 @@ const IS_PREMIUM = false;
 
 (function () {
   // ── ADSENSE ──
+  const adMeta = document.createElement("meta");
+  adMeta.name = "google-adsense-account";
+  adMeta.content = "ca-pub-4782154025199543";
+  document.head.appendChild(adMeta);
+
   const adScript = document.createElement("script");
   adScript.async = true;
   adScript.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4782154025199543";
