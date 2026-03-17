@@ -23,8 +23,8 @@ const IS_PREMIUM = false;
   const nav = document.getElementById("shared-nav");
   if (nav) {
     nav.innerHTML = `
-      <a href="${isToolPage ? '../' : '/'}" class="nav-logo">Essential<em>NoPopups</em></a>
-      ${isToolPage ? `<a href="../" class="nav-back">← All tools</a>` : `<ul class="nav-links" style="display:flex;gap:1.5rem;font-size:0.85rem;color:var(--muted);list-style:none;"><li><a href="#video">Video</a></li><li><a href="#image">Images</a></li><li><a href="#audio">Audio</a></li><li><a href="#pdf">PDF</a></li><li><a href="#productivity">Productivity</a></li><li><a href="premium.html" style="color:#6B4FBB;font-weight:500;">✦ Premium</a></li></ul>`}
+      <a href="https://essentialbits.pro" class="nav-logo">Essential<em>NoPopups</em></a>
+      ${isToolPage ? `<a href="https://essentialbits.pro" class="nav-back">← All tools</a>` : `<ul class="nav-links" style="display:flex;gap:1.5rem;font-size:0.85rem;color:var(--muted);list-style:none;"><li><a href="#video">Video</a></li><li><a href="#image">Images</a></li><li><a href="#audio">Audio</a></li><li><a href="#pdf">PDF</a></li><li><a href="#productivity">Productivity</a></li><li><a href="premium.html" style="color:#6B4FBB;font-weight:500;">✦ Premium</a></li></ul>`}
       <div class="nav-badge">Zero pop-ups, ever</div>
     `;
   }
