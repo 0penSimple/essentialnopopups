@@ -181,7 +181,8 @@ input[type="range"] { width: 100%; accent-color: var(--teal); cursor: pointer; }
 .preview-img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
 /* ── AD SLOTS ── */
-.ad-slot { display: none !important; /* Hidden until AdSense approved — remove display:none !important when live */ margin: 1rem 0; opacity: 0; animation: fadeUp 0.4s 0.4s forwards; }
+.ad-slot, .ad-slot-inner { display: none !important; /* Hidden until AdSense approved — remove this line when live */ }
+.ad-slot { margin: 1rem 0; opacity: 0; animation: fadeUp 0.4s 0.4s forwards; }
 .ad-slot-inner {
   background: var(--surface); border: 1px dashed var(--border); border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
