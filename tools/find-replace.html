@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Find &amp; Replace across files — EssentialNoPopups</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* ── FILE CARDS ── */
+  .files-section { display:none; margin-bottom:1.25rem; }
+  .files-section.show { display:block; }
+  .files-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .files-count { font-size:0.78rem; color:var(--muted); }
+
+  .file-list { display:flex; flex-direction:column; gap:6px; }
+  .file-card {
+    background:var(--warm-bg); border:1px solid var(--border);
+    border-radius:10px; padding:12px 14px;
+    display:flex; align-items:center; gap:10px;
+    transition:border-color 0.15s;
+  }
+  .file-card.has-matches { border-color:var(--teal-border); }
+  .file-card.no-matches  { opacity:0.65; }
+  .file-card.is-pdf      { border-color:var(--warn-border); }
+
+  .file-checkbox {
+    width:16px; height:16px; flex-shrink:0; cursor:pointer;
+    accent-color:var(--teal);
+  }
+  .file-icon { font-size:1.1rem; flex-shrink:0; }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:0.82rem; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-meta { font-size:0.72rem; color:var(--faint); margin-top:1px; }
+  .file-results { font-size:0.72rem; margin-top:3px; line-height:1.5; }
+  .file-results.found  { color:var(--teal); }
+  .file-results.none   { color:var(--faint); }
+  .file-results.pdf    { color:var(--warn); }
+  .file-results.error  { color:var(--error); }
+  .file-remove { background:none; border:none; color:var(--faint); font-size:1.1rem; cursor:pointer; padding:0 4px; flex-shrink:0; transition:color 0.15s; line-height:1; }
+  .file-remove:hover { color:var(--error); }
+
+  /* ── SELECT ALL ROW ── */
+  .select-row {
+    display:flex; align-items:center; gap:8px;
+    font-size:0.78rem; color:var(--muted);
+    margin-bottom:8px; user-select:none; cursor:pointer;
+  }
+  .select-row input { accent-color:var(--teal); cursor:pointer; }
+
+  /* ── RULES ── */
+  .rules-section { margin-bottom:1.25rem; }
+  .rules-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .rule-list { display:flex; flex-direction:column; gap:8px; }
+  .rule-row { display:grid; grid-template-columns:1fr 1fr 90px auto; gap:8px; align-items:center; }
+  .rule-input {
+    background:var(--surface); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); font-family:'DM Sans',sans-serif; font-size:0.8rem;
+    padding:8px 10px; outline:none; transition:border-color 0.2s; width:100%;
+  }
+  .rule-input:focus { border-color:var(--teal-border); }
+  .rule-input::placeholder { color:var(--faint); }
+  .rule-case-btn {
+    background:var(--warm-bg); border:1px solid var(--border); border-radius:8px;
+    color:var(--muted); font-family:'DM Sans',sans-serif; font-size:0.72rem;
+    font-weight:500; padding:8px 10px; cursor:pointer; white-space:nowrap;
+    transition:all 0.15s; flex-shrink:0;
+  }
+  .rule-case-btn.on { background:var(--teal-light); border-color:var(--teal-border); color:var(--teal-text); }
+  .rule-remove { background:none; border:none; color:var(--faint); font-size:1.1rem; cursor:pointer; padding:0 4px; transition:color 0.15s; line-height:1; }
+  .rule-remove:hover { color:var(--error); }
+  .rule-labels { display:grid; grid-template-columns:1fr 1fr 90px auto; gap:8px; margin-bottom:4px; }
+  .rule-label { font-size:0.68rem; color:var(--faint); padding-left:2px; }
+
+  .btn-add-rule {
+    background:none; border:1px solid var(--teal-border); border-radius:8px;
+    color:var(--teal); font-family:'DM Sans',sans-serif; font-size:0.75rem;
+    font-weight:500; padding:5px 12px; cursor:pointer; transition:all 0.15s;
+  }
+  .btn-add-rule:hover { background:var(--teal-light); }
+
+  .empty-rules {
+    font-size:0.78rem; color:var(--faint); padding:10px 0;
+    text-align:center; border:1px dashed var(--border);
+    border-radius:8px;
+  }
+
+  /* ── ACTION BUTTONS ROW ── */
+  .action-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:1rem; }
+  .btn-secondary {
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    color:var(--text); font-family:'DM Sans',sans-serif; font-size:0.875rem;
+    font-weight:500; padding:13px; cursor:pointer; transition:all 0.2s;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .btn-secondary:hover { border-color:var(--teal-border); color:var(--teal); background:var(--teal-light); }
+  .btn-secondary:disabled { opacity:0.4; cursor:not-allowed; }
+
+  /* ── PROGRESS ── */
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
+
+  /* ── PDF WARNING TAG ── */
+  .pdf-tag {
+    display:inline-flex; align-items:center; gap:4px;
+    font-size:0.65rem; font-weight:500; letter-spacing:0.04em;
+    background:var(--warn-light); color:var(--warn);
+    border:1px solid var(--warn-border); border-radius:99px;
+    padding:2px 7px; margin-left:6px; vertical-align:middle;
+  }
+
+  @media(max-width:480px) {
+    .rule-row { grid-template-columns:1fr 1fr; }
+    .rule-case-btn, .rule-remove { grid-column:span 1; }
+    .action-row { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>Productivity</span>
+      <span>›</span>
+      <span>Find &amp; Replace across files</span>
+    </div>
+    <h1>Find &amp; Replace across files</h1>
+    <div class="info-btn-row">
+      <p>Search for words across multiple files and replace them — formatting preserved. Everything happens in your browser.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <!-- DROP ZONE -->
+    <label>Your files</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".txt,.md,.docx,.pdf" multiple>
+      <div class="drop-icon">📂</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag files here</div>
+      <div class="drop-sub">.txt, .md, .docx — formatting preserved · .pdf returned as .txt</div>
+    </div>
+
+    <!-- FILE LIST -->
+    <div class="files-section" id="filesSection">
+      <div class="files-header">
+        <div class="files-count" id="filesCount">0 files</div>
+        <label class="add-more-label" style="display:inline-flex;align-items:center;gap:5px;font-size:0.78rem;color:var(--teal);font-weight:500;cursor:pointer;">
+          <input type="file" accept=".txt,.md,.docx,.pdf" multiple style="display:none;" onchange="addMoreFiles(this.files); this.value='';">
+          + Add more
+        </label>
+      </div>
+      <div class="select-row" id="selectAllRow" style="display:none;">
+        <input type="checkbox" id="selectAllChk" onchange="toggleSelectAll(this.checked)">
+        <label for="selectAllChk">Select all for replacement</label>
+      </div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+
+    <!-- RULES -->
+    <div class="rules-section" id="rulesSection" style="display:none;">
+      <div class="rules-header">
+        <label style="margin:0;">Find &amp; replace rules</label>
+        <button class="btn-add-rule" onclick="addRule()">+ Add rule</button>
+      </div>
+      <div id="ruleLabels" class="rule-labels" style="display:none;">
+        <div class="rule-label">Find</div>
+        <div class="rule-label">Replace with</div>
+        <div class="rule-label">Case sensitive</div>
+        <div></div>
+      </div>
+      <div class="rule-list" id="ruleList">
+        <div class="empty-rules" id="emptyRules">Add a rule above to get started</div>
+      </div>
+    </div>
+
+    <!-- ACTION BUTTONS -->
+    <div class="action-row" id="actionRow" style="display:none;">
+      <button class="btn-secondary" id="searchBtn" onclick="runSearch()" disabled>
+        🔍 Search all files
+      </button>
+      <button class="btn-primary" id="replaceBtn" onclick="runReplace()" disabled style="margin:0;">
+        Replace &amp; download
+      </button>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Searching...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
+      <li>Supported formats: plain text (.txt), Markdown (.md), and Word documents (.docx). Word documents are returned with all formatting fully preserved — bold, italic, font sizes, headings and all.</li>
+      <li>PDF files cannot be edited while preserving their layout. When you include a PDF, the text is extracted and returned as a plain .txt file instead.</li>
+      <li><strong>Case sensitive</strong> means the search will match the exact capitalisation you type. For example, searching "Hello" will not find "hello" or "HELLO". Leave it unchecked to find the word regardless of how it is capitalised — this is the default and works for most cases.</li>
+      <li>Text in page headers and footers (the repeating content at the very top or bottom of every printed page) is not searched — only the main document body is included.</li>
+      <li>In rare cases, Word may have internally split a word across multiple formatting fragments — for example if part of a word was ever formatted differently. If you expect matches but see zero for a .docx file, try copying the content into a fresh document and re-uploading.</li>
+      <li>Rules are applied in a single pass — if rule 1 changes "cat" to "dog" and rule 2 searches for "dog", the newly created word will not be caught by rule 2. This is intentional and prevents rules from interfering with each other.</li>
+      <li>Only files with at least one match are included in the download. Files with no matches are skipped — you will see a summary after downloading.</li>
+      <li>Select which files to include in the replacement using the checkboxes. Unchecked files are searched but not modified.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+
+<!-- Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="../shared.js"></script>
+
+<script>
+/* ================================================================
+   FIND & REPLACE ACROSS FILES
+   Pipeline: loadFiles() → runSearch() → runReplace()
+
+   docx strategy: PizZip reads raw XML → paragraph-level cross-run
+   algorithm (Eric White) finds matches spanning runs → single-pass
+   replacement preserves all formatting → PizZip writes back to blob.
+   ================================================================ */
+
+/* ── CONSTANTS ── */
+const MAX_FILE_BYTES  = 10 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 30 * 1024 * 1024;
+const VALID_EXTS      = ["txt", "md", "docx", "pdf"];
+
+/* ── STATE ── */
+const state = {
+  files: [],    // { id, name, size, ext, rawBytes, status, results, selected }
+                // status: "ready" | "error" | "empty"
+                // results: [{ ruleIndex, count }] — after search
+                // rawBytes: ArrayBuffer — original untouched bytes
+  rules: [],    // { id, find, replace, caseSensitive }
+  searched: false,
+  isPremium: IS_PREMIUM
+};
+
+let nextId     = 1;
+let nextRuleId = 1;
+
+/* ================================================================
+   FILE LOADING
+   ================================================================ */
+document.addEventListener("DOMContentLoaded", () => {
+  if (typeof pdfjsLib !== "undefined") {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  }
+
+  makeDropZone(document.getElementById("dropZone"), {
+    accept:   "",
+    multiple: true,
+    maxFree:  Infinity,
+    onFiles:  handleNewFiles
+  });
+});
+
+function handleNewFiles(fileList) {
+  const existingBytes = state.files.reduce((s, f) => s + f.size, 0);
+  let addedBytes = 0;
+
+  for (const file of fileList) {
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!VALID_EXTS.includes(ext)) {
+      showNotification(`${file.name} — unsupported format. Please upload .txt, .md, .docx, or .pdf files.`, "error");
+      continue;
+    }
+    if (existingBytes + addedBytes + file.size > MAX_TOTAL_BYTES) {
+      showNotification(`Total size limit (30MB) reached. ${file.name} was not added.`, "error");
+      continue;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      showNotification(`${file.name} is too large (max 10MB per file).`, "error");
+      continue;
+    }
+    addedBytes += file.size;
+
+    const item = {
+      id: nextId++, name: file.name, size: file.size, ext,
+      rawBytes: null, status: "loading",
+      results: [], selected: true
+    };
+    state.files.push(item);
+
+    // Read bytes async
+    file.arrayBuffer().then(buf => {
+      item.rawBytes = buf;
+      item.status   = "ready";
+      // Reset search when new files are added
+      state.searched = false;
+      render();
+    }).catch(() => {
+      item.status = "error";
+      render();
+    });
+  }
+
+  state.searched = false;
+  render();
+}
+
+function addMoreFiles(fileList) {
+  handleNewFiles(Array.from(fileList));
+}
+
+function removeFile(id) {
+  state.files = state.files.filter(f => f.id !== id);
+  state.searched = false;
+  render();
+}
+
+function toggleSelect(id, checked) {
+  const f = state.files.find(f => f.id === id);
+  if (f) { f.selected = checked; render(); }
+}
+
+function toggleSelectAll(checked) {
+  state.files.forEach(f => { f.selected = checked; });
+  render();
+}
+
+/* ================================================================
+   RULES
+   ================================================================ */
+function addRule() {
+  state.rules.push({ id: nextRuleId++, find: "", replace: "", caseSensitive: false });
+  state.searched = false;
+  render();
+}
+
+function removeRule(id) {
+  state.rules = state.rules.filter(r => r.id !== id);
+  state.searched = false;
+  render();
+}
+
+function updateRule(id, key, value) {
+  const r = state.rules.find(r => r.id === id);
+  if (r) {
+    r[key] = value;
+    state.searched = false;
+    // No render() here — rebuilding DOM on keystroke kills focus
+    // Buttons are always enabled; runSearch/runReplace guard themselves
+  }
+}
+
+function toggleCase(id) {
+  const r = state.rules.find(r => r.id === id);
+  if (r) {
+    r.caseSensitive = !r.caseSensitive;
+    state.searched = false;
+    render();
+  }
+}
+
+/* ================================================================
+   RENDER
+   ================================================================ */
+function render() {
+  const hasFiles    = state.files.length > 0;
+  const hasRules    = state.rules.some(r => r.find.trim());
+  const readyFiles  = state.files.filter(f => f.status === "ready");
+  const selectedFiles = state.files.filter(f => f.selected && f.status === "ready");
+
+  // Files section
+  document.getElementById("filesSection").classList.toggle("show", hasFiles);
+  document.getElementById("rulesSection").style.display  = hasFiles ? "block" : "none";
+  document.getElementById("actionRow").style.display     = hasFiles ? "grid" : "none";
+  document.getElementById("selectAllRow").style.display  = hasFiles ? "flex" : "none";
+
+  // File count
+  document.getElementById("filesCount").textContent =
+    `${state.files.length} file${state.files.length !== 1 ? "s" : ""}`;
+
+  // Select all checkbox state
+  const allSelected = state.files.length > 0 && state.files.every(f => f.selected);
+  const someSelected = state.files.some(f => f.selected);
+  const chk = document.getElementById("selectAllChk");
+  chk.checked       = allSelected;
+  chk.indeterminate = !allSelected && someSelected;
+
+  // Drop zone text
+  const dropText = document.querySelector("#dropZone .drop-text");
+  dropText.innerHTML = state.files.length === 0
+    ? `<strong>Click to choose</strong> or drag files here`
+    : `<strong>${state.files.length} file${state.files.length !== 1 ? "s" : ""} loaded</strong> — drop more to add`;
+
+  // File cards
+  const list = document.getElementById("fileList");
+  list.innerHTML = "";
+  state.files.forEach(item => {
+    const card = document.createElement("div");
+    let cardClass = "file-card";
+    if (item.ext === "pdf") cardClass += " is-pdf";
+    else if (state.searched && item.results.some(r => r.count > 0)) cardClass += " has-matches";
+    else if (state.searched && item.status === "ready") cardClass += " no-matches";
+    card.className = cardClass;
+
+    const resultsHtml = buildResultsHtml(item);
+
+    card.innerHTML = `
+      <input type="checkbox" class="file-checkbox"
+        ${item.selected ? "checked" : ""}
+        onchange="toggleSelect(${item.id}, this.checked)">
+      <div class="file-icon">${iconFor(item.ext)}</div>
+      <div class="file-info">
+        <div class="file-name">
+          ${escHtml(item.name)}
+          ${item.ext === "pdf" ? '<span class="pdf-tag">→ .txt</span>' : ""}
+        </div>
+        <div class="file-meta">${formatBytes(item.size)}</div>
+        ${resultsHtml}
+      </div>
+      <button class="file-remove" onclick="removeFile(${item.id})" title="Remove">×</button>
+    `;
+    list.appendChild(card);
+  });
+
+  // Rules
+  const ruleList  = document.getElementById("ruleList");
+  const emptyMsg  = document.getElementById("emptyRules");
+  const labelsRow = document.getElementById("ruleLabels");
+
+  ruleList.innerHTML = "";
+  if (state.rules.length === 0) {
+    labelsRow.style.display = "none";
+    const empty = document.createElement("div");
+    empty.className = "empty-rules";
+    empty.textContent = "Add a rule above to get started";
+    ruleList.appendChild(empty);
+  } else {
+    labelsRow.style.display = "grid";
+    state.rules.forEach(rule => {
+      const row = document.createElement("div");
+      row.className = "rule-row";
+      row.innerHTML = `
+        <input class="rule-input" type="text" placeholder="Find…"
+          value="${escHtml(rule.find)}"
+          oninput="updateRule(${rule.id}, 'find', this.value)">
+        <input class="rule-input" type="text" placeholder="Replace with (empty = delete)"
+          value="${escHtml(rule.replace)}"
+          oninput="updateRule(${rule.id}, 'replace', this.value)">
+        <label style="display:flex;align-items:center;justify-content:center;gap:5px;
+          font-size:0.75rem;color:var(--muted);cursor:pointer;white-space:nowrap;">
+          <input type="checkbox" ${rule.caseSensitive ? "checked" : ""}
+            onchange="toggleCase(${rule.id})"
+            style="accent-color:var(--teal);cursor:pointer;width:14px;height:14px;">
+        </label>
+        <button class="rule-remove" onclick="removeRule(${rule.id})" title="Remove rule">×</button>
+      `;
+      ruleList.appendChild(row);
+    });
+  }
+
+  // Buttons
+  // Buttons are always enabled — runSearch/runReplace handle empty states gracefully
+  document.getElementById("searchBtn").disabled  = false;
+  document.getElementById("replaceBtn").disabled = false;
+
+  const matchedSelected = state.searched
+    ? selectedFiles.filter(f => f.results.some(r => r.count > 0)).length
+    : 0;
+  document.getElementById("replaceBtn").textContent = matchedSelected > 0
+    ? `Replace & download — ${matchedSelected} file${matchedSelected !== 1 ? "s" : ""}`
+    : "Replace & download";
+}
+
+function buildResultsHtml(item) {
+  if (item.status === "loading") return `<div class="file-results none">Reading…</div>`;
+  if (item.status === "error")   return `<div class="file-results error">Could not read file</div>`;
+  if (item.ext === "pdf")        return `<div class="file-results pdf">Will be returned as plain text</div>`;
+  if (!state.searched)           return "";
+
+  if (item.results.length === 0 || item.results.every(r => r.count === 0)) {
+    return `<div class="file-results none">No matches found</div>`;
+  }
+
+  const parts = item.results
+    .filter(r => r.count > 0)
+    .map(r => {
+      const rule = state.rules.find(rl => rl.id === r.ruleId);
+      if (!rule) return null;
+      return `"${escHtml(rule.find)}": ${r.count}`;
+    })
+    .filter(Boolean)
+    .join(" · ");
+
+  const total = item.results.reduce((s, r) => s + r.count, 0);
+  return `<div class="file-results found">${parts} <span style="color:var(--faint);">(${total} total)</span></div>`;
+}
+
+/* ================================================================
+   STEP 1 — SEARCH
+   ================================================================ */
+async function runSearch() {
+  const readyFiles  = state.files.filter(f => f.status === "ready");
+  const activeRules = state.rules.filter(r => r.find.trim());
+  if (!readyFiles.length) {
+    showNotification("Upload at least one file before searching.", "info");
+    return;
+  }
+  if (!activeRules.length) {
+    showNotification("Add a search term in the Find field before searching.", "info");
+    return;
+  }
+
+  await btnLoading("searchBtn", "Searching…");
+
+  document.getElementById("progressSection").classList.add("show");
+  document.getElementById("progressFill").style.width = "0%";
+  clearNotification();
+
+  for (let i = 0; i < readyFiles.length; i++) {
+    const item = readyFiles[i];
+    const pct  = Math.round((i / readyFiles.length) * 100);
+    document.getElementById("progressFill").style.width = pct + "%";
+    document.getElementById("progressPct").textContent  = pct + "%";
+    document.getElementById("progressLabel").textContent = `Searching ${item.name}…`;
+
+    item.results = [];
+    if (item.ext === "pdf") continue; // PDF — skip search, will extract at replace time
+
+    try {
+      const text = await extractText(item);
+      item.results = activeRules.map(rule => ({
+        ruleId: rule.id,
+        count:  countMatches(text, rule)
+      }));
+    } catch(e) {
+      item.status = "error";
+    }
+
+    await new Promise(r => setTimeout(r, 0)); // yield to browser
+  }
+
+  document.getElementById("progressFill").style.width = "100%";
+  document.getElementById("progressPct").textContent  = "100%";
+  document.getElementById("progressLabel").textContent = "Search complete";
+
+  state.searched = true;
+
+  // Check if ALL files returned zero matches
+  const nonPdfFiles  = readyFiles.filter(f => f.ext !== "pdf");
+  const allZero      = nonPdfFiles.length > 0 &&
+                       nonPdfFiles.every(f => f.results.every(r => r.count === 0));
+  if (allZero) {
+    showNotification(
+      "No matches found in any file. If you expected results, check the Good to know section for possible reasons.",
+      "info"
+    );
+  }
+
+  document.getElementById("searchBtn").disabled  = false;
+  document.getElementById("searchBtn").textContent = "🔍 Search all files";
+  render();
+}
+
+/* ================================================================
+   STEP 2 — REPLACE & DOWNLOAD
+   ================================================================ */
+async function runReplace() {
+  const activeRules    = state.rules.filter(r => r.find.trim());
+  const selectedFiles  = state.files.filter(f =>
+    f.selected && f.status === "ready" &&
+    (f.ext === "pdf" || f.results.some(r => r.count > 0))
+  );
+
+  if (!activeRules.length) {
+    showNotification("Add a search term in the Find field first.", "info");
+    return;
+  }
+  if (!state.searched) {
+    showNotification("Run a search first to find matches before replacing.", "info");
+    return;
+  }
+  if (!selectedFiles.length) {
+    showNotification("No files with matches are selected. Run a search first, then select the files you want to modify.", "info");
+    return;
+  }
+
+  await btnLoading("replaceBtn", "Processing…", selectedFiles.length);
+
+  document.getElementById("progressSection").classList.add("show");
+  document.getElementById("progressFill").style.width = "0%";
+  clearNotification();
+
+  const results  = [];
+  const errors   = [];
+  let skipped    = 0;
+
+  for (let i = 0; i < selectedFiles.length; i++) {
+    const item = selectedFiles[i];
+    document.getElementById("progressFill").style.width =
+      Math.round((i / selectedFiles.length) * 100) + "%";
+    document.getElementById("progressPct").textContent =
+      Math.round((i / selectedFiles.length) * 100) + "%";
+    document.getElementById("progressLabel").textContent =
+      `Processing ${i + 1}/${selectedFiles.length}: ${item.name}`;
+
+    try {
+      const { blob, filename } = await applyReplacement(item, activeRules);
+      if (blob) {
+        results.push({ filename, data: blob });
+      } else {
+        skipped++;
+      }
+    } catch(e) {
+      errors.push(item.name);
+    }
+
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  document.getElementById("progressFill").style.width = "100%";
+  document.getElementById("progressPct").textContent  = "100%";
+  document.getElementById("progressLabel").textContent = "Done!";
+
+  if (results.length === 0) {
+    showNotification("No files were modified — nothing to download.", "error");
+    btnReset("replaceBtn", "Replace & download");
+    return;
+  }
+
+  // Download — single file directly, multiple as ZIP
+  if (results.length === 1) {
+    const url = URL.createObjectURL(results[0].data);
+    const a   = document.createElement("a");
+    a.href = url; a.download = results[0].filename;
+    a.click(); URL.revokeObjectURL(url);
+  } else {
+    const zip = new JSZip();
+    results.forEach(r => zip.file(r.filename, r.data));
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = "replaced_files.zip";
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  // Summary notification
+  let msg = `${results.length} file${results.length !== 1 ? "s" : ""} downloaded.`;
+  if (skipped > 0) msg += ` ${skipped} file${skipped !== 1 ? "s" : ""} had no matches and were skipped.`;
+  if (errors.length > 0) msg += ` ${errors.length} file${errors.length !== 1 ? "s" : ""} failed: ${errors.join(", ")}.`;
+  showNotification(msg, "info");
+
+  btnDone("replaceBtn", `✓ Done! ${results.length} file${results.length !== 1 ? "s" : ""} downloaded`, "Replace & download");
+  refreshAds();
+}
+
+/* ================================================================
+   EXTRACT TEXT (for search counting only)
+   ================================================================ */
+async function extractText(item) {
+  if (item.ext === "txt" || item.ext === "md") {
+    return new TextDecoder("utf-8").decode(item.rawBytes);
+  }
+  if (item.ext === "docx") {
+    return extractDocxText(item.rawBytes);
+  }
+  if (item.ext === "pdf") {
+    return extractPdfText(item.rawBytes);
+  }
+  throw new Error("Unsupported format");
+}
+
+function extractDocxText(arrayBuffer) {
+  const zip = new PizZip(arrayBuffer);
+  const xml = zip.files["word/document.xml"].asText();
+  // Extract all w:t text nodes
+  const matches = xml.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
+  return matches.map(m => m.replace(/<[^>]+>/g, "")).join(" ");
+}
+
+async function extractPdfText(arrayBuffer) {
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page    = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(item => item.str).join(" ") + "\n";
+  }
+  return text;
+}
+
+/* ================================================================
+   COUNT MATCHES
+   ================================================================ */
+function countMatches(text, rule) {
+  if (!rule.find) return 0;
+  const flags   = rule.caseSensitive ? "g" : "gi";
+  const escaped = escapeRegex(rule.find);
+  const matches = text.match(new RegExp(escaped, flags));
+  return matches ? matches.length : 0;
+}
+
+/* ================================================================
+   APPLY REPLACEMENT — returns { blob, filename } or null if no changes
+   ================================================================ */
+async function applyReplacement(item, rules) {
+  if (item.ext === "txt" || item.ext === "md") {
+    return applyTextReplacement(item, rules);
+  }
+  if (item.ext === "docx") {
+    return applyDocxReplacement(item, rules);
+  }
+  if (item.ext === "pdf") {
+    return applyPdfReplacement(item, rules);
+  }
+  throw new Error("Unsupported format");
+}
+
+/* ── TXT / MD replacement ── */
+function applyTextReplacement(item, rules) {
+  let text     = new TextDecoder("utf-8").decode(item.rawBytes);
+  let changed  = false;
+
+  // Single-pass: build one combined regex for all rules
+  // Process rules in order, longest find first to handle overlaps
+  const sortedRules = [...rules]
+    .filter(r => r.find)
+    .sort((a, b) => b.find.length - a.find.length);
+
+  // Apply each rule in sequence (single pass per rule since txt is simple)
+  for (const rule of sortedRules) {
+    const flags   = rule.caseSensitive ? "g" : "gi";
+    const escaped = escapeRegex(rule.find);
+    const regex   = new RegExp(escaped, flags);
+    const newText = text.replace(regex, rule.replace);
+    if (newText !== text) { text = newText; changed = true; }
+  }
+
+  if (!changed) return { blob: null, filename: null };
+
+  const blob     = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const filename = item.name.replace(/\.[^.]+$/, "") + "_edited." + item.ext;
+  return { blob, filename };
+}
+
+/* ── DOCX replacement — cross-run XML algorithm ── */
+function applyDocxReplacement(item, rules) {
+  const activeRules = rules.filter(r => r.find);
+  if (!activeRules.length) return { blob: null, filename: null };
+
+  const zip = new PizZip(item.rawBytes);
+  let changed = false;
+
+  // Process main document body only (headers/footers excluded — documented limitation)
+  const xmlStr     = zip.files["word/document.xml"].asText();
+  const newXmlStr  = replaceInDocxXml(xmlStr, activeRules);
+  if (newXmlStr !== xmlStr) {
+    zip.file("word/document.xml", newXmlStr);
+    changed = true;
+  }
+
+  if (!changed) return { blob: null, filename: null };
+
+  const blob     = new Blob(
+    [zip.generate({ type: "arraybuffer" })],
+    { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
+  );
+  const filename = item.name.replace(/\.[^.]+$/, "") + "_edited.docx";
+  return { blob, filename };
+}
+
+/* ── PDF replacement — extract text, apply rules, return as .txt ── */
+async function applyPdfReplacement(item, rules) {
+  let text    = await extractPdfText(item.rawBytes);
+  let changed = false;
+
+  for (const rule of rules.filter(r => r.find)) {
+    const flags   = rule.caseSensitive ? "g" : "gi";
+    const escaped = escapeRegex(rule.find);
+    const regex   = new RegExp(escaped, flags);
+    const newText = text.replace(regex, rule.replace);
+    if (newText !== text) { text = newText; changed = true; }
+  }
+
+  // PDFs always included when selected (even if 0 matches — user selected them knowingly)
+  const blob     = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const filename = item.name.replace(/\.[^.]+$/, "") + "_edited.txt";
+  return { blob, filename };
+}
+
+/* ================================================================
+   DOCX CROSS-RUN REPLACEMENT ALGORITHM
+   Based on Eric White's approach:
+   1. For each paragraph, split all runs into single-character runs
+   2. Scan character by character for each search term
+   3. When found, replace the matched run sequence with a single new run
+   4. Coalesce adjacent identical-format runs back together
+   ================================================================ */
+function replaceInDocxXml(xmlStr, rules) {
+  // Parse XML using browser DOMParser
+  const parser   = new DOMParser();
+  const doc      = parser.parseFromString(xmlStr, "text/xml");
+  const NS       = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+  const paragraphs = doc.getElementsByTagNameNS(NS, "p");
+
+  for (let pi = 0; pi < paragraphs.length; pi++) {
+    const para = paragraphs[pi];
+    applyRulesToParagraph(para, rules, NS, doc);
+  }
+
+  const serializer = new XMLSerializer();
+  return serializer.serializeToString(doc);
+}
+
+function applyRulesToParagraph(para, rules, NS, doc) {
+  // Step 1: Split all runs into single-character runs
+  splitRunsToChars(para, NS, doc);
+
+  // Step 2 & 3: For each rule, find and replace across the character runs
+  for (const rule of rules) {
+    if (!rule.find) continue;
+    replaceInCharRuns(para, rule, NS, doc);
+  }
+
+  // Step 4: Coalesce adjacent runs with identical formatting
+  coalesceRuns(para, NS, doc);
+}
+
+function splitRunsToChars(para, NS, doc) {
+  const runs = Array.from(para.getElementsByTagNameNS(NS, "r"));
+  for (const run of runs) {
+    const rPr  = run.getElementsByTagNameNS(NS, "rPr")[0] || null;
+    const texts = Array.from(run.getElementsByTagNameNS(NS, "t"));
+
+    if (texts.length === 0) continue;
+
+    const fullText = texts.map(t => t.textContent).join("");
+    if (fullText.length <= 1) continue; // already single char or empty
+
+    // Replace this run with individual single-char runs
+    const parent = run.parentNode;
+    const chars  = Array.from(fullText);
+
+    for (const ch of chars) {
+      const newRun = doc.createElementNS(NS, "w:r");
+      if (rPr) newRun.appendChild(rPr.cloneNode(true));
+      const t = doc.createElementNS(NS, "w:t");
+      if (ch === " ") t.setAttribute("xml:space", "preserve");
+      t.textContent = ch;
+      newRun.appendChild(t);
+      parent.insertBefore(newRun, run);
+    }
+
+    parent.removeChild(run);
+  }
+}
+
+function replaceInCharRuns(para, rule, NS, doc) {
+  const runs    = Array.from(para.getElementsByTagNameNS(NS, "r"));
+  const chars   = runs.map(r => {
+    const t = r.getElementsByTagNameNS(NS, "t")[0];
+    return t ? t.textContent : "";
+  });
+  const fullStr = chars.join("");
+
+  const flags   = rule.caseSensitive ? "g" : "gi";
+  const escaped = escapeRegex(rule.find);
+  const regex   = new RegExp(escaped, flags);
+
+  let match;
+  const replacements = []; // { start, end, replacement }
+
+  while ((match = regex.exec(fullStr)) !== null) {
+    replacements.push({
+      start:       match.index,
+      end:         match.index + match[0].length,
+      replacement: rule.replace
+    });
+    if (!flags.includes("g")) break;
+  }
+
+  if (replacements.length === 0) return;
+
+  // Apply replacements in reverse order so indices stay valid
+  for (let ri = replacements.length - 1; ri >= 0; ri--) {
+    const { start, end, replacement } = replacements[ri];
+
+    // Get the formatting from the first matched run
+    const firstRun = runs[start];
+    const rPr      = firstRun
+      ? (firstRun.getElementsByTagNameNS(NS, "rPr")[0] || null)
+      : null;
+
+    // Remove runs in the matched range
+    for (let ci = start; ci < end; ci++) {
+      if (runs[ci] && runs[ci].parentNode) {
+        runs[ci].parentNode.removeChild(runs[ci]);
+      }
+    }
+
+    // Insert replacement run (if replacement text is non-empty)
+    if (replacement) {
+      const refNode = runs[end] || null; // insert before this run
+      const newRun  = doc.createElementNS(NS, "w:r");
+      if (rPr) newRun.appendChild(rPr.cloneNode(true));
+
+      // Handle multi-char replacement
+      for (const ch of Array.from(replacement)) {
+        const t = doc.createElementNS(NS, "w:t");
+        if (ch === " ") t.setAttribute("xml:space", "preserve");
+        t.textContent = ch;
+        newRun.appendChild(t);
+      }
+
+      // Actually insert as a single w:t with the full replacement text
+      newRun.innerHTML = "";
+      if (rPr) newRun.appendChild(rPr.cloneNode(true));
+      const tEl = doc.createElementNS(NS, "w:t");
+      if (replacement.includes(" ")) tEl.setAttribute("xml:space", "preserve");
+      tEl.textContent = replacement;
+      newRun.appendChild(tEl);
+
+      if (refNode && refNode.parentNode) {
+        refNode.parentNode.insertBefore(newRun, refNode);
+      } else {
+        para.appendChild(newRun);
+      }
+    }
+  }
+
+  // Refresh runs array after DOM manipulation
+  // (coalescing handles the rest)
+}
+
+function coalesceRuns(para, NS, doc) {
+  const runs = Array.from(para.getElementsByTagNameNS(NS, "r"));
+  if (runs.length < 2) return;
+
+  let i = 0;
+  while (i < runs.length - 1) {
+    const curr = runs[i];
+    const next = runs[i + 1];
+    if (!curr.parentNode || !next.parentNode) { i++; continue; }
+
+    const currRpr = curr.getElementsByTagNameNS(NS, "rPr")[0];
+    const nextRpr = next.getElementsByTagNameNS(NS, "rPr")[0];
+
+    // Compare formatting by serializing rPr nodes
+    const currFmt = currRpr ? new XMLSerializer().serializeToString(currRpr) : "";
+    const nextFmt = nextRpr ? new XMLSerializer().serializeToString(nextRpr) : "";
+
+    if (currFmt === nextFmt) {
+      // Merge next's text into curr
+      const currT = curr.getElementsByTagNameNS(NS, "t")[0];
+      const nextT = next.getElementsByTagNameNS(NS, "t")[0];
+      if (currT && nextT) {
+        const merged = (currT.textContent || "") + (nextT.textContent || "");
+        currT.textContent = merged;
+        if (merged.includes(" ")) currT.setAttribute("xml:space", "preserve");
+        next.parentNode.removeChild(next);
+        runs.splice(i + 1, 1);
+        continue; // don't advance i — check curr against new next
+      }
+    }
+    i++;
+  }
+}
+
+/* ================================================================
+   HELPERS
+   ================================================================ */
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function iconFor(ext) {
+  if (ext === "pdf")  return "📄";
+  if (ext === "docx") return "📝";
+  if (ext === "md")   return "🔖";
+  return "📃";
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+</script>
+
+</body>
+</html>

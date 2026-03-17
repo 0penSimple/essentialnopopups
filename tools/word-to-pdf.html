@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word to PDF — EssentialNoPopups</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* ── FILE LIST ── */
+  .files-section { display:none; margin-bottom:1.25rem; }
+  .files-section.show { display:block; }
+  .files-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .files-count { font-size:0.78rem; color:var(--muted); }
+
+  .file-list { display:flex; flex-direction:column; gap:6px; }
+  .file-item { display:flex; align-items:center; gap:10px; background:var(--warm-bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .file-icon { font-size:1.1rem; flex-shrink:0; }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:0.82rem; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .file-meta { font-size:0.72rem; color:var(--faint); margin-top:1px; }
+  .file-status { font-size:0.72rem; margin-top:2px; }
+  .file-status.warn  { color:var(--warn); }
+  .file-status.error { color:var(--error); }
+  .file-remove { background:none; border:none; color:var(--faint); font-size:1.1rem; cursor:pointer; padding:0 4px; flex-shrink:0; transition:color 0.15s; line-height:1; }
+  .file-remove:hover { color:var(--error); }
+
+  /* ── PROGRESS ── */
+  .progress-section { display:none; margin-bottom:1.25rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.3s; width:0%; }
+
+  /* ── HIDDEN RENDER CONTAINER ── */
+  #renderContainer {
+    position: fixed;
+    left: -9999px;
+    top: 0;
+    width: 794px; /* A4 at 96dpi */
+    background: #ffffff;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  /* ── QUALITY NOTE ── */
+  .quality-note {
+    font-size:0.72rem; color:var(--faint); margin-top:6px; line-height:1.5;
+  }
+</style>
+</head>
+<body>
+
+<!-- Hidden container for docx-preview rendering -->
+<div id="renderContainer"></div>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>PDF &amp; Documents</span>
+      <span>›</span>
+      <span>Word to PDF</span>
+    </div>
+    <h1>Word to PDF</h1>
+    <div class="info-btn-row">
+      <p>Convert Word documents (.docx) to PDF — formatting, images and layout preserved visually. Everything happens in your browser.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <label>Your Word document</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".docx">
+      <div class="drop-icon">📝</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag a Word file here</div>
+      <div class="drop-sub" id="dropSub">.docx files only</div>
+    </div>
+
+    <!-- FILE LIST -->
+    <div class="files-section" id="filesSection">
+      <div class="files-header">
+        <div class="files-count" id="filesCount">0 files</div>
+        <div class="btn-add-more" id="addMoreBtn" style="display:none;">
+          <input type="file" accept=".docx" multiple onchange="addFiles(this.files); this.value=''">
+          + Add more
+        </div>
+      </div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Converting...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="convertBtn" onclick="convert()" disabled>
+      Convert &amp; download — 0/1
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
+      <li>The PDF preserves the visual appearance of your document — formatting, images, tables, and layout all come through. The output is image-based, so text in the PDF will not be selectable or searchable.</li>
+      <li>Fonts that are not installed on your device may be substituted with a similar system font. The layout will still be correct but the exact typeface may differ slightly.</li>
+      <li>Complex layouts such as multiple columns, text boxes, and precise floating images generally convert well. Very large or complex documents may take a moment to process.</li>
+      <li>Password-protected Word documents cannot be converted. Remove the password first, then re-upload.</li>
+      <li>Files over 10MB may slow down your browser during conversion. For very large documents, consider splitting them first.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+
+<!-- Libraries -->
+<!-- JSZip must load BEFORE docx-preview — it depends on it as a global -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.7/dist/docx-preview.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="../shared.js"></script>
+
+<script>
+/* ================================================================
+   WORD TO PDF
+   Pipeline per file:
+     1. Validate docx (PizZip)
+     2. Render with docx-preview into hidden off-screen div
+     3. Measure rendered height to determine page count
+     4. Capture each A4-height slice with html2canvas
+     5. Embed each canvas as JPEG into a pdf-lib PDF page
+     6. Download
+
+   A4 dimensions:
+     At 96dpi: 794 × 1123px
+     In PDF points: 595.28 × 841.89pt
+   ================================================================ */
+
+const A4_W_PX   = 794;
+const A4_H_PX   = 1123;
+const A4_W_PT   = 595.28;
+const A4_H_PT   = 841.89;
+const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+const SCALE     = 2; // retina quality for html2canvas
+
+const state = {
+  files: [],      // { id, file, name, size, status, warningMsg }
+  isPremium: IS_PREMIUM
+};
+
+let nextId = 1;
+
+/* ================================================================
+   SETUP
+   ================================================================ */
+document.addEventListener("DOMContentLoaded", () => {
+  makeDropZone(document.getElementById("dropZone"), {
+    accept:   "",
+    multiple: state.isPremium,
+    maxFree:  1,
+    onFiles:  handleNewFiles
+  });
+
+  if (state.isPremium) {
+    document.getElementById("addMoreBtn").style.display = "block";
+    document.getElementById("dropSub").textContent = "Drop multiple .docx files at once";
+  }
+});
+
+/* ================================================================
+   FILE HANDLING
+   ================================================================ */
+function handleNewFiles(fileList) {
+  const toAdd = [];
+  for (const file of fileList) {
+    const ext = file.name.split(".").pop().toLowerCase();
+
+    if (ext !== "docx") {
+      showNotification(
+        `${file.name} — only .docx files are supported. Please convert other formats to Word first.`,
+        "error"
+      );
+      continue;
+    }
+
+    if (file.size > MAX_BYTES) {
+      showNotification(
+        `${file.name} is too large (max 10MB). For best results, split large documents first.`,
+        "error"
+      );
+      continue;
+    }
+
+    const item = {
+      id: nextId++, file, name: file.name, size: file.size,
+      status: "ready", warningMsg: null
+    };
+
+    // Warn for large files
+    if (file.size > 5 * 1024 * 1024) {
+      item.warningMsg = "Large file — conversion may take a moment";
+    }
+
+    toAdd.push(item);
+  }
+
+  if (toAdd.length) {
+    state.files = state.isPremium
+      ? [...state.files, ...toAdd]
+      : toAdd.slice(0, 1);
+    render();
+  }
+}
+
+function addFiles(fileList) {
+  handleNewFiles(Array.from(fileList));
+}
+
+function removeFile(id) {
+  state.files = state.files.filter(f => f.id !== id);
+  render();
+}
+
+/* ================================================================
+   RENDER
+   ================================================================ */
+function render() {
+  const { files } = state;
+  const list      = document.getElementById("fileList");
+  const section   = document.getElementById("filesSection");
+  const btn       = document.getElementById("convertBtn");
+
+  list.innerHTML = "";
+  files.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "file-item";
+
+    let statusHtml = "";
+    if (item.status === "validating") {
+      statusHtml = `<div class="file-status" style="color:var(--faint)">Checking file…</div>`;
+    } else if (item.status === "error") {
+      statusHtml = `<div class="file-status error">✕ ${item.warningMsg}</div>`;
+    } else if (item.warningMsg) {
+      statusHtml = `<div class="file-status warn">⚠ ${item.warningMsg}</div>`;
+    }
+
+    div.innerHTML = `
+      <div class="file-icon">📝</div>
+      <div class="file-info">
+        <div class="file-name">${escHtml(item.name)}</div>
+        <div class="file-meta">${formatBytes(item.size)}</div>
+        ${statusHtml}
+      </div>
+      <button class="file-remove" onclick="removeFile(${item.id})" title="Remove">×</button>
+    `;
+    list.appendChild(div);
+  });
+
+  const hasFiles   = files.length > 0;
+  const readyCount = files.filter(f => f.status === "ready").length;
+
+  section.classList.toggle("show", hasFiles);
+
+  document.getElementById("filesCount").textContent =
+    `${files.length} file${files.length !== 1 ? "s" : ""}` +
+    (readyCount < files.filter(f => f.status !== "error").length
+      ? ` — ${readyCount} ready` : "");
+
+  const dropText = document.querySelector("#dropZone .drop-text");
+  if (files.length === 0) {
+    dropText.innerHTML = `<strong>Click to choose</strong> or drag a Word file here`;
+  } else if (files.length === 1) {
+    dropText.innerHTML = `<strong>${escHtml(files[0].name)}</strong>`;
+  } else {
+    dropText.innerHTML = `<strong>${files.length} files loaded</strong>`;
+  }
+
+  btn.disabled = readyCount === 0;
+  btn.textContent = readyCount === 0
+    ? "Convert & download — 0/1"
+    : `Convert & download — 0/${readyCount}`;
+  btn.classList.remove("btn-done");
+}
+
+/* ================================================================
+   CONVERT
+   ================================================================ */
+async function convert() {
+  const readyFiles = state.files.filter(f => f.status === "ready");
+  if (!readyFiles.length) return;
+
+  await btnLoading("convertBtn", "Converting…", readyFiles.length);
+
+  document.getElementById("progressSection").classList.add("show");
+  document.getElementById("progressFill").style.width = "0%";
+  clearNotification();
+
+  const results = [];
+  const errors  = [];
+
+  for (let i = 0; i < readyFiles.length; i++) {
+    const item = readyFiles[i];
+    const pct  = Math.round((i / readyFiles.length) * 100);
+
+    document.getElementById("progressFill").style.width = pct + "%";
+    document.getElementById("progressPct").textContent  = pct + "%";
+    document.getElementById("progressLabel").textContent =
+      `Converting ${i + 1}/${readyFiles.length}: ${item.name}`;
+
+    try {
+      const blob     = await convertFile(item.file);
+      const filename = item.name.replace(/\.docx$/i, ".pdf");
+      results.push({ filename, data: blob });
+    } catch(e) {
+      errors.push(item.name + ": " + (e.message || "unknown error"));
+    }
+
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  document.getElementById("progressFill").style.width = "100%";
+  document.getElementById("progressPct").textContent  = "100%";
+  document.getElementById("progressLabel").textContent = results.length > 0 ? "Done!" : "Failed";
+
+  if (results.length === 0) {
+    showNotification(`Conversion failed: ${errors.join(" | ")}`, "error");
+    btnReset("convertBtn", `Convert & download — 0/${readyFiles.length}`);
+    return;
+  }
+
+  // Download
+  if (results.length === 1) {
+    const url = URL.createObjectURL(results[0].data);
+    const a   = document.createElement("a");
+    a.href = url; a.download = results[0].filename;
+    a.click(); URL.revokeObjectURL(url);
+  } else {
+    const zip = new JSZip();
+    results.forEach(r => zip.file(r.filename, r.data));
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = "converted_pdfs.zip";
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  if (errors.length > 0) {
+    showNotification(
+      `${results.length} file${results.length !== 1 ? "s" : ""} converted. ${errors.length} failed: ${errors.join(", ")}`,
+      "info"
+    );
+  }
+
+  btnDone(
+    "convertBtn",
+    `✓ Done! ${results.length}/${readyFiles.length} converted`,
+    `Convert & download — 0/${readyFiles.length}`
+  );
+}
+
+/* ================================================================
+   CONVERT SINGLE FILE
+   Returns a PDF Blob.
+   ================================================================ */
+async function convertFile(file) {
+  const arrayBuffer = await file.arrayBuffer();
+
+  // Step 1: Render docx into hidden container
+  const container = document.getElementById("renderContainer");
+  container.innerHTML = "";
+  container.style.width = A4_W_PX + "px";
+
+  await docx.renderAsync(arrayBuffer, container, null, {
+    className:          "docx-preview",
+    inWrapper:          false,
+    ignoreWidth:        false,
+    ignoreHeight:       false,
+    ignoreFonts:        false,
+    breakPages:         true,
+    ignoreLastRenderedPageBreak: false,
+    experimental:       true,
+    trimXmlDeclaration: true,
+    useBase64URL:       true,
+    useMathMLPolyfill:  false,
+    renderChanges:      false,
+    renderHeaders:      true,
+    renderFooters:      true,
+    renderFootnotes:    true,
+    renderEndnotes:     true,
+  });
+
+  // Step 2: Find page elements rendered by docx-preview
+  // docx-preview wraps each page in an element with class "docx-wrapper" > section
+  // or directly as sections — find all page sections
+  const pages = findPages(container);
+
+  if (pages.length === 0) {
+    throw new Error("No pages found in rendered document");
+  }
+
+  // Step 3: Create PDF
+  const { PDFDocument } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+
+  for (let pi = 0; pi < pages.length; pi++) {
+    const pageEl = pages[pi];
+
+    // Get actual rendered dimensions
+    const rect = pageEl.getBoundingClientRect();
+    const elW  = rect.width  || A4_W_PX;
+    const elH  = rect.height || A4_H_PX;
+
+    // Capture page with html2canvas
+    const canvas = await html2canvas(pageEl, {
+      scale:            SCALE,
+      useCORS:          true,
+      allowTaint:       true,
+      backgroundColor:  "#ffffff",
+      width:            elW,
+      height:           elH,
+      windowWidth:      elW,
+      windowHeight:     elH,
+      scrollX:          0,
+      scrollY:          0,
+      x:                0,
+      y:                0,
+      logging:          false,
+    });
+
+    // Convert canvas to JPEG bytes
+    const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    const jpegBytes   = dataUrlToBytes(jpegDataUrl);
+
+    // Calculate PDF page dimensions maintaining aspect ratio
+    const aspectRatio = elH / elW;
+    const pdfPageH    = A4_W_PT * aspectRatio;
+
+    // Add page to PDF
+    const pdfPage  = pdfDoc.addPage([A4_W_PT, pdfPageH]);
+    const jpegImg  = await pdfDoc.embedJpg(jpegBytes);
+    pdfPage.drawImage(jpegImg, {
+      x: 0, y: 0,
+      width:  A4_W_PT,
+      height: pdfPageH,
+    });
+  }
+
+  // Step 4: Clean up render container
+  container.innerHTML = "";
+
+  // Step 5: Save and return
+  const pdfBytes = await pdfDoc.save();
+  return new Blob([pdfBytes], { type: "application/pdf" });
+}
+
+/* ================================================================
+   FIND PAGE ELEMENTS
+   docx-preview renders pages differently depending on version.
+   This tries multiple selectors to find individual page elements.
+   ================================================================ */
+function findPages(container) {
+  // docx-preview with inWrapper:true renders:
+  // container > .docx-wrapper > .docx > section (one per page)
+  // Try selectors in order of specificity
+  const selectors = [
+    ".docx-wrapper section",
+    ".docx section",
+    "section.docx",
+    "section[style]",
+    ".docx-wrapper > div",
+    ".docx-page",
+  ];
+
+  for (const sel of selectors) {
+    const found = container.querySelectorAll(sel);
+    if (found.length > 0) {
+      console.log(`Found ${found.length} pages with selector: ${sel}`);
+      return Array.from(found);
+    }
+  }
+
+  // Last resort: use the wrapper itself as one big page
+  const wrapper = container.querySelector(".docx-wrapper") || container;
+  if (wrapper.children.length > 0) {
+    console.log("Falling back to wrapper-as-single-page");
+    return [wrapper];
+  }
+
+  // Ultimate fallback: slice by height
+  return sliceIntoPages(container);
+}
+
+/* ================================================================
+   FALLBACK: SLICE INTO A4-HEIGHT CHUNKS
+   If docx-preview doesn't use page-based elements, we capture the
+   full rendered output and slice it into A4-height strips.
+   ================================================================ */
+function sliceIntoPages(container) {
+  // Create a virtual "page" wrapper covering the full rendered height
+  // We'll return a single element and handle slicing in the capture step
+  const totalH  = container.scrollHeight;
+  const numPages = Math.max(1, Math.ceil(totalH / A4_H_PX));
+
+  const pages = [];
+  for (let i = 0; i < numPages; i++) {
+    // Create a proxy object that html2canvas can use with a y-offset clip
+    pages.push({ _sliceIndex: i, _container: container, _sliceH: A4_H_PX });
+  }
+  return pages;
+}
+
+/* ================================================================
+   OVERRIDE convertFile to handle sliced pages
+   ================================================================ */
+const _originalConvertFile = convertFile;
+
+// We patch the page capture loop to handle both real elements and slice proxies
+async function capturePageElement(pageEl, SCALE) {
+  if (pageEl._sliceIndex !== undefined) {
+    // Sliced mode — capture a strip of the container
+    const container = pageEl._container;
+    const sliceH    = pageEl._sliceH;
+    const yOffset   = pageEl._sliceIndex * sliceH;
+    const actualH   = Math.min(sliceH, container.scrollHeight - yOffset);
+
+    return await html2canvas(container, {
+      scale:           SCALE,
+      useCORS:         true,
+      allowTaint:      true,
+      backgroundColor: "#ffffff",
+      width:           A4_W_PX,
+      height:          actualH,
+      windowWidth:     A4_W_PX,
+      windowHeight:    actualH,
+      scrollX:         0,
+      scrollY:         yOffset,
+      y:               yOffset,
+      logging:         false,
+    });
+  }
+
+  // Normal element mode — use scrollWidth/scrollHeight for true rendered dimensions
+  const elW = pageEl.scrollWidth  || pageEl.offsetWidth  || A4_W_PX;
+  const elH = pageEl.scrollHeight || pageEl.offsetHeight || A4_H_PX;
+  return await html2canvas(pageEl, {
+    scale:           SCALE,
+    useCORS:         true,
+    allowTaint:      true,
+    backgroundColor: "#ffffff",
+    width:           elW,
+    height:          elH,
+    windowWidth:     elW,
+    windowHeight:    elH,
+    logging:         false,
+  });
+}
+
+/* ================================================================
+   REBUILD convertFile to use capturePageElement
+   ================================================================ */
+async function convertFile(file) {
+  const arrayBuffer = await file.arrayBuffer();
+
+  // Render docx into hidden container
+  const container = document.getElementById("renderContainer");
+  container.innerHTML = "";
+  container.style.width = A4_W_PX + "px";
+
+  try {
+    await docx.renderAsync(arrayBuffer, container, null, {
+      className:                     "docx",
+      inWrapper:                     true,   // wrap in container div
+      ignoreWidth:                   true,   // let docx-preview use its own page dimensions
+      ignoreHeight:                  true,
+      ignoreFonts:                   false,
+      breakPages:                    true,
+      ignoreLastRenderedPageBreak:   false,
+      experimental:                  false,  // disabled — causes issues on complex docs
+      trimXmlDeclaration:            true,
+      useBase64URL:                  true,   // avoids CORS issues with embedded images
+      renderChanges:                 false,
+    });
+  } catch(e) {
+    container.innerHTML = "";
+    if (e.message && e.message.toLowerCase().includes("password")) {
+      throw new Error("This file appears to be password-protected. Remove the password and re-upload.");
+    }
+    // Log the real error to console for debugging while showing user-friendly message
+    console.error("docx-preview error:", e);
+    throw new Error("Could not render the document. Try re-saving it as .docx in Word and re-uploading.");
+  }
+
+  // Small delay to let styles apply
+  await new Promise(r => setTimeout(r, 300));
+
+  // Find pages
+  const pages = findPages(container);
+  if (pages.length === 0) {
+    container.innerHTML = "";
+    throw new Error("No content found in document.");
+  }
+
+  // Build PDF
+  const { PDFDocument } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+
+  for (const pageEl of pages) {
+    const canvas = await capturePageElement(pageEl, SCALE);
+
+    const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    const jpegBytes   = dataUrlToBytes(jpegDataUrl);
+
+    // canvas is at SCALE (2x) — divide dimensions by SCALE to get logical pixels
+    // then map logical pixels to PDF points using the A4 width ratio
+    const logicalW  = canvas.width  / SCALE;
+    const logicalH  = canvas.height / SCALE;
+    const pxToPt    = A4_W_PT / logicalW;  // how many PDF points per logical pixel
+    const pdfPageW  = A4_W_PT;
+    const pdfPageH  = logicalH * pxToPt;
+
+    const pdfPage = pdfDoc.addPage([pdfPageW, pdfPageH]);
+    const jpegImg = await pdfDoc.embedJpg(jpegBytes);
+    pdfPage.drawImage(jpegImg, {
+      x: 0, y: 0,
+      width:  pdfPageW,
+      height: pdfPageH,
+    });
+  }
+
+  container.innerHTML = "";
+
+  const pdfBytes = await pdfDoc.save();
+  return new Blob([pdfBytes], { type: "application/pdf" });
+}
+
+/* ================================================================
+   HELPERS
+   ================================================================ */
+function dataUrlToBytes(dataUrl) {
+  const base64 = dataUrl.split(",")[1];
+  const binary = atob(base64);
+  const bytes  = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+</script>
+
+</body>
+</html>

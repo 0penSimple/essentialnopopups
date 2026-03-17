@@ -322,6 +322,25 @@
         </div>
       </div>
 
+      <!-- Experimental: preserve Word formatting toggle — shown only for docx export with docx files -->
+      <div id="preserveFormattingRow" style="display:none; margin-bottom:1.25rem;">
+        <div style="background:var(--warn-light); border:1px solid var(--warn-border); border-radius:10px; padding:12px 16px;">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+            <div style="flex:1;">
+              <div style="font-size:0.82rem; font-weight:500; color:var(--warn); margin-bottom:3px;">
+                ⚗ Preserve Word formatting <span style="font-size:0.65rem; background:var(--warn); color:#fff; border-radius:99px; padding:2px 7px; margin-left:4px; font-weight:700; letter-spacing:0.04em;">EXPERIMENTAL</span>
+              </div>
+              <div style="font-size:0.75rem; color:var(--muted); line-height:1.5;">
+                Keep bold, italic, headings and font sizes from .docx files in the merged output. Results are good but not guaranteed — complex documents may vary.
+              </div>
+            </div>
+            <label class="file-page-toggle" style="margin-top:2px; flex-shrink:0; cursor:pointer;" onclick="togglePreserveFormatting()">
+              <div class="toggle-switch" id="preserveFormattingToggle"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <!-- Non-Latin warning shown if Unicode font is off but non-Latin detected -->
       <div id="nonLatinWarning" style="display:none; margin-bottom:1.25rem;">
         <div style="background:var(--error-light); border:1px solid var(--error-border); border-radius:10px; padding:12px 16px; font-size:0.8rem; color:var(--error); line-height:1.6;">
@@ -357,13 +376,14 @@
     <ul class="info-list">
       <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
       <li>Supported formats: plain text (.txt), Markdown (.md), Word documents (.docx), and PDFs (.pdf).</li>
-      <li>Images inside .docx or .pdf files are skipped — only the text is extracted and merged.</li>
+      <li>Each file can optionally start on a new page — use the toggle on each file card.</li>
       <li>Drag the file cards to reorder them before exporting. The output follows the order shown.</li>
       <li>Right-to-left text (Hebrew, Arabic) is detected automatically and preserved in Word and plain text exports.</li>
-      <li><strong>PDF and special characters:</strong> By default, PDF uses a basic font that cannot render Hebrew, Arabic, or symbols like arrows. If your files contain these, enable the <strong>Unicode font</strong> option that appears in settings when PDF is selected — it loads a ~400KB font once per session and renders everything correctly. Alternatively, export to Word (.docx) which supports all characters natively with no extra download.</li>
-      <li>Completely blank files are skipped and you will see a warning for each one. Files with very little content are included as-is.</li>
+      <li>Images and free pages inside .docx or .pdf files are skipped — only the text is extracted and merged.</li>
+      <li>By default, Word (.docx) files are merged as plain text — reliable and clean. To preserve bold, italic, headings and font sizes from your Word files, enable the <strong> Preserve formatting</strong> toggle that appears when Word export is selected.</li>
+      <li><strong>PDF and special characters:</strong> By default, PDF uses a basic font that cannot render Hebrew, Arabic, or symbols like arrows. If your files contain these, enable the <strong>Unicode font</strong> option that appears when PDF is selected — it loads a ~400KB font once per session and renders everything correctly. Alternatively, export to Word (.docx) which supports all characters natively with no extra download.</li>
+      <li>PDF and plain text files are always merged as plain text — their formatting cannot be preserved in any export format.</li>
       <li>Password-protected Word or PDF files cannot be read. Remove the password first, then re-upload.</li>
-      <li>Each file can optionally start on a new page — use the toggle on each file card.</li>
     </ul>
   </div>
 
@@ -372,11 +392,11 @@
 <footer id="shared-footer"></footer>
 
 <!-- Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <script src="../shared.js"></script>
 
 <script>
@@ -392,14 +412,17 @@ const FREE_MAX_FILES  = 3;
 
 /* ── STATE ── */
 const state = {
-  files: [],      // { id, file, name, size, heading, newPage, status, content }
+  files: [],      // { id, file, name, size, heading, newPage, status, content, rawBytes, ext }
                   // status: "pending" | "ok" | "error" | "empty"
-                  // content: string (filled after parse) | null
+                  // content: string (text for txt/md/pdf) | null
+                  // rawBytes: ArrayBuffer (original bytes for docx) | null
+                  // ext: file extension string
   format:       "pdf",
   separator:    "line",
   pageNumbers:  "none",
   toc:          "none",
-  unicodeFont:  false,   // load Noto Sans for PDF Unicode support
+  unicodeFont:       false,   // load Noto Sans for PDF Unicode support
+  preserveFormatting: false,  // experimental: use PizZip XML concat for docx (off = plain text via docx.js)
   rules: [],            // [{ id, find, replace, caseSensitive }] — find & replace rules
   isPremium:    IS_PREMIUM
 };
@@ -450,17 +473,31 @@ function readAsText(file) {
 
 async function parseDocx(file) {
   const arrayBuffer = await file.arrayBuffer();
-  let result;
   try {
-    result = await mammoth.extractRawText({ arrayBuffer });
+    // Validate it is a real docx by trying to open with PizZip
+    const zip = new PizZip(arrayBuffer);
+    if (!zip.files["word/document.xml"]) {
+      throw new Error("Not a valid Word document.");
+    }
+    // Extract plain text for default path (mammoth)
+    // Also store raw bytes for experimental formatting-preserve path
+    let plainText = "";
+    try {
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      plainText = result.value;
+    } catch(e) {
+      // mammoth failed — will still work in experimental mode
+    }
+    return { rawBytes: arrayBuffer, text: plainText };
   } catch(e) {
-    // mammoth throws on password-protected or corrupted files
     if (e.message && e.message.toLowerCase().includes("password")) {
       throw new Error(`${file.name} appears to be password-protected. Remove the password and re-upload.`);
     }
+    if (e.message && e.message.includes("Not a valid")) {
+      throw new Error(`${file.name} is not a valid Word document. Please re-save it as .docx and try again.`);
+    }
     throw new Error(`${file.name} couldn't be read. It may be corrupted — try re-saving it and uploading again.`);
   }
-  return result.value;
 }
 
 async function parsePdf(file) {
@@ -496,15 +533,30 @@ async function parsePdf(file) {
    an array of section objects ready for document generation.
    ================================================================ */
 function buildSections(files) {
+  const useFormatting = state.preserveFormatting && state.format === "docx";
   return files
     .filter(f => f.status === "ok")
     .map(f => {
+      if (f.ext === "docx" && useFormatting) {
+        // Experimental: use raw XML bytes for formatting preservation
+        return {
+          heading:  f.heading.trim(),
+          content:  null,
+          rawBytes: f.rawBytes,
+          ext:      "docx",
+          newPage:  f.newPage,
+          isRTL:    false
+        };
+      }
+      // Default: plain text path (reliable)
       const content = applyRules(f.content);
       return {
-        heading: f.heading.trim(),
+        heading:  f.heading.trim(),
         content,
-        newPage: f.newPage,
-        isRTL:   detectRTL(content)
+        rawBytes: null,
+        ext:      f.ext,
+        newPage:  f.newPage,
+        isRTL:    detectRTL(content || "")
       };
     });
 }
@@ -528,7 +580,7 @@ async function generateDocument(sections, currentState) {
     return generateTxt(sections, separator);
   }
   if (format === "docx") {
-    return await generateDocx(sections, separator, pageNumbers, toc);
+    return await generateDocx(sections, separator, pageNumbers);
   }
   if (format === "pdf") {
     return await generatePdf(sections, separator, pageNumbers, toc);
@@ -544,92 +596,154 @@ function generateTxt(sections, separator) {
     ? "\n\n\n"
     : "\n\n";
 
-  const parts = sections.map(s => {
-    let part = "";
-    if (s.heading) part += s.heading.toUpperCase() + "\n" + "=".repeat(s.heading.length) + "\n\n";
-    part += s.content.trim();
-    return part;
-  });
+  const parts = sections
+    .filter(s => s.content !== null)
+    .map(s => {
+      let part = "";
+      if (s.heading) part += s.heading.toUpperCase() + "\n" + "=".repeat(s.heading.length) + "\n\n";
+      part += s.content.trim();
+      return part;
+    });
 
   const blob = new Blob([parts.join(sepStr)], { type: "text/plain;charset=utf-8" });
   return blob;
 }
 
-/* ── DOCX generator ── */
-async function generateDocx(sections, separator, pageNumbers, toc) {
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel, PageBreak,
-          AlignmentType, Header, Footer, PageNumber, NumberFormat } = docx;
+/* ── DOCX generator ──
+   Strategy: use the first docx file as the base zip (preserves styles/fonts/theme).
+   Replace only word/document.xml with assembled body content.
+   Crucially: reuse the ORIGINAL opening tag from the base docx so all namespace
+   declarations are preserved exactly — this is what prevents "cannot open" errors.
+   ================================================================ */
+async function generateDocx(sections, separator, pageNumbers) {
 
-  const children = [];
+  let bodyXml = "";
 
-  sections.forEach((section, idx) => {
-    // Page break (not on first section unless it explicitly wants one)
-    if (idx > 0 && section.newPage) {
-      children.push(new Paragraph({ children: [new PageBreak()] }));
+  for (let si = 0; si < sections.length; si++) {
+    const section     = sections[si];
+    const isFirst     = si === 0;
+    const isLast      = si === sections.length - 1;
+    const nextNewPage = !isLast && sections[si + 1]?.newPage;
+
+    if (!isFirst && section.newPage) {
+      bodyXml += `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
     }
 
-    // Section heading
     if (section.heading) {
-      children.push(new Paragraph({
-        text:    section.heading,
-        heading: HeadingLevel.HEADING_1,
-        bidirectional: section.isRTL,
-        alignment: section.isRTL ? AlignmentType.RIGHT : AlignmentType.LEFT,
-      }));
+      const jc = section.isRTL ? "<w:jc w:val=\"right\"/>" : "";
+      bodyXml += `<w:p><w:pPr><w:pStyle w:val="Heading1"/>${jc}</w:pPr><w:r><w:t xml:space="preserve">${escapeXml(section.heading)}</w:t></w:r></w:p>`;
     }
 
-    // Separator (only between sections, not after last)
-    const addSep = idx < sections.length - 1 && !sections[idx + 1]?.newPage;
-    if (addSep && separator === "line") {
-      children.push(new Paragraph({
-        border: { bottom: { color: "e8e4de", space: 1, style: "single", size: 6 } },
-        spacing: { after: 200 },
-      }));
-    } else if (addSep && separator === "space") {
-      children.push(new Paragraph({ text: "" }));
-      children.push(new Paragraph({ text: "" }));
-    }
-
-    // Content — split into paragraphs
-    const lines = section.content.split(/\n+/);
-    lines.forEach(line => {
-      const trimmed = line.trim();
-      if (!trimmed) {
-        children.push(new Paragraph({ text: "" }));
-        return;
+    if (section.ext === "docx" && section.rawBytes) {
+      bodyXml += extractDocxBodyXml(section.rawBytes);
+    } else if (section.content) {
+      const lines = section.content.split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        const jc   = section.isRTL ? "<w:jc w:val=\"right\"/>" : "";
+        const bidi = section.isRTL ? "<w:bidi/>" : "";
+        if (!trimmed) {
+          bodyXml += `<w:p>${(bidi||jc) ? `<w:pPr>${bidi}${jc}</w:pPr>` : ""}</w:p>`;
+        } else {
+          bodyXml += `<w:p>${(bidi||jc) ? `<w:pPr>${bidi}${jc}</w:pPr>` : ""}<w:r><w:t xml:space="preserve">${escapeXml(trimmed)}</w:t></w:r></w:p>`;
+        }
       }
-      children.push(new Paragraph({
-        children: [new TextRun({ text: trimmed })],
-        bidirectional: section.isRTL,
-        alignment: section.isRTL ? AlignmentType.RIGHT : AlignmentType.LEFT,
-      }));
-    });
-  });
+    }
 
-  // Page number setup
-  const footerChildren = pageNumbers === "bottom"
-    ? [new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [new TextRun({ children: [PageNumber.CURRENT] })]
-      })]
-    : [];
-  const headerChildren = pageNumbers === "top"
-    ? [new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [new TextRun({ children: [PageNumber.CURRENT] })]
-      })]
-    : [];
+    if (!isLast && !nextNewPage) {
+      if (separator === "line") {
+        bodyXml += `<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="e8e4de"/></w:pBdr><w:spacing w:after="200"/></w:pPr></w:p>`;
+      } else if (separator === "space") {
+        bodyXml += "<w:p/><w:p/>";
+      }
+    }
+  }
 
-  const doc = new Document({
-    sections: [{
-      headers: pageNumbers === "top" ? { default: new Header({ children: headerChildren }) } : undefined,
-      footers: pageNumbers === "bottom" ? { default: new Footer({ children: footerChildren }) } : undefined,
-      children
-    }]
-  });
+  // Get base zip — use first docx file so styles/fonts/theme are preserved
+  const firstDocx = sections.find(s => s.ext === "docx" && s.rawBytes);
+  const zip = firstDocx ? new PizZip(firstDocx.rawBytes) : createMinimalDocxZip();
 
-  const buffer = await Packer.toBlob(doc);
-  return buffer;
+  // sectPr for page numbers
+  let sectPrXml = "";
+  if (pageNumbers !== "none") {
+    const [vPos, hPos] = pageNumbers.split("-");
+    const jcVal  = hPos === "left" ? "left" : hPos === "right" ? "right" : "center";
+    const numPar = `<w:p><w:pPr><w:jc w:val="${jcVal}"/></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+    const wns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+    if (vPos === "top") {
+      zip.file("word/header1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ${wns}>${numPar}</w:hdr>`);
+      addRelationship(zip, "rId900", "header1.xml", "header");
+      sectPrXml = `<w:sectPr><w:headerReference w:type="default" r:id="rId900"/></w:sectPr>`;
+    } else {
+      zip.file("word/footer1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr ${wns}>${numPar}</w:ftr>`);
+      addRelationship(zip, "rId901", "footer1.xml", "footer");
+      sectPrXml = `<w:sectPr><w:footerReference w:type="default" r:id="rId901"/></w:sectPr>`;
+    }
+  }
+
+  // KEY FIX: reuse the original <w:document ...> opening tag from the base docx
+  // so all namespace declarations are preserved exactly as Word expects them.
+  // Only replace the <w:body>...</w:body> content.
+  let finalXml;
+  if (firstDocx) {
+    const origXml  = zip.files["word/document.xml"].asText();
+    const docOpen  = origXml.match(/(<w:document[^>]*>)/)?.[1] || '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">';
+    finalXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>${docOpen}<w:body>${bodyXml}${sectPrXml}</w:body></w:document>`;
+  } else {
+    finalXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${bodyXml}${sectPrXml}</w:body></w:document>`;
+  }
+
+  zip.file("word/document.xml", finalXml);
+  const ab = zip.generate({ type: "arraybuffer" });
+  return new Blob([ab], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+}
+
+/* ── Extract body content from a docx ArrayBuffer ── */
+function extractDocxBodyXml(arrayBuffer) {
+  try {
+    const zip     = new PizZip(arrayBuffer);
+    const xmlStr  = zip.files["word/document.xml"].asText();
+    const match   = xmlStr.match(/<w:body>([\s\S]*)<\/w:body>/);
+    if (!match) return "";
+    let body = match[1];
+    // Strip trailing sectPr (page setup belongs to output doc, not source)
+    body = body.replace(/<w:sectPr[^>]*>[\s\S]*?<\/w:sectPr>\s*$/, "");
+    body = body.replace(/<w:sectPr[^/]*\/>\s*$/, "");
+    return body;
+  } catch(e) {
+    return "";
+  }
+}
+
+/* ── Create minimal valid docx zip from scratch ── */
+function createMinimalDocxZip() {
+  const zip = new PizZip();
+  zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`);
+  zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
+  zip.file("word/_rels/document.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`);
+  zip.file("word/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style></w:styles>`);
+  return zip;
+}
+
+/* ── Add a relationship to word/_rels/document.xml.rels ── */
+function addRelationship(zip, rId, target, type) {
+  const relsFile = "word/_rels/document.xml.rels";
+  let relsXml    = zip.files[relsFile] ? zip.files[relsFile].asText() : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
+  const typeUrl  = type === "header"
+    ? "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header"
+    : "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer";
+  relsXml = relsXml.replace("</Relationships>", `<Relationship Id="${rId}" Type="${typeUrl}" Target="${target}"/></Relationships>`);
+  zip.file(relsFile, relsXml);
+}
+
+/* ── Escape special XML characters ── */
+function escapeXml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 /* ── WinAnsi sanitiser ──
@@ -747,7 +861,8 @@ async function generatePdf(sections, separator, pageNumbers) {
       y -= headSize * 1.8;
     }
 
-    // Content lines
+    // Content lines (skip docx sections in PDF mode — no text available)
+    if (!section.content) { y -= lineH; continue; }
     const rawLines = section.content.split("\n");
     for (const rawLine of rawLines) {
       const trimmed = sanitiseForPdf(rawLine.trim());
@@ -815,17 +930,30 @@ async function parseAllPending() {
   for (const item of state.files) {
     if (item.status !== "pending") continue;
     try {
-      const text = await parseFile(item.file);
-      if (!text || !text.trim()) {
-        item.status  = "empty";
-        item.content = "";
-      } else {
-        item.status  = "ok";
+      const result = await parseFile(item.file);
+
+      if (item.ext === "docx") {
+        // docx returns { rawBytes, text } — store both
+        item.rawBytes = result.rawBytes;
+        // Use plain text for default path; rawBytes used in experimental mode
+        const text = result.text || "";
         item.content = text;
+        item.status  = "ok"; // docx is never "empty" — rawBytes always present
+      } else {
+        // txt/md/pdf return plain text string
+        const text = result;
+        if (!text || !text.trim()) {
+          item.status  = "empty";
+          item.content = "";
+        } else {
+          item.status  = "ok";
+          item.content = text;
+        }
       }
     } catch(e) {
-      item.status  = "error";
-      item.content = "";
+      item.status   = "error";
+      item.content  = "";
+      item.rawBytes = null;
       item.errorMsg = e.message;
     }
   }
@@ -895,10 +1023,12 @@ function handleNewFiles(fileList) {
     file:     f,
     name:     f.name,
     size:     f.size,
+    ext:      f.name.split(".").pop().toLowerCase(),
     heading:  "",
     newPage:  false,
     status:   "pending",
     content:  null,
+    rawBytes: null,
     errorMsg: null
   }));
 
@@ -930,6 +1060,13 @@ function toggleNewPage(id) {
     item.newPage = !item.newPage;
     render();
   }
+}
+
+function togglePreserveFormatting() {
+  state.preserveFormatting = !state.preserveFormatting;
+  document.getElementById("preserveFormattingToggle")
+    .classList.toggle("on", state.preserveFormatting);
+  render();
 }
 
 async function toggleUnicodeFont() {
@@ -1050,6 +1187,17 @@ function render() {
   // Hide page numbers when exporting to .txt (not applicable)
   const isTxt = state.format === "txt";
   const isPdf = state.format === "pdf";
+  const isDocx = state.format === "docx";
+
+  // Show preserve formatting toggle only when:
+  // - export format is docx AND at least one loaded file is a docx
+  const hasDocxFiles = files.some(f => f.ext === "docx" && f.status === "ok");
+  const pfRow = document.getElementById("preserveFormattingRow");
+  if (pfRow) {
+    pfRow.style.display = (isDocx && hasDocxFiles) ? "block" : "none";
+    document.getElementById("preserveFormattingToggle")
+      .classList.toggle("on", state.preserveFormatting);
+  }
   const pageNumGroup = document.getElementById("pageNumSelect").closest(".setting-group");
   pageNumGroup.style.opacity       = isTxt ? "0.4" : "1";
   pageNumGroup.style.pointerEvents = isTxt ? "none" : "";
@@ -1063,7 +1211,7 @@ function render() {
 
   // Show non-Latin warning if PDF is selected, Unicode font is off, and non-Latin content exists
   const hasNonLatin = isPdf && !state.unicodeFont &&
-    files.some(f => f.status === "ok" && f.content && /[\u0590-\u05FF\u0600-\u06FF\u2190-\u21FF\u2022\u2013\u2014\u2018\u2019\u201C\u201D]/.test(f.content));
+    files.some(f => f.status === "ok" && f.content != null && /[\u0590-\u05FF\u0600-\u06FF\u2190-\u21FF\u2022\u2013\u2014\u2018\u2019\u201C\u201D]/.test(f.content));
   document.getElementById("nonLatinWarning").style.display = hasNonLatin ? "block" : "none";
 
   document.getElementById("filesCount").textContent =
@@ -1152,6 +1300,7 @@ function renderRules() {
 
 /* Apply all find & replace rules to a text string */
 function applyRules(text) {
+  if (!text) return text;
   if (!state.isPremium || state.rules.length === 0) return text;
   let result = text;
   for (const rule of state.rules) {
@@ -1185,7 +1334,7 @@ async function merge() {
   // Warn if PDF + non-Latin content + Unicode font off (but still allow export)
   if (state.format === "pdf" && !state.unicodeFont) {
     const hasNonLatin = readyFiles.some(f =>
-      /[\u0590-\u05FF\u0600-\u06FF]/.test(f.content)
+      f.content != null && /[\u0590-\u05FF\u0600-\u06FF]/.test(f.content)
     );
     if (hasNonLatin) {
       showNotification(
