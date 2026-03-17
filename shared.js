@@ -13,6 +13,13 @@ const IS_PREMIUM = false;
 /* ── NAV & FOOTER INJECTION ── */
 
 (function () {
+  // ── ADSENSE ──
+  const adScript = document.createElement("script");
+  adScript.async = true;
+  adScript.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4782154025199543";
+  adScript.crossOrigin = "anonymous";
+  document.head.appendChild(adScript);
+
   // Determine the path prefix based on where the page lives.
   // Tool pages are in /tools/ so need "../" to reach root.
   // Index page is at root so needs no prefix.
