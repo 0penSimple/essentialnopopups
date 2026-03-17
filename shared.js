@@ -39,7 +39,8 @@ const IS_PREMIUM = false;
       </div>
       <div class="footer-right">
         Issues or suggestions? Always welcome.<br>
-        <a href="mailto:essentialsnopopups@gmail.com">essentialsnopopups@gmail.com</a>
+        <a href="mailto:essentialsnopopups@gmail.com">essentialsnopopups@gmail.com</a><br>
+        <a href="${root}privacy-policy.html" style="font-size:0.72rem;color:var(--faint);">Privacy Policy</a>
       </div>
     `;
   }
