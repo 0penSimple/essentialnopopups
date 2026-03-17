@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Premium — EssentialNoPopups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --teal:           #0F6E56;
+    --teal-mid:       #1D9E75;
+    --teal-light:     #e1f5ee;
+    --teal-border:    #9FE1CB;
+    --teal-text:      #085041;
+    --warm-bg:        #faf8f5;
+    --surface:        #ffffff;
+    --border:         #e8e4de;
+    --text:           #1a1a18;
+    --muted:          #6b6860;
+    --faint:          #a8a49e;
+    --premium:        #6B4FBB;
+    --premium-light:  #f3f0fc;
+    --premium-border: #c4b5f0;
+    --premium-dark:   #4a3285;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--warm-bg); color: var(--text); min-height: 100vh; }
+  a { text-decoration: none; color: inherit; }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(250,248,245,0.92);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 clamp(1rem, 4vw, 3rem);
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-logo { font-family: 'Lora', serif; font-size: 1.1rem; letter-spacing: -0.01em; }
+  .nav-logo em { font-style: normal; color: var(--teal); }
+  .nav-back { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; transition: color 0.15s; }
+  .nav-back:hover { color: var(--teal); }
+  .nav-badge {
+    font-size: 0.7rem; font-weight: 500; letter-spacing: 0.06em;
+    background: var(--premium-light); color: var(--premium);
+    border: 1px solid var(--premium-border);
+    border-radius: 99px; padding: 4px 12px; text-transform: uppercase;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: clamp(3rem, 8vw, 5rem) clamp(1rem, 4vw, 2rem) clamp(2rem, 5vw, 3rem);
+    text-align: center;
+  }
+
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--premium);
+    background: var(--premium-light); border: 1px solid var(--premium-border);
+    border-radius: 99px; padding: 5px 14px; margin-bottom: 1.5rem;
+    opacity: 0; animation: fadeUp 0.5s 0.1s forwards;
+  }
+
+  .hero h1 {
+    font-family: 'Lora', serif;
+    font-size: clamp(1.9rem, 5vw, 2.75rem);
+    font-weight: 400; line-height: 1.25; letter-spacing: -0.02em;
+    margin-bottom: 1rem;
+    opacity: 0; animation: fadeUp 0.5s 0.2s forwards;
+  }
+
+  .hero h1 em { font-style: italic; color: var(--premium); }
+
+  .hero-sub {
+    font-size: 1rem; color: var(--muted); line-height: 1.7;
+    max-width: 460px; margin: 0 auto 0;
+    opacity: 0; animation: fadeUp 0.5s 0.3s forwards;
+  }
+
+  /* ── PRICING CARD ── */
+  .pricing-wrap {
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 0 clamp(1rem, 4vw, 2rem) clamp(2rem, 5vw, 3rem);
+    opacity: 0; animation: fadeUp 0.5s 0.4s forwards;
+  }
+
+  .pricing-card {
+    background: var(--surface);
+    border: 1.5px solid var(--premium-border);
+    border-radius: 20px;
+    padding: 2rem 2rem 1.75rem;
+    box-shadow: 0 4px 32px rgba(107,79,187,0.08);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pricing-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--premium), #9b7fe8);
+  }
+
+  .pricing-label {
+    font-size: 0.72rem; font-weight: 500; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--premium);
+    margin-bottom: 1.25rem;
+  }
+
+  .pricing-amount {
+    display: flex; align-items: flex-end; gap: 10px;
+    margin-bottom: 0.4rem;
+  }
+
+  .price-original {
+    font-family: 'Lora', serif;
+    font-size: 1.5rem; color: var(--faint);
+    text-decoration: line-through;
+    padding-bottom: 4px;
+  }
+
+  .price-discounted {
+    font-family: 'Lora', serif;
+    font-size: 2.75rem; font-weight: 500;
+    color: var(--premium); line-height: 1;
+  }
+
+  .price-period {
+    font-size: 0.82rem; color: var(--muted);
+    padding-bottom: 6px;
+  }
+
+  .pricing-note {
+    font-size: 0.78rem; color: var(--muted);
+    margin-bottom: 1.75rem; line-height: 1.5;
+  }
+
+  .pricing-note strong { color: var(--premium); font-weight: 500; }
+
+  .pricing-divider {
+    border: none; border-top: 1px solid var(--border);
+    margin: 1.5rem 0;
+  }
+
+  /* ── FEATURES LIST ── */
+  .features-list {
+    list-style: none;
+    display: flex; flex-direction: column; gap: 14px;
+    margin-bottom: 1.75rem;
+  }
+
+  .feature-item {
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+
+  .feature-check {
+    width: 20px; height: 20px; flex-shrink: 0;
+    background: var(--premium-light); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+
+  .feature-check svg { width: 10px; height: 10px; }
+
+  .feature-text { flex: 1; }
+  .feature-title { font-size: 0.88rem; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+  .feature-desc  { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+
+  /* ── SIGNUP FORM ── */
+  .signup-form { display: flex; flex-direction: column; gap: 10px; }
+
+  .signup-input {
+    background: var(--warm-bg); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 0.875rem;
+    padding: 13px 16px; outline: none; transition: border-color 0.2s;
+    width: 100%;
+  }
+  .signup-input:focus { border-color: var(--premium-border); }
+  .signup-input::placeholder { color: var(--faint); }
+
+  .btn-signup {
+    width: 100%; background: var(--premium);
+    border: none; border-radius: 10px;
+    color: #fff; font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem; font-weight: 500;
+    padding: 14px; cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-signup:hover { background: var(--premium-dark); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(107,79,187,0.3); }
+  .btn-signup:active { transform: translateY(0); box-shadow: none; }
+  .btn-signup:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .signup-disclaimer {
+    font-size: 0.72rem; color: var(--faint);
+    text-align: center; line-height: 1.6; margin-top: 4px;
+  }
+
+  /* ── BILLING TOGGLE ── */
+  .billing-toggle {
+    display: flex; align-items: center; gap: 0;
+    background: var(--warm-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 4px; margin-bottom: 1.5rem;
+  }
+  .billing-btn {
+    flex: 1; text-align: center; font-size: 0.82rem; font-weight: 500;
+    padding: 8px 12px; border-radius: 7px; cursor: pointer;
+    color: var(--muted); transition: all 0.15s; user-select: none;
+    border: none; background: none; font-family: 'DM Sans', sans-serif;
+  }
+  .billing-btn.active {
+    background: var(--surface); color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .billing-save-badge {
+    display: inline-block; font-size: 0.65rem; font-weight: 700;
+    background: var(--teal-light); color: var(--teal-text);
+    border: 1px solid var(--teal-border);
+    border-radius: 99px; padding: 1px 6px; margin-left: 5px;
+    vertical-align: middle;
+  }
+
+  /* ── SUCCESS STATE ── */
+  .signup-success {
+    display: none;
+    background: var(--teal-light); border: 1px solid var(--teal-border);
+    border-radius: 10px; padding: 16px;
+    text-align: center;
+  }
+  .signup-success.show { display: block; }
+  .signup-success-icon { font-size: 1.5rem; margin-bottom: 8px; }
+  .signup-success-title { font-family: 'Lora', serif; font-size: 1rem; color: var(--teal-text); margin-bottom: 4px; }
+  .signup-success-sub { font-size: 0.78rem; color: var(--teal); }
+
+  /* ── COMPARE ── */
+  .compare-section {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 clamp(1rem, 4vw, 2rem) clamp(3rem, 6vw, 4rem);
+    opacity: 0; animation: fadeUp 0.5s 0.55s forwards;
+  }
+
+  .compare-title {
+    font-family: 'Lora', serif;
+    font-size: 1.1rem; font-weight: 500;
+    text-align: center; margin-bottom: 1.25rem;
+    color: var(--text);
+  }
+
+  .compare-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.82rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+
+  .compare-table th {
+    padding: 12px 16px; text-align: left;
+    font-size: 0.72rem; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--faint); background: var(--warm-bg);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .compare-table th:not(:first-child) { text-align: center; }
+
+  .compare-table td {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    color: var(--text); vertical-align: middle;
+  }
+
+  .compare-table tr:last-child td { border-bottom: none; }
+  .compare-table td:not(:first-child) { text-align: center; }
+
+  .compare-table .premium-col {
+    background: var(--premium-light);
+    color: var(--premium); font-weight: 500;
+  }
+
+  .check-yes { color: var(--teal); font-size: 1rem; }
+  .check-no  { color: var(--faint); font-size: 1rem; }
+  .check-limited { font-size: 0.75rem; color: var(--muted); }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border); background: var(--surface);
+    padding: 1.5rem clamp(1rem, 4vw, 3rem);
+    display: flex; flex-wrap: wrap; gap: 1rem;
+    align-items: center; justify-content: space-between;
+  }
+  .footer-logo { font-family: 'Lora', serif; font-size: 0.95rem; }
+  .footer-logo em { font-style: normal; color: var(--teal); }
+  .footer-tagline { font-size: 0.72rem; color: var(--faint); margin-top: 2px; }
+  .footer-right { font-size: 0.78rem; color: var(--muted); text-align: right; line-height: 1.8; }
+  .footer-right a { color: var(--teal); font-weight: 500; }
+  .footer-right a:hover { text-decoration: underline; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .spinner {
+    width: 15px; height: 15px; flex-shrink: 0;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 480px) {
+    .footer-right { text-align: left; }
+    .pricing-card { padding: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-logo">Essential<em>NoPopups</em></a>
+  <a href="index.html" class="nav-back">← All tools</a>
+  <div class="nav-badge">✦ Premium</div>
+</nav>
+
+<section class="hero">
+  <div class="hero-eyebrow">Coming soon</div>
+  <h1>The full experience,<br><em>fully unlocked.</em></h1>
+  <p class="hero-sub">Premium is launching soon. Sign up now and lock in <strong style="color:var(--premium);">30% off</strong> your first payment — exclusively for early supporters.</p>
+</section>
+
+<div class="pricing-wrap">
+  <div class="pricing-card">
+
+    <div class="pricing-label">✦ Premium — Early Access</div>
+
+    <!-- Billing toggle -->
+    <div class="billing-toggle">
+      <button class="billing-btn active" id="btnMonthly" onclick="setBilling('monthly')">Monthly</button>
+      <button class="billing-btn" id="btnYearly" onclick="setBilling('yearly')">
+        Yearly <span class="billing-save-badge">Save 18%</span>
+      </button>
+    </div>
+
+    <div class="pricing-amount">
+      <div class="price-original" id="priceOriginal">$3.99</div>
+      <div class="price-discounted" id="priceDiscounted">$2.79</div>
+      <div class="price-period" id="pricePeriod">/ first month</div>
+    </div>
+    <div class="pricing-note" id="priceNote">
+      Then <strong>$3.99/month</strong>. Cancel any time. No commitment.
+    </div>
+
+    <hr class="pricing-divider">
+
+    <ul class="features-list">
+      <li class="feature-item">
+        <div class="feature-check">
+          <svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 5l2.5 2.5L8 3" stroke="#6B4FBB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="feature-text">
+          <div class="feature-title">Instant processing</div>
+          <div class="feature-desc">Your files are processed instantly. Top quality results at maximum efficiency.</div>
+        </div>
+      </li>
+      <li class="feature-item">
+        <div class="feature-check">
+          <svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 5l2.5 2.5L8 3" stroke="#6B4FBB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="feature-text">
+          <div class="feature-title">Unlimited batch processing</div>
+          <div class="feature-desc">Convert, compress, trim, and export entire folders at once.</div>
+        </div>
+      </li>
+      <li class="feature-item">
+        <div class="feature-check">
+          <svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 5l2.5 2.5L8 3" stroke="#6B4FBB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="feature-text">
+          <div class="feature-title">Full creative control</div>
+          <div class="feature-desc">Unlocks all premium features: resolution, quality, formatting, and more.</div>
+        </div>
+      </li>
+      <li class="feature-item">
+        <div class="feature-check">
+          <svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 5l2.5 2.5L8 3" stroke="#6B4FBB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="feature-text">
+          <div class="feature-title">Zero ads, zero distractions</div>
+          <div class="feature-desc">A clean, focused experience across every tool on the site.</div>
+        </div>
+      </li>
+    </ul>
+
+    <!-- SIGNUP FORM -->
+    <div id="signupForm" class="signup-form">
+      <input
+        type="email"
+        id="emailInput"
+        class="signup-input"
+        placeholder="Your email address"
+        autocomplete="email"
+      >
+      <button class="btn-signup" id="signupBtn" onclick="handleSignup()">
+        Reserve my 30% discount
+      </button>
+      <div class="signup-disclaimer">
+        No payment now. We'll notify you the moment Premium launches<br>with your discount locked in.
+      </div>
+    </div>
+
+    <!-- SUCCESS STATE -->
+    <div id="signupSuccess" class="signup-success">
+      <div class="signup-success-icon">✓</div>
+      <div class="signup-success-title">You're on the list.</div>
+      <div class="signup-success-sub">We'll email you when Premium launches with your 30% discount ready to use.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- COMPARISON TABLE -->
+<div class="compare-section">
+  <div class="compare-title">Free vs Premium</div>
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th>Free</th>
+        <th class="premium-col">✦ Premium</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>All tools</td>
+        <td><span class="check-yes">✓</span></td>
+        <td class="premium-col"><span class="check-yes">✓</span></td>
+      </tr>
+      <tr>
+        <td>Processing speed</td>
+        <td><span class="check-limited">Standard</span></td>
+        <td class="premium-col">Instant</td>
+      </tr>
+      <tr>
+        <td>Batch processing</td>
+        <td><span class="check-limited">Limited</span></td>
+        <td class="premium-col">Unlimited</td>
+      </tr>
+      <tr>
+        <td>Quality &amp; resolution controls</td>
+        <td><span class="check-no">—</span></td>
+        <td class="premium-col"><span class="check-yes">✓</span></td>
+      </tr>
+      <tr>
+        <td>Advanced editing tools</td>
+        <td><span class="check-no">—</span></td>
+        <td class="premium-col"><span class="check-yes">✓</span></td>
+      </tr>
+      <tr>
+        <td>Ads</td>
+        <td><span class="check-limited">Banner ads</span></td>
+        <td class="premium-col">None</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  <div>
+    <div class="footer-logo">Essential<em>NoPopups</em></div>
+    <div class="footer-tagline">Free tools. No pop-ups. Ever.</div>
+  </div>
+  <div class="footer-right">
+    Questions or suggestions? Always welcome.<br>
+    <a href="mailto:essentialsnopopups@gmail.com">essentialsnopopups@gmail.com</a>
+  </div>
+</footer>
+
+<script>
+const PRICING = {
+  monthly: {
+    original:   "$3.99",
+    discounted: "$2.79",
+    period:     "/ first month",
+    note:       'Then <strong>$3.99/month</strong>. Cancel any time. No commitment.',
+    plan:       "monthly"
+  },
+  yearly: {
+    original:   "$39/yr",
+    discounted: "$27",
+    period:     "/ first year",
+    note:       'Then <strong>$39/year</strong> — equivalent to $3.25/month. Cancel any time.',
+    plan:       "yearly"
+  }
+};
+
+let selectedPlan = "monthly";
+
+function setBilling(plan) {
+  selectedPlan = plan;
+  const p = PRICING[plan];
+  document.getElementById("priceOriginal").textContent   = p.original;
+  document.getElementById("priceDiscounted").textContent = p.discounted;
+  document.getElementById("pricePeriod").textContent     = p.period;
+  document.getElementById("priceNote").innerHTML         = p.note;
+  document.getElementById("btnMonthly").classList.toggle("active", plan === "monthly");
+  document.getElementById("btnYearly").classList.toggle("active",  plan === "yearly");
+}
+
+async function handleSignup() {
+  const email = document.getElementById("emailInput").value.trim();
+  const btn   = document.getElementById("signupBtn");
+
+  if (!email || !email.includes("@")) {
+    document.getElementById("emailInput").style.borderColor = "#c0392b";
+    document.getElementById("emailInput").focus();
+    return;
+  }
+
+  document.getElementById("emailInput").style.borderColor = "";
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Saving your spot…`;
+
+  try {
+    // Formspree endpoint — replace YOUR_FORM_ID with your actual Formspree form ID
+    const res = await fetch("https://formspree.io/f/YOUR_FORM_ID", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body:    JSON.stringify({ email, plan: selectedPlan, source: "premium-early-access" })
+    });
+
+    if (res.ok) {
+      document.getElementById("signupForm").style.display    = "none";
+      document.getElementById("signupSuccess").classList.add("show");
+    } else {
+      throw new Error("Server error");
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = "Reserve my 30% discount";
+    // Fallback — open email client if Formspree fails
+    window.location.href = `mailto:essentialsnopopups@gmail.com?subject=Premium Early Access&body=Please add me to the early access list: ${email}`;
+  }
+}
+
+// Allow Enter key to submit
+document.getElementById("emailInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") handleSignup();
+});
+</script>
+
+</body>
+</html>
