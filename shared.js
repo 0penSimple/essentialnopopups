@@ -1,5 +1,5 @@
 /* ============================================================
-   EssentialNoPopups — shared.js
+   EssentialBits — shared.js
    Injects common nav + footer, and provides shared utility
    functions used across all tool pages.
    ============================================================ */
@@ -13,18 +13,6 @@ const IS_PREMIUM = false;
 /* ── NAV & FOOTER INJECTION ── */
 
 (function () {
-  // ── ADSENSE ──
-  const adMeta = document.createElement("meta");
-  adMeta.name = "google-adsense-account";
-  adMeta.content = "ca-pub-4782154025199543";
-  document.head.appendChild(adMeta);
-
-  const adScript = document.createElement("script");
-  adScript.async = true;
-  adScript.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4782154025199543";
-  adScript.crossOrigin = "anonymous";
-  document.head.appendChild(adScript);
-
   // Determine the path prefix based on where the page lives.
   // Tool pages are in /tools/ so need "../" to reach root.
   // Index page is at root so needs no prefix.
@@ -35,8 +23,8 @@ const IS_PREMIUM = false;
   const nav = document.getElementById("shared-nav");
   if (nav) {
     nav.innerHTML = `
-      <a href="https://essentialbits.pro" class="nav-logo">Essential<em>NoPopups</em></a>
-      ${isToolPage ? `<a href="https://essentialbits.pro" class="nav-back">← All tools</a>` : `<ul class="nav-links" style="display:flex;gap:1.5rem;font-size:0.85rem;color:var(--muted);list-style:none;"><li><a href="#video">Video</a></li><li><a href="#image">Images</a></li><li><a href="#audio">Audio</a></li><li><a href="#pdf">PDF</a></li><li><a href="#productivity">Productivity</a></li><li><a href="premium.html" style="color:#6B4FBB;font-weight:500;">✦ Premium</a></li></ul>`}
+      <a href="${root}index.html" class="nav-logo">Essential<em>Bits</em></a>
+      ${isToolPage ? `<a href="${root}index.html" class="nav-back">← All tools</a>` : `<ul class="nav-links" style="display:flex;gap:1.5rem;font-size:0.85rem;color:var(--muted);list-style:none;"><li><a href="#video">Video</a></li><li><a href="#image">Images</a></li><li><a href="#audio">Audio</a></li><li><a href="#pdf">PDF</a></li></ul>`}
       <div class="nav-badge">Zero pop-ups, ever</div>
     `;
   }
@@ -46,12 +34,13 @@ const IS_PREMIUM = false;
   if (footer) {
     footer.innerHTML = `
       <div>
-        <div class="footer-logo">Essential<em>NoPopups</em></div>
+        <div class="footer-logo">Essential<em>Bits</em></div>
         <div class="footer-tagline">Free tools. No pop-ups. Ever.</div>
+        <div style="font-size:0.7rem;color:var(--faint);margin-top:4px;">© ${new Date().getFullYear()} EssentialBits. All rights reserved.</div>
       </div>
       <div class="footer-right">
-        Issues or suggestions? Always welcome.<br>
-        <a href="mailto:essentialsnopopups@gmail.com">essentialsnopopups@gmail.com</a><br>
+        Questions, suggestions, or ideas? Contact us at:<br>
+        <a href="mailto:hello@essentialbits.pro">hello@essentialbits.pro</a><br>
         <a href="${root}privacy-policy.html" style="font-size:0.72rem;color:var(--faint);">Privacy Policy</a>
       </div>
     `;
@@ -119,13 +108,12 @@ function clearNotification() {
 /* ── BUTTON STATE HELPERS ── */
 
 // Set a button to loading state
-async function btnLoading(id, label = "Loading...", fileCount = 1) {
+function btnLoading(id, label = "Loading...") {
   const btn = document.getElementById(id);
   if (!btn) return;
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> ${label}`;
   btn.className = btn.className.replace(" btn-done", "");
-  await freeDelay(fileCount);
 }
 
 // Set a button to done state, then reset after delay
@@ -228,8 +216,7 @@ class BatchProcessor {
     const errors  = [];
     const results = []; // { filename, data }
 
-    // Apply free tier delay before processing starts (hidden in button state)
-    await btnLoading(this.btnId, `${this.btnLabel} — 0/${total}`, total);
+    this._setBtn(`${this.btnLabel} — 0/${total}`);
 
     for (let i = 0; i < total; i++) {
       this._setBtn(`${this.btnLabel} — ${i}/${total}`);
@@ -365,43 +352,6 @@ function makeDraggable(containerEl, items, onReorder) {
 }
 
 
-/* ── FREE TIER DELAY ──
-   Adds a realistic per-file processing delay for free tier users.
-   Premium users skip this entirely (IS_PREMIUM = true).
-
-   Usage (in any tool's process/convert/merge function):
-     await freeDelay(state.files.length);
-
-   Looks for the standard progress bar IDs:
-     #progressSection, #progressFill, #progressPct, #progressLabel
-   These are present in all tools that use BatchProcessor or manual progress bars.
-
-   The delay is 1.5s per file, animated smoothly from startPct to endPct.
-   Never mention this delay to users — only advertise the premium benefit.
-*/
-async function freeDelay(fileCount, startPct = 40, endPct = 85) {
-  if (IS_PREMIUM || fileCount === 0 || window.SERVER_SIDE_TOOL) return;
-
-  const MS_PER_FILE = 1500;
-  const totalMs     = fileCount * MS_PER_FILE;
-  const steps       = fileCount * 10;
-  const stepMs      = totalMs / steps;
-
-  const fill  = document.getElementById("progressFill");
-  const pct   = document.getElementById("progressPct");
-  const label = document.getElementById("progressLabel");
-
-  for (let i = 0; i < steps; i++) {
-    await new Promise(r => setTimeout(r, stepMs));
-    const p = Math.round(startPct + ((endPct - startPct) * (i + 1) / steps));
-    if (fill)  fill.style.width  = p + "%";
-    if (pct)   pct.textContent   = p + "%";
-    if (label) label.textContent =
-      `Processing file ${Math.min(Math.ceil((i + 1) / 10), fileCount)} of ${fileCount}…`;
-  }
-}
-
-
 /* ── AD REFRESH ──
    Refreshes all ad slots on the page after a user action completes.
    Called automatically from btnDone and BatchProcessor.
@@ -453,7 +403,7 @@ function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinit
   if (!IS_PREMIUM && maxFree !== Infinity) {
     upsellNote = document.createElement("div");
     upsellNote.style.cssText = "display:none; text-align:center; font-size:0.75rem; color:var(--faint); margin-top:8px; margin-bottom:4px;";
-    upsellNote.innerHTML = `Need to process multiple files fast? <span style="color:var(--premium); font-weight:500;">✦ Premium</span> delivers instant batch processing.`;
+    upsellNote.innerHTML = `Need to process multiple files? <span style="color:var(--premium); font-weight:500;">✦ Premium</span> lets you batch process them all at once.`;
     zoneEl.insertAdjacentElement("afterend", upsellNote);
   }
 
