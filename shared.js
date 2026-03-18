@@ -10,6 +10,18 @@
 */
 const IS_PREMIUM = false;
 
+/* ── GOOGLE ANALYTICS ── */
+(function() {
+  const gaScript = document.createElement("script");
+  gaScript.async = true;
+  gaScript.src = "https://www.googletagmanager.com/gtag/js?id=G-HCWW0GG3Q6";
+  document.head.appendChild(gaScript);
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-HCWW0GG3Q6');
+})();
+
 /* ── NAV & FOOTER INJECTION ── */
 
 (function () {
@@ -123,8 +135,13 @@ function btnDone(id, doneLabel = "✓ Done! 1/1", resetLabel = null, resetMs = 3
   btn.disabled = false;
   btn.textContent = doneLabel;
   btn.classList.add("btn-done");
-  // Scroll button into view so user always sees the result
-  btn.scrollIntoView({ behavior: "smooth", block: "center" });
+  // Scroll button into view so user sees the result
+  btn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  // After download dialog clears, scroll to Good to Know
+  setTimeout(() => {
+    const infoCard = document.querySelector(".info-card");
+    if (infoCard) infoCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 2000);
   // Refresh ads on every completed action
   refreshAds();
   if (resetLabel) {
