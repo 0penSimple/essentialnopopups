@@ -43,13 +43,41 @@ nav {
   border-bottom: 1px solid var(--border);
   padding: 0 clamp(1rem, 4vw, 3rem);
   height: 56px;
-  display: flex; align-items: center; justify-content: space-between;
+  /* 3-column grid: logo | centre | right — columns can never overlap */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
 }
-.nav-logo { font-family: 'Lora', serif; font-size: 1.1rem; letter-spacing: -0.01em; }
+
+/* Column 1: logo, always left */
+.nav-logo { font-family: 'Lora', serif; font-size: 1.1rem; letter-spacing: -0.01em; justify-self: start; }
 .nav-logo em { font-style: normal; color: var(--teal); }
-.nav-back { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; transition: color 0.15s; }
+
+/* Column 2: centre content — naturally centred, takes only the space it needs */
+.nav-center { display: flex; align-items: center; justify-content: center; }
+
+.nav-links { display: flex; gap: 1.5rem; font-size: 0.85rem; color: var(--muted); list-style: none; }
+.nav-links a:hover { color: var(--teal); }
+
+.nav-back { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; transition: color 0.15s; white-space: nowrap; }
 .nav-back:hover { color: var(--teal); }
-.nav-badge { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.06em; background: var(--teal-light); color: var(--teal-text); border: 1px solid var(--teal-border); border-radius: 99px; padding: 4px 12px; text-transform: uppercase; }
+
+/* Column 3: right-side items, always right */
+.nav-right { display: flex; align-items: center; gap: 1rem; justify-self: end; }
+
+.nav-changelog { font-size: 0.78rem; color: var(--muted); text-decoration: none; transition: color 0.15s; white-space: nowrap; }
+.nav-changelog:hover { color: var(--teal); }
+
+.nav-premium {
+  font-size: 0.75rem; font-weight: 500;
+  color: var(--premium); background: var(--premium-light);
+  border: 1px solid var(--premium-border);
+  border-radius: 99px; padding: 4px 12px;
+  text-decoration: none; transition: all 0.15s; white-space: nowrap;
+}
+.nav-premium:hover { background: var(--premium); color: #fff; }
+
+.nav-badge { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.06em; background: var(--teal-light); color: var(--teal-text); border: 1px solid var(--teal-border); border-radius: 99px; padding: 4px 12px; text-transform: uppercase; white-space: nowrap; }
 
 /* ── PAGE LAYOUT ── */
 .page { max-width: 640px; margin: 0 auto; padding: clamp(2rem, 6vw, 3.5rem) clamp(1rem, 4vw, 2rem) 4rem; }
@@ -228,31 +256,32 @@ footer { border-top: 1px solid var(--border); background: var(--surface); paddin
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── RESPONSIVE ── */
-/* ── MOBILE NAV & FOOTER (≤768px) ── */
-@media (max-width: 768px) {
-  /* Nav: logo left, premium right — everything else hidden */
+
+/* Step 1 (≤900px): hide category nav links */
+@media (max-width: 900px) {
   .nav-links { display: none !important; }
-  .nav-badge { display: none !important; }
+}
+
+/* Step 2 (≤600px): hide Changelog */
+@media (max-width: 600px) {
   .nav-changelog { display: none !important; }
+}
 
-  /* Keep nav compact */
+/* Step 3 (≤480px): hide Badge, tighten nav padding */
+@media (max-width: 480px) {
+  .nav-badge { display: none !important; }
   nav { padding: 0 1rem; }
+  .preview-grid { grid-template-columns: 1fr; }
+}
 
-  /* Footer: stack vertically */
+/* ── FOOTER (≤768px): stack vertically ── */
+@media (max-width: 768px) {
   footer {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
     padding: 1rem;
   }
-  .footer-right {
-    text-align: left;
-    font-size: 0.72rem;
-  }
+  .footer-right { text-align: left; font-size: 0.72rem; }
   .footer-right br { display: none; }
-}
-
-@media (max-width: 480px) {
-  .preview-grid { grid-template-columns: 1fr; }
-  .footer-right { text-align: left; }
 }
