@@ -12,6 +12,7 @@
 <title>EssentialBits — Free tools, zero pop-ups</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
 <style>
   :root {
     --teal:        #0F6E56;
@@ -38,43 +39,7 @@
 
   a { text-decoration: none; color: inherit; }
 
-  /* NAV */
-  nav {
-    position: sticky; top: 0; z-index: 100;
-    background: rgba(250,248,245,0.92);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--border);
-    padding: 0 clamp(1rem, 4vw, 3rem);
-    height: 56px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-
-  .nav-logo {
-    font-family: 'Lora', serif;
-    font-size: 1.1rem;
-    letter-spacing: -0.01em;
-  }
-  .nav-logo em { font-style: normal; color: var(--teal); }
-
-  .nav-badge {
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    background: var(--teal-light);
-    color: var(--teal-text);
-    border: 1px solid var(--teal-border);
-    border-radius: 99px;
-    padding: 4px 12px;
-    text-transform: uppercase;
-  }
-
-  .nav-links {
-    display: flex; gap: 1.5rem;
-    font-size: 0.85rem;
-    color: var(--muted);
-    list-style: none;
-  }
-  .nav-links a:hover { color: var(--teal); }
+  /* NAV — handled by shared.css */
 
   /* HERO */
   .hero {
