@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -259,6 +258,15 @@
   .tool-card:hover { background: var(--teal-light); }
   .tool-card:hover .tool-arrow { opacity: 1; }
 
+  .editors-pick-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 0.62rem; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #92610a;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border: 1px solid #fbbf24; border-radius: 99px;
+    padding: 2px 8px; margin-bottom: 4px; width: fit-content;
+  }
+
   .tool-name {
     font-size: 0.85rem;
     font-weight: 500;
@@ -336,6 +344,30 @@
 
 <nav id="shared-nav"></nav>
 
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  INDEX.HTML — QUICK REFERENCE                                ║
+  ╠══════════════════════════════════════════════════════════════╣
+  ║  ADDING A TOOL                                               ║
+  ║    Copy any <a class="tool-card"> block and paste it inside  ║
+  ║    the correct category's <div class="tool-grid">.           ║
+  ║    The tool count updates automatically.                     ║
+  ║                                                              ║
+  ║  HIDING A TOOL                                               ║
+  ║    Add style="display:none;" to the <a> tag.                 ║
+  ║    The tool count automatically excludes hidden tools.       ║
+  ║                                                              ║
+  ║  ADDING A BADGE                                              ║
+  ║    Place <div class="editors-pick-badge">★ Editor's Pick     ║
+  ║    </div> after the tool-desc div, before tool-arrow.        ║
+  ║                                                              ║
+  ║  ADDING A CATEGORY                                           ║
+  ║    Copy an existing <div class="category"> block.            ║
+  ║    Give it a unique id (e.g. id="design").                   ║
+  ║    Add a matching nav link in shared.js.                     ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
+
 <section class="hero">
   <div class="hero-eyebrow">Free online tools</div>
   <h1>Everything you need.<br><em>Nothing you don't.</em></h1>
@@ -368,7 +400,7 @@
       <div class="cat-subtitle">6 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/youtube-download.html" class="tool-card">
+      <a href="tools/youtube-download.html" class="tool-card" style="display:none;">>
         <div class="tool-name">YouTube download</div>
         <div class="tool-desc">Save any video as MP4 or audio as MP3</div>
         <div class="tool-arrow">→</div>
@@ -405,7 +437,7 @@
     <div class="category-header">
       <div class="cat-icon image">🖼</div>
       <div class="cat-title">Images</div>
-      <div class="cat-subtitle">5 tools</div>
+      <div class="cat-subtitle">6 tools</div>
     </div>
     <div class="tool-grid">
       <a href="tools/photos-to-gif.html" class="tool-card">
@@ -440,7 +472,7 @@
     <div class="category-header">
       <div class="cat-icon audio">🎵</div>
       <div class="cat-title">Audio</div>
-      <div class="cat-subtitle">4 tools</div>
+      <div class="cat-subtitle">5 tools</div>
     </div>
     <div class="tool-grid">
       <a href="tools/audio-converter.html" class="tool-card">
@@ -458,7 +490,7 @@
         <div class="tool-desc">Cut any audio file to the exact section you want</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/audio-to-midi.html" class="tool-card">
+      <a href="tools/audio-to-midi.html" class="tool-card" style="display:none;">
         <div class="tool-name">Audio to MIDI <span class="tool-experimental">⚗ Experimental</span></div>
         <div class="tool-desc">Convert recordings to MIDI using AI</div>
         <div class="tool-arrow">→</div>
@@ -496,14 +528,73 @@
     </div>
   </div>
 
+  <div class="category" id="productivity">
+    <div class="category-header">
+      <div class="cat-icon productivity">⚡</div>
+      <div class="cat-title">Productivity</div>
+      <div class="cat-subtitle">8 tools</div>
+    </div>
+    <div class="tool-grid">
+      <a href="tools/smart-editor.html" class="tool-card">
+        <div class="tool-name">Smart Editor</div>
+        <div class="tool-desc">A clean writing editor and full code editor in one — auto-saved, no cloud</div>
+        <div class="editors-pick-badge">★ Editor's Pick</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/notes-merger.html" class="tool-card">
+        <div class="tool-name">Notes Merger</div>
+        <div class="tool-desc">Merge and export text files to PDF, Word, and more</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/find-replace.html" class="tool-card">
+        <div class="tool-name">Find &amp; Replace</div>
+        <div class="tool-desc">Search and replace words across multiple files at once</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/qr-generator.html" class="tool-card">
+        <div class="tool-name">QR Code Generator</div>
+        <div class="tool-desc">Turn any link or text into a scannable QR code</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/password-generator.html" class="tool-card" style="display:none;">
+        <div class="tool-name">Password Generator</div>
+        <div class="tool-desc">Generate strong passwords with a personal hint baked in</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/color-palette.html" class="tool-card" style="display:none;">
+        <div class="tool-name">Color Palette &amp; Picker</div>
+        <div class="tool-desc">Extract colors from any image and pick exact pixel colors</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/number-base-converter.html" class="tool-card" style="display:none;">
+        <div class="tool-name">Number Base Converter</div>
+        <div class="tool-desc">Convert between binary, octal, decimal, hex, and Base64 instantly</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/text-analyzer.html" class="tool-card" style="display:none;">
+        <div class="tool-name">Text Analyzer</div>
+        <div class="tool-desc">Count words, characters, sentences, paragraphs and get a readability score</div>
+        <div class="tool-arrow">→</div>
+      </a>
+    </div>
+  </div>
+
 </section>
 
 <footer id="shared-footer"></footer>
 
 <script src="shared.js"></script>
+<script>
+// Auto-count tool cards per category — skips hidden tools
+document.querySelectorAll('.category').forEach(cat => {
+  const count = [...cat.querySelectorAll('.tool-card')]
+    .filter(el => el.style.display !== 'none').length;
+  const subtitle = cat.querySelector('.cat-subtitle');
+  if (subtitle) subtitle.textContent = count + ' tool' + (count !== 1 ? 's' : '');
+});
+</script>
 </body>
 
-<html lang="en">
 
 </body>
 </html>
