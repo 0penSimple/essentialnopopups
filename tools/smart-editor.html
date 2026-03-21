@@ -1668,9 +1668,9 @@ function toggleToolbox() {
     // Fallback timeout in case resize never fires (e.g. keyboard already closed)
     setTimeout(function() { area.offsetHeight; }, 400);
   } else {
-    // Restore keyboard — set inputmode first, then focus to trigger keyboard
+    // Restore keyboard — delay ensures browser registers inputmode change first
     area.setAttribute('inputmode', 'text');
-    area.focus();
+    setTimeout(function() { area.focus(); }, 50);
   }
 }
 
