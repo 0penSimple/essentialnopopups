@@ -940,8 +940,8 @@ body.mobile-edit-mode .toolbox-panel {
 /* ================================================================
    STATE
    ================================================================ */
-const FONT_SIZES = [11, 13, 15, 16, 18, 20, 24, 28];
-let fontSizeIdx = 3; // default 16px
+const FONT_SIZES = [8, 10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 38];
+let fontSizeIdx = 4; // default 16px
 const LINE_HEIGHTS = [1.2, 1.4, 1.6, 1.8, 2.0, 2.4, 2.8];
 let lineHeightIdx = 3; // default 1.8
 
@@ -1636,6 +1636,37 @@ function updateToolboxNikud() {
   sec.style.display = HEBREW_RE.test(area.innerText || '') ? 'block' : 'none';
 }
 
+
+/* Normalize a range so startContainer is always a text node.
+   Prevents cursor-between-lines issues on mobile. */
+function normalizeRange(range, area) {
+  if (!range) return range;
+  var node = range.startContainer;
+  var offset = range.startOffset;
+  // Already a text node — fine
+  if (node.nodeType === 3) return range;
+  // It's an element — walk into child at offset, then find first text node
+  var target = node.childNodes[offset] || node.childNodes[node.childNodes.length - 1] || node;
+  var walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, null, false);
+  var firstText = walker.nextNode();
+  if (firstText && area.contains(firstText)) {
+    range.setStart(firstText, 0);
+    range.collapse(true);
+  } else {
+    // Walk backwards — find last text node before this point
+    var walker2 = document.createTreeWalker(area, NodeFilter.SHOW_TEXT, null, false);
+    var lastText = null, t;
+    while ((t = walker2.nextNode())) {
+      if (area.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING) break;
+      lastText = t;
+    }
+    if (lastText) {
+      range.setStart(lastText, lastText.textContent.length);
+      range.collapse(true);
+    }
+  }
+  return range;
+}
 function toggleToolbox() {
   toolboxOpen = !toolboxOpen;
   var panel = document.getElementById('toolboxPanel');
@@ -1744,6 +1775,7 @@ function tbMove(dir) {
           return r;
         })();
     if (newRange) {
+      newRange = normalizeRange(newRange, area);
       sel.removeAllRanges();
       sel.addRange(newRange);
     }
@@ -1832,15 +1864,19 @@ function enterMobileEdit() {
   document.body.classList.add('mobile-edit-mode');
   var area = document.getElementById('writerArea');
   area.setAttribute('inputmode', 'text');
-  // Small delay so layout settles before focus
+  // Prevent accidental pinch-zoom in edit mode
+  var vp = document.querySelector('meta[name=viewport]');
+  if (vp) vp.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
   setTimeout(function() { area.focus(); }, 100);
 }
 
 function exitMobileEdit() {
   var area = document.getElementById('writerArea');
-  // Close keyboard first
   area.setAttribute('inputmode', 'none');
   area.blur();
+  // Restore zoom capability
+  var vp = document.querySelector('meta[name=viewport]');
+  if (vp) vp.content = 'width=device-width, initial-scale=1.0';
   setTimeout(function() {
     document.body.classList.remove('mobile-edit-mode');
     area.setAttribute('inputmode', 'text');
@@ -1856,6 +1892,23 @@ document.addEventListener('DOMContentLoaded', function() {
         enterMobileEdit();
       }
     });
+  }
+});
+
+/* Normalize selection on every selectionchange — fixes tap between lines on mobile */
+document.addEventListener('selectionchange', function() {
+  var area = document.getElementById('writerArea');
+  if (!area) return;
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
+  var range = sel.getRangeAt(0);
+  if (!area.contains(range.startContainer)) return;
+  if (range.startContainer.nodeType === 3) return; // already text node, fine
+  var newRange = range.cloneRange();
+  newRange = normalizeRange(newRange, area);
+  if (newRange && newRange.startContainer.nodeType === 3) {
+    sel.removeAllRanges();
+    sel.addRange(newRange);
   }
 });
 
