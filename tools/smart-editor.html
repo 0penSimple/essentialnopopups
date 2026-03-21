@@ -635,7 +635,8 @@ body.focus-mode .status-bar {
         onclick="updateFocusLine(); updateDirButtons();"
         onkeydown="writerKeydown(event)"
         onpaste="setTimeout(detectHebrew,50)"
-        onkeyup="writerKeyup(event)">
+        onkeyup="writerKeyup(event)"
+        inputmode="text">
       </div>
       <!-- CODE (CodeMirror mounts here) -->
       <textarea id="codeArea" style="display:none;"></textarea>
@@ -1463,18 +1464,21 @@ function toggleToolbox() {
   toolboxOpen = !toolboxOpen;
   var panel = document.getElementById('toolboxPanel');
   var btn = document.getElementById('toolboxBtn');
+  var area = document.getElementById('writerArea');
   panel.classList.toggle('show', toolboxOpen);
   if (btn) btn.classList.toggle('active', toolboxOpen);
   if (toolboxOpen) {
+    // Suppress mobile keyboard while toolbox is active
+    area.setAttribute('inputmode', 'none');
     updateToolboxNikud();
-    // Don't blur — keep editor focused so selection stays intact
-    // Scroll panel into view
     setTimeout(function() {
       panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
+  } else {
+    // Restore keyboard when toolbox closes
+    area.setAttribute('inputmode', 'text');
   }
-  // Always keep editor focused
-  document.getElementById('writerArea').focus();
+  area.focus();
 }
 
 function tbRestoreAndFocus() {
