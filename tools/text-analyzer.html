@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text Analyzer — EssentialBits</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+
+  /* ── TEXTAREA ── */
+  .text-input-wrap {
+    position: relative;
+    margin-bottom: 1.25rem;
+  }
+
+  #textInput {
+    width: 100%;
+    min-height: 220px;
+    padding: 1.25rem;
+    font-family: 'Georgia', serif;
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: var(--text);
+    background: var(--warm-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+  }
+
+  #textInput:focus { border-color: var(--teal-border); background: var(--surface); }
+  #textInput::placeholder { color: var(--faint); font-style: italic; }
+
+  .input-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* ── STATS GRID ── */
+  .stats-section {
+    display: none;
+    margin-bottom: 1.25rem;
+  }
+  .stats-section.show { display: block; }
+
+  .section-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px;
+    margin-bottom: 1.25rem;
+  }
+
+  .stat-card {
+    background: var(--warm-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-value {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+    color: var(--faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .stat-card.highlight {
+    border-color: var(--teal-border);
+    background: var(--teal-light);
+  }
+
+  .stat-card.highlight .stat-value { color: var(--teal-text); }
+  .stat-card.highlight .stat-label { color: var(--teal); }
+
+  /* ── READABILITY ── */
+  .readability-card {
+    background: var(--warm-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .readability-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .readability-score {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .readability-label {
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .readability-bar-track {
+    height: 8px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .readability-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.5s ease, background 0.5s ease;
+  }
+
+  .readability-desc {
+    font-size: 0.75rem;
+    color: var(--faint);
+    line-height: 1.5;
+  }
+
+  .readability-na {
+    font-size: 0.82rem;
+    color: var(--faint);
+    font-style: italic;
+  }
+
+  /* ── KEYWORD DENSITY (PREMIUM) ── */
+  .premium-section {
+    background: var(--premium-light);
+    border: 1.5px solid var(--premium-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .premium-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .premium-section-title {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--premium);
+  }
+
+  .keyword-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .keyword-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .keyword-word {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text);
+    min-width: 100px;
+  }
+
+  .keyword-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .keyword-bar-fill {
+    height: 100%;
+    background: var(--premium);
+    border-radius: 99px;
+    transition: width 0.4s ease;
+  }
+
+  .keyword-count {
+    font-size: 0.72rem;
+    color: var(--faint);
+    min-width: 50px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .keyword-locked {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  .premium-lock-note {
+    font-size: 0.75rem;
+    color: var(--premium);
+    margin-top: 10px;
+    font-weight: 500;
+  }
+
+  /* ── SENTENCE LENGTH ── */
+  .sentence-info {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .sentence-tag {
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: var(--surface);
+  }
+
+  .sentence-tag.warn {
+    border-color: #f0b429;
+    color: #856404;
+    background: #fffbeb;
+  }
+
+  @media (max-width: 480px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .stat-value { font-size: 1.2rem; }
+  }
+
+  /* ── KEYWORD TOOLTIP ── */
+  .kw-tooltip-wrap { position: relative; }
+
+  .kw-help-btn {
+    width: 16px; height: 16px;
+    border-radius: 50%; border: 1px solid var(--premium-border);
+    background: var(--premium-light); color: var(--premium);
+    font-size: 0.65rem; font-weight: 700; font-family: inherit;
+    cursor: pointer; line-height: 1; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .kw-help-btn:hover { background: var(--premium); color: #fff; }
+
+  .kw-tooltip {
+    position: absolute; left: 0; top: 22px; z-index: 10;
+    background: var(--surface); border: 1px solid var(--premium-border);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 0.75rem; color: var(--muted); line-height: 1.5;
+    width: 220px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="https://essentialbits.pro">Home</a>
+      <span>›</span>
+      <span>Productivity</span>
+      <span>›</span>
+      <span>Text Analyzer</span>
+    </div>
+    <h1>Text Analyzer</h1>
+    <div class="info-btn-row">
+      <p>Paste or type any text to instantly count characters, words, sentences, paragraphs, reading time, and get a readability score.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+  <div class="ad-slot"><div class="ad-slot-inner">728 × 90 — Ad</div></div>
+
+  <div class="card">
+
+    <label>Your text</label>
+    <div class="text-input-wrap">
+      <textarea id="textInput" placeholder="Paste or type your text here — stats update instantly…"
+        oninput="analyze()"></textarea>
+    </div>
+
+    <div class="input-actions">
+      <button class="btn-secondary" onclick="clearText()" style="font-size:0.82rem;padding:7px 14px;">
+        Clear
+      </button>
+      <button class="btn-secondary" onclick="copyText()" style="font-size:0.82rem;padding:7px 14px;" id="copyBtn">
+        Copy text
+      </button>
+    </div>
+
+    <!-- BASIC STATS -->
+    <div class="stats-section" id="statsSection">
+
+      <div class="section-label" style="margin-top:1.25rem;">Basic counts</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="statChars">0</div>
+          <div class="stat-label">Characters</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statCharsNoSpace">0</div>
+          <div class="stat-label">Letters (a–z)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statWords">0</div>
+          <div class="stat-label">Words</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statSentences">0</div>
+          <div class="stat-label">Sentences</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statLines">0</div>
+          <div class="stat-label">Lines</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statParagraphs">0</div>
+          <div class="stat-label">Paragraphs</div>
+        </div>
+        <div class="stat-card highlight">
+          <div class="stat-value" id="statReadTime">—</div>
+          <div class="stat-label">Read time</div>
+        </div>
+        <div class="stat-card highlight">
+          <div class="stat-value" id="statSpeakTime">—</div>
+          <div class="stat-label">Speak time</div>
+        </div>
+      </div>
+
+      <!-- Sentence length info -->
+      <div class="sentence-info" id="sentenceInfo"></div>
+
+      <!-- READABILITY -->
+      <div class="section-label" style="margin-top:1.25rem;">Readability</div>
+      <div class="readability-card">
+        <div id="readabilityContent">
+          <div class="readability-na">Type at least a few sentences for a readability score.</div>
+        </div>
+      </div>
+
+      <!-- KEYWORD DENSITY (PREMIUM) -->
+      <div class="premium-section">
+        <div class="premium-section-header">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="premium-section-title">Keyword density</div>
+            <div class="kw-tooltip-wrap">
+              <button class="kw-help-btn" onclick="toggleKwTooltip()" title="What is this?">?</button>
+              <div class="kw-tooltip" id="kwTooltip" style="display:none;">
+                Shows the 10 most frequently used meaningful words in your text, with their count and percentage.
+              </div>
+            </div>
+          </div>
+          <span class="premium-badge">✦ Premium</span>
+        </div>
+        <div id="keywordContent" class="keyword-locked">
+          <div class="keyword-list" id="keywordList">
+            <!-- Placeholder bars -->
+            <div class="keyword-row">
+              <div class="keyword-word" style="background:var(--border);border-radius:4px;color:transparent;">placeholder</div>
+              <div class="keyword-bar-track"><div class="keyword-bar-fill" style="width:80%"></div></div>
+              <div class="keyword-count" style="background:var(--border);border-radius:4px;color:transparent;">0x</div>
+            </div>
+            <div class="keyword-row">
+              <div class="keyword-word" style="background:var(--border);border-radius:4px;color:transparent;">placeholder</div>
+              <div class="keyword-bar-track"><div class="keyword-bar-fill" style="width:60%"></div></div>
+              <div class="keyword-count" style="background:var(--border);border-radius:4px;color:transparent;">0x</div>
+            </div>
+            <div class="keyword-row">
+              <div class="keyword-word" style="background:var(--border);border-radius:4px;color:transparent;">example</div>
+              <div class="keyword-bar-track"><div class="keyword-bar-fill" style="width:40%"></div></div>
+              <div class="keyword-count" style="background:var(--border);border-radius:4px;color:transparent;">0x</div>
+            </div>
+          </div>
+        </div>
+        <div id="keywordLockNote" class="premium-lock-note" style="display:none;">
+          ✦ Unlock Premium to see keyword density
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="ad-slot"><div class="ad-slot-inner">300 × 250 — Ad</div></div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>All analysis happens instantly in your browser — your text is never sent anywhere.</li>
+      <li><strong>Reading time</strong> is estimated at 200 words per minute (average silent reading speed). <strong>Speaking time</strong> uses 130 words per minute (average presentation pace).</li>
+      <li><strong>Sentences</strong> are counted by detecting <code>.</code> <code>!</code> <code>?</code> followed by a space or end of text. Numbers like "3.14" are not counted as sentence endings.</li>
+      <li><strong>Paragraphs</strong> are blocks of text separated by a blank line.</li>
+      <li>The <strong>Flesch readability score</strong> rates text from 0–100. Higher scores mean easier reading. A score of 60–70 is considered standard prose (plain English). Below 30 is very difficult (legal/academic). The score works best for English text — it shows N/A for very short inputs or non-Latin text.</li>
+      <li><strong>Sentence length</strong> — very long sentences (30+ words) are flagged to help you spot places where readability could improve.</li>
+      <li><strong>✦ Premium — keyword density:</strong> shows the top 10 most frequently used meaningful words in your text with their count and percentage. Common words like "the", "a", "is", "and" are automatically excluded so only content words appear.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="../shared.js"></script>
+
+<script>
+/* ================================================================
+   STOPWORDS — excluded from keyword density
+   ================================================================ */
+const STOPWORDS = new Set([
+  'the','a','an','and','or','but','in','on','at','to','for','of','with',
+  'by','from','is','are','was','were','be','been','being','have','has',
+  'had','do','does','did','will','would','could','should','may','might',
+  'shall','can','need','dare','ought','used','it','its','this','that',
+  'these','those','i','me','my','we','our','you','your','he','his','she',
+  'her','they','their','them','us','what','which','who','whom','when',
+  'where','why','how','all','both','each','few','more','most','other',
+  'some','such','no','not','only','same','so','than','too','very','just',
+  'as','if','then','there','about','into','through','up','out','after',
+  'before','between','also','s','t','re','ve','ll','d','m'
+]);
+
+/* ================================================================
+   READABILITY CONFIG
+   ================================================================ */
+const READABILITY_LEVELS = [
+  { min: 90, label: 'Very easy',      desc: 'Easily understood by an average 11-year-old.', color: '#22c55e' },
+  { min: 70, label: 'Easy',           desc: 'Conversational English. Easy for most readers.', color: '#84cc16' },
+  { min: 60, label: 'Standard',       desc: 'Plain English. Understood by 13–15 year olds.', color: '#eab308' },
+  { min: 50, label: 'Fairly difficult', desc: 'Fairly difficult to read.', color: '#f97316' },
+  { min: 30, label: 'Difficult',      desc: 'Difficult — best suited to college graduates.', color: '#ef4444' },
+  { min:  0, label: 'Very difficult', desc: 'Very difficult — typical of academic or legal text.', color: '#b91c1c' },
+];
+
+function getReadabilityLevel(score) {
+  return READABILITY_LEVELS.find(l => score >= l.min) || READABILITY_LEVELS[READABILITY_LEVELS.length - 1];
+}
+
+/* ================================================================
+   SYLLABLE COUNTER
+   ================================================================ */
+function countSyllables(word) {
+  word = word.toLowerCase().replace(/[^a-z]/g, '');
+  if (!word) return 0;
+  if (word.length <= 3) return 1;
+  word = word.replace(/(?:[^laeiouy]|ed|[^laeiouy]e)$/, '');
+  word = word.replace(/^y/, '');
+  const matches = word.match(/[aeiouy]{1,2}/g);
+  return matches ? matches.length : 1;
+}
+
+/* ================================================================
+   MAIN ANALYSIS
+   ================================================================ */
+function analyze() {
+  const text = document.getElementById('textInput').value;
+  const section = document.getElementById('statsSection');
+
+  if (!text.trim()) {
+    section.classList.remove('show');
+    return;
+  }
+
+  section.classList.add('show');
+
+  // ── BASIC COUNTS ──
+  const chars        = text.length;
+  const charsNoSpace = (text.match(/[a-zA-Z]/g) || []).length;
+  const words        = text.trim() ? text.trim().split(/\s+/).filter(Boolean) : [];
+  const wordCount    = words.length;
+
+  // Sentences: .!? followed by space or end, but not after digit (3.14 etc)
+  const sentenceMatches = text.match(/(?<![0-9])[.!?](?=\s|$)/g);
+  const sentences    = sentenceMatches ? sentenceMatches.length : (wordCount > 0 ? 1 : 0);
+
+  const lines        = text.split('\n').length;
+  const paragraphs   = text.split(/\n\s*\n/).filter(s => s.trim()).length || (wordCount > 0 ? 1 : 0);
+
+  // Time estimates
+  const readMins  = wordCount < 100 ? '<1' : Math.round(wordCount / 200) + '';
+  const speakMins = wordCount < 65  ? '<1' : Math.round(wordCount / 130) + '';
+
+  document.getElementById('statChars').textContent       = chars.toLocaleString();
+  document.getElementById('statCharsNoSpace').textContent = charsNoSpace.toLocaleString();
+  document.getElementById('statWords').textContent       = wordCount.toLocaleString();
+  document.getElementById('statSentences').textContent   = sentences.toLocaleString();
+  document.getElementById('statLines').textContent       = lines.toLocaleString();
+  document.getElementById('statParagraphs').textContent  = paragraphs.toLocaleString();
+  document.getElementById('statReadTime').textContent    = readMins + ' min';
+  document.getElementById('statSpeakTime').textContent   = speakMins + ' min';
+
+  // ── SENTENCE LENGTH ANALYSIS ──
+  updateSentenceInfo(text);
+
+  // ── READABILITY ──
+  updateReadability(words, sentences);
+
+  // ── KEYWORD DENSITY ──
+  updateKeywords(words);
+}
+
+/* ================================================================
+   SENTENCE LENGTH FLAGS
+   ================================================================ */
+function updateSentenceInfo(text) {
+  const container = document.getElementById('sentenceInfo');
+  // Split into sentences
+  const parts = text.split(/(?<![0-9])[.!?](?=\s|$)/).filter(s => s.trim());
+  if (!parts.length) { container.innerHTML = ''; return; }
+
+  const lengths = parts.map(s => s.trim().split(/\s+/).filter(Boolean).length);
+  const avg = Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length);
+  const longCount = lengths.filter(l => l > 30).length;
+
+  let html = `<span class="sentence-tag">Avg sentence: ${avg} words</span>`;
+  if (longCount > 0) {
+    html += `<span class="sentence-tag warn">⚠ ${longCount} long sentence${longCount > 1 ? 's' : ''} (30+ words)</span>`;
+  }
+  container.innerHTML = html;
+}
+
+/* ================================================================
+   READABILITY SCORE
+   ================================================================ */
+function updateReadability(words, sentences) {
+  const container = document.getElementById('readabilityContent');
+
+  // Need enough text for meaningful score
+  if (words.length < 30 || sentences < 2) {
+    container.innerHTML = '<div class="readability-na">Type at least a few sentences for a readability score.</div>';
+    return;
+  }
+
+  // Check if text appears to be non-Latin
+  const latinRatio = words.filter(w => /[a-zA-Z]/.test(w)).length / words.length;
+  if (latinRatio < 0.5) {
+    container.innerHTML = '<div class="readability-na">Readability score is optimised for English text.</div>';
+    return;
+  }
+
+  const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0);
+  const avgWordsPerSentence = words.length / sentences;
+  const avgSyllablesPerWord = totalSyllables / words.length;
+
+  let score = 206.835 - (1.015 * avgWordsPerSentence) - (84.6 * avgSyllablesPerWord);
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  const level = getReadabilityLevel(score);
+
+  container.innerHTML = `
+    <div class="readability-header">
+      <div class="readability-score" style="color:${level.color};">${score}</div>
+      <div class="readability-label">${level.label}</div>
+    </div>
+    <div class="readability-bar-track">
+      <div class="readability-bar-fill" style="width:${score}%;background:${level.color};"></div>
+    </div>
+    <div class="readability-desc">${level.desc}</div>
+  `;
+}
+
+/* ================================================================
+   KEYWORD DENSITY (PREMIUM)
+   ================================================================ */
+function updateKeywords(words) {
+  const lockNote = document.getElementById('keywordLockNote');
+  const content  = document.getElementById('keywordContent');
+
+  if (!IS_PREMIUM) {
+    lockNote.style.display = 'block';
+    return;
+  }
+
+  content.classList.remove('keyword-locked');
+  lockNote.style.display = 'none';
+
+  if (words.length < 20) {
+    document.getElementById('keywordList').innerHTML =
+      '<div style="font-size:0.78rem;color:var(--faint);">Type more text to see keyword density.</div>';
+    return;
+  }
+
+  // Count meaningful words
+  const freq = {};
+  words.forEach(w => {
+    const clean = w.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (clean.length < 3) return;
+    if (STOPWORDS.has(clean)) return;
+    freq[clean] = (freq[clean] || 0) + 1;
+  });
+
+  const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  if (!sorted.length) {
+    document.getElementById('keywordList').innerHTML =
+      '<div style="font-size:0.78rem;color:var(--faint);">No significant keywords found.</div>';
+    return;
+  }
+
+  const maxCount = sorted[0][1];
+  const list = document.getElementById('keywordList');
+  list.innerHTML = sorted.map(([word, count]) => {
+    const pct = ((count / words.length) * 100).toFixed(1);
+    const barW = Math.round((count / maxCount) * 100);
+    return `
+      <div class="keyword-row">
+        <div class="keyword-word">${word}</div>
+        <div class="keyword-bar-track">
+          <div class="keyword-bar-fill" style="width:${barW}%"></div>
+        </div>
+        <div class="keyword-count">${count}× (${pct}%)</div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ================================================================
+   CLEAR / COPY
+   ================================================================ */
+function toggleKwTooltip() {
+  const tip = document.getElementById('kwTooltip');
+  tip.style.display = tip.style.display === 'none' ? 'block' : 'none';
+}
+
+// Close tooltip when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('.kw-tooltip-wrap')) {
+    const tip = document.getElementById('kwTooltip');
+    if (tip) tip.style.display = 'none';
+  }
+});
+
+function clearText() {
+  document.getElementById('textInput').value = '';
+  document.getElementById('statsSection').classList.remove('show');
+}
+
+async function copyText() {
+  const text = document.getElementById('textInput').value;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✓ Copied';
+    setTimeout(() => btn.textContent = 'Copy text', 1500);
+  } catch(e) {
+    showNotification('Copy failed — select manually.', 'error');
+  }
+}
+</script>
+
+</body>
+</html>

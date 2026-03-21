@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color Palette & Picker — EssentialBits</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* ── CANVAS AREA ── */
+  .canvas-wrap {
+    position: relative; margin-bottom: 1.25rem;
+    background: var(--warm-bg); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 200px;
+  }
+  .canvas-wrap.picking { cursor: crosshair; }
+  #displayCanvas { display: block; max-width: 100%; max-height: 480px; }
+
+  .canvas-placeholder {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px; color: var(--faint); font-size: 0.85rem; padding: 3rem;
+  }
+  .canvas-placeholder-icon { font-size: 2rem; }
+
+  /* ── LIVE PREVIEW BAR ── */
+  .live-preview {
+    display: none; align-items: center; gap: 10px;
+    background: var(--warm-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; margin-bottom: 1rem;
+    font-size: 0.78rem; color: var(--muted);
+  }
+  .live-preview.show { display: flex; }
+  .live-swatch {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: 1px solid var(--border); flex-shrink: 0;
+  }
+  .live-coords { color: var(--faint); margin-left: auto; }
+
+  /* ── MAGNIFIER ── */
+  #magnifier {
+    position: fixed; pointer-events: none; z-index: 999;
+    width: 120px; height: 120px; border-radius: 50%;
+    border: 2px solid var(--border);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    display: none; overflow: hidden;
+  }
+  #magnifier canvas { display: block; }
+  .magnifier-crosshair {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px; height: 10px; pointer-events: none;
+  }
+  .magnifier-crosshair::before,
+  .magnifier-crosshair::after {
+    content: ''; position: absolute; background: rgba(255,255,255,0.8);
+  }
+  .magnifier-crosshair::before { width: 1px; height: 10px; left: 50%; top: 0; }
+  .magnifier-crosshair::after  { width: 10px; height: 1px; top: 50%; left: 0; }
+
+  /* ── PALETTE ── */
+  .section-title {
+    font-size: 0.78rem; font-weight: 500; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  .palette-row {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.25rem;
+  }
+  .palette-swatch {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer; transition: transform 0.15s;
+  }
+  .palette-swatch:hover { transform: translateY(-2px); }
+  .palette-color {
+    width: 48px; height: 48px; border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.08);
+    transition: box-shadow 0.15s;
+  }
+  .palette-swatch:hover .palette-color {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .palette-hex {
+    font-size: 0.62rem; color: var(--muted); font-family: monospace;
+  }
+
+  /* ── PICKED COLORS ── */
+  .picked-list {
+    display: flex; flex-direction: column; gap: 6px;
+    margin-bottom: 1.25rem; max-height: 280px; overflow-y: auto;
+  }
+  .picked-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--warm-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+  }
+  .picked-swatch {
+    width: 32px; height: 32px; border-radius: 6px;
+    border: 1px solid rgba(0,0,0,0.08); flex-shrink: 0;
+  }
+  .picked-values { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .picked-hex { font-size: 0.82rem; font-weight: 500; font-family: monospace; }
+  .picked-rgb { font-size: 0.7rem; color: var(--muted); }
+  .picked-hsl { font-size: 0.7rem; color: var(--faint); }
+  .picked-copy {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 0.72rem; color: var(--muted); padding: 4px 8px;
+    cursor: pointer; transition: all 0.15s; font-family: inherit;
+  }
+  .picked-copy:hover { border-color: var(--teal-border); color: var(--teal); }
+  .picked-remove {
+    background: none; border: none; color: var(--faint);
+    font-size: 1rem; cursor: pointer; padding: 0 4px; line-height: 1;
+    transition: color 0.15s;
+  }
+  .picked-remove:hover { color: var(--error); }
+
+  /* ── COLOR REPLACEMENT (PREMIUM) ── */
+  .replace-section { display: none; }
+  .replace-section.show { display: block; }
+
+  .replace-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    margin-bottom: 1rem;
+  }
+  .replace-group { display: flex; flex-direction: column; gap: 6px; }
+  .replace-group label { font-size: 0.78rem; color: var(--muted); }
+  .color-input-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .color-input-row input[type="color"] {
+    width: 40px; height: 36px; border: 1px solid var(--border);
+    border-radius: 8px; cursor: pointer; padding: 2px; background: none;
+  }
+  .color-input-row input[type="text"] {
+    flex: 1; font-family: monospace; font-size: 0.82rem;
+  }
+
+  .tolerance-row { margin-bottom: 1rem; }
+  .tolerance-row label {
+    font-size: 0.78rem; color: var(--muted);
+    display: flex; justify-content: space-between; margin-bottom: 6px;
+  }
+  .tolerance-row input[type="range"] {
+    width: 100%; accent-color: var(--teal);
+  }
+
+  .replace-preview {
+    display: none; margin-bottom: 1rem;
+    background: var(--premium-light); border: 1px solid var(--premium-border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .replace-preview.show { display: block; }
+  #replaceCanvas { display: block; max-width: 100%; max-height: 320px; margin: 0 auto; }
+
+  .progress-section { display:none; margin-bottom:1rem; }
+  .progress-section.show { display:block; }
+  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; }
+  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
+
+  .empty-state {
+    text-align: center; color: var(--faint);
+    font-size: 0.82rem; padding: 1rem 0;
+  }
+
+  /* ── PREMIUM ZONE ── */
+  .premium-zone {
+    background: var(--premium-light);
+    border: 1.5px solid var(--premium-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-top: 0.5rem;
+  }
+  .btn-premium {
+    width: 100%; background: var(--premium);
+    border: none; border-radius: 10px;
+    color: #fff; font-family: inherit;
+    font-size: 0.9rem; font-weight: 500;
+    padding: 14px; cursor: pointer;
+    transition: all 0.2s; display: block;
+  }
+  .btn-premium:hover {
+    background: var(--premium-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(107,79,187,0.3);
+  }
+  .btn-premium:active { transform: none; box-shadow: none; }
+  .btn-premium:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  @media (max-width: 480px) {
+    .replace-row { grid-template-columns: 1fr; }
+    .palette-color { width: 40px; height: 40px; }
+  }
+
+  /* ── FLOATING CURSOR TOOLTIP ── */
+  .cursor-tip {
+    position: fixed; pointer-events: none; z-index: 9999;
+    background: rgba(26,26,24,0.85); color: #fff;
+    font-size: 0.72rem; font-weight: 500;
+    padding: 4px 10px; border-radius: 99px;
+    white-space: nowrap;
+    animation: tipFade 1.2s ease forwards;
+  }
+  @keyframes tipFade {
+    0%   { opacity: 1; transform: translateY(0); }
+    70%  { opacity: 1; transform: translateY(-8px); }
+    100% { opacity: 0; transform: translateY(-14px); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Magnifier -->
+<div id="magnifier">
+  <canvas id="magnifierCanvas" width="120" height="120"></canvas>
+  <div class="magnifier-crosshair"></div>
+</div>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="https://essentialbits.pro">Home</a>
+      <span>›</span>
+      <span>Productivity</span>
+      <span>›</span>
+      <span>Color Palette & Picker</span>
+    </div>
+    <h1>Color Palette & Picker</h1>
+    <div class="info-btn-row">
+      <p>Extract dominant colors from any image, pick exact pixel colors with a magnifier, and replace colors — all in your browser.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+  <div class="ad-slot"><div class="ad-slot-inner">728 × 90 — Ad</div></div>
+
+  <div class="card">
+
+    <!-- UPLOAD -->
+    <label>Image</label>
+    <div class="drop-zone" id="dropZone" style="margin-bottom:1.25rem;">
+      <input type="file" id="fileInput" accept="image/*" onchange="loadImage(this.files[0])">
+      <div class="drop-icon">🎨</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag an image here</div>
+      <div class="drop-sub">PNG, JPG, WebP, GIF — any image format</div>
+    </div>
+
+    <!-- CANVAS -->
+    <div class="canvas-wrap" id="canvasWrap">
+      <div class="canvas-placeholder" id="canvasPlaceholder">
+        <div class="canvas-placeholder-icon">🖼</div>
+        <div>Upload an image to get started</div>
+      </div>
+      <canvas id="displayCanvas" style="display:none;"
+        onmousemove="onCanvasMove(event)"
+        onmouseleave="onCanvasLeave()"
+        onclick="onCanvasClick(event)"
+        ontouchmove="onCanvasTouch(event)"
+        ontouchend="onCanvasTouchEnd(event)">
+      </canvas>
+    </div>
+
+    <!-- LIVE PREVIEW -->
+    <div class="live-preview" id="livePreview">
+      <div class="live-swatch" id="liveSwatch"></div>
+      <span id="liveHex">—</span>
+      <span id="liveRgb" style="color:var(--faint);"></span>
+      <span class="live-coords" id="liveCoords"></span>
+    </div>
+
+    <!-- PALETTE -->
+    <div id="paletteSection" style="display:none;">
+      <div class="section-title">Dominant colors — click to copy HEX</div>
+      <div class="palette-row" id="paletteRow"></div>
+    </div>
+
+    <!-- PICKED COLORS -->
+    <div id="pickedSection" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="section-title" style="margin:0;">Picked colors</div>
+        <button class="picked-copy" onclick="clearPicked()" style="font-size:0.7rem;">Clear all</button>
+      </div>
+      <div class="picked-list" id="pickedList"></div>
+      <button class="btn-primary" id="downloadPaletteBtn" onclick="downloadPalette()" style="margin-bottom:0;">
+        Download palette
+      </button>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0;" id="replaceDivider" style="display:none;">
+
+    <!-- COLOR REPLACEMENT (PREMIUM) -->
+    <div class="replace-section" id="replaceSection">
+      <div class="premium-zone">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="section-title" style="margin:0;color:var(--premium);">Color replacement</div>
+        <span class="premium-badge">✦ Premium</span>
+      </div>
+      <p style="font-size:0.78rem;color:var(--muted);margin-bottom:1rem;line-height:1.6;">
+        Pick a color from your image, choose a replacement, and swap every matching pixel — perfect for changing backgrounds, brand colors, or object colors in any photo.
+        <span id="replacePremiumNote"></span>
+      </p>
+      <div id="replaceControls">
+
+      <div class="replace-row">
+        <div class="replace-group">
+          <label>Source color (pick from image or enter)</label>
+          <div class="color-input-row">
+            <input type="color" id="sourceColorPicker" value="#ff0000" oninput="syncColorInput('source')">
+            <input type="text" class="input-field" id="sourceColorHex" value="#ff0000"
+              placeholder="#rrggbb" oninput="syncColorPicker('source')" maxlength="7">
+          </div>
+          <div style="font-size:0.7rem;color:var(--faint);margin-top:4px;">
+            Or click a color in your picked list and use <strong>Use as source</strong>
+          </div>
+        </div>
+        <div class="replace-group">
+          <label>Replacement color</label>
+          <div class="color-input-row">
+            <input type="color" id="targetColorPicker" value="#0000ff" oninput="syncColorInput('target')">
+            <input type="text" class="input-field" id="targetColorHex" value="#0000ff"
+              placeholder="#rrggbb" oninput="syncColorPicker('target')" maxlength="7">
+          </div>
+        </div>
+      </div>
+
+      <div class="tolerance-row">
+        <label>
+          <span>Tolerance</span>
+          <span id="toleranceVal">12</span>
+        </label>
+        <input type="range" id="toleranceSlider" min="0" max="100" value="12"
+          oninput="document.getElementById('toleranceVal').textContent=this.value; scheduleReplace()">
+      </div>
+
+      <div class="setting-group" style="margin-bottom:1rem;">
+        <label>Match by</label>
+        <select class="select-field" id="matchMode" onchange="scheduleReplace()">
+          <option value="hue">Color — hue match, preserves shading (recommended)</option>
+          <option value="rgb">Exact — strict pixel match, precise but narrow</option>
+          <option value="shade">Shade — matches hue and brightness together</option>
+        </select>
+      </div>
+
+      <div class="progress-section" id="replaceProgress">
+        <div class="progress-label" id="replaceProgressLabel">Processing…</div>
+        <div class="progress-track"><div class="progress-fill" id="replaceProgressFill"></div></div>
+      </div>
+
+      <div class="replace-preview" id="replacePreview">
+        <canvas id="replaceCanvas"></canvas>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn-premium" id="applyReplaceBtn" onclick="applyReplace()">
+          Preview replacement
+        </button>
+        <button id="downloadReplaceBtn" onclick="downloadReplaced()"
+          style="display:none;width:100%;margin-top:8px;background:none;
+          border:1.5px solid var(--premium-border);border-radius:10px;
+          color:var(--premium);font-family:inherit;font-size:0.88rem;font-weight:500;
+          padding:12px;cursor:pointer;transition:all 0.2s;">
+          ↓ Download result
+        </button>
+      </div>
+      </div><!-- end replaceControls -->
+      </div><!-- end premium-zone -->
+    </div>
+
+  </div>
+
+  <div class="ad-slot"><div class="ad-slot-inner">300 × 250 — Ad</div></div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your images are never uploaded anywhere.</li>
+      <li><strong>Pixel picker:</strong> hover over any part of the image to see the color under your cursor. Click to save it to your picked colors list. A magnifier loupe helps with precise picking on detailed images.</li>
+      <li><strong>Alt + click</strong> on any pixel to set it as the source color for replacement (Premium).</li>
+      <li>Colors are shown in HEX, RGB, and HSL formats. Click any color to copy its HEX code.</li>
+      <li>The dominant colors palette is extracted automatically using a clustering algorithm that finds the most representative colors in the image.</li>
+      <li><strong>Color replacement (✦ Premium):</strong> pick a source color, a replacement color, and preview the result instantly. Use the tolerance slider to control how broadly similar pixels get replaced. The <strong>Match by</strong> setting controls how the matching works — <em>Color</em> matches by hue only and preserves original shading (best for most cases), <em>Exact</em> uses strict RGB matching for precise control, and <em>Shade</em> matches both hue and lightness together for selective replacements.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="../shared.js"></script>
+
+<script>
+/* ================================================================
+   STATE
+   ================================================================ */
+const state = {
+  image:        null,   // HTMLImageElement
+  fullCanvas:   null,   // hidden full-res canvas
+  pickedColors: [],
+  replaceDebounce: null,
+  replaceImageData: null, // original pixels for replacement
+};
+
+/* ================================================================
+   SETUP
+   ================================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  state.fullCanvas = document.createElement('canvas');
+
+  // Show replacement section for all users — locked for free
+  document.getElementById('replaceSection').classList.add('show');
+  document.getElementById('replaceDivider').style.display = 'block';
+  if (!IS_PREMIUM) {
+    document.getElementById('replaceControls').style.opacity = '0.45';
+    document.getElementById('replaceControls').style.pointerEvents = 'none';
+    document.getElementById('replacePremiumNote').innerHTML =
+      '<br><strong style="color:var(--premium);">Unlock with Premium to use this feature.</strong>';
+  }
+
+  makeDropZone(document.getElementById('dropZone'), {
+    accept: 'image/*', multiple: false, maxFree: 1,
+    onFiles: files => { if (files[0]) loadImage(files[0]); }
+  });
+});
+
+/* ================================================================
+   LOAD IMAGE
+   ================================================================ */
+function loadImage(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    showNotification('Please upload an image file.', 'error');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      state.image = img;
+
+      // Draw to hidden full-res canvas
+      state.fullCanvas.width  = img.naturalWidth;
+      state.fullCanvas.height = img.naturalHeight;
+      state.fullCanvas.getContext('2d').drawImage(img, 0, 0);
+
+      // Store original pixel data for replacement
+      state.replaceImageData = state.fullCanvas.getContext('2d')
+        .getImageData(0, 0, img.naturalWidth, img.naturalHeight);
+
+      // Draw to display canvas
+      const dc = document.getElementById('displayCanvas');
+      const wrap = document.getElementById('canvasWrap');
+      const maxW = wrap.clientWidth - 2;
+      const scale = Math.min(1, maxW / img.naturalWidth);
+      dc.width  = Math.round(img.naturalWidth  * scale);
+      dc.height = Math.round(img.naturalHeight * scale);
+      dc.getContext('2d').drawImage(img, 0, 0, dc.width, dc.height);
+
+      document.getElementById('canvasPlaceholder').style.display = 'none';
+      dc.style.display = 'block';
+      document.getElementById('canvasWrap').classList.add('picking');
+
+      // Extract palette
+      extractPalette();
+
+      // Reset picked
+      state.pickedColors = [];
+      renderPicked();
+
+      // Reset replacement
+      document.getElementById('replacePreview').classList.remove('show');
+      document.getElementById('downloadReplaceBtn').style.display = 'none';
+
+      clearNotification();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ================================================================
+   COORDINATE HELPERS
+   ================================================================ */
+function displayToFull(clientX, clientY) {
+  const dc   = document.getElementById('displayCanvas');
+  const rect = dc.getBoundingClientRect();
+  const dx = (clientX - rect.left) * (dc.width  / rect.width);
+  const dy = (clientY - rect.top)  * (dc.height / rect.height);
+  // Scale to full canvas
+  const fx = Math.round(dx * (state.fullCanvas.width  / dc.width));
+  const fy = Math.round(dy * (state.fullCanvas.height / dc.height));
+  return {
+    dx: Math.max(0, Math.min(dc.width  - 1, Math.round(dx))),
+    dy: Math.max(0, Math.min(dc.height - 1, Math.round(dy))),
+    fx: Math.max(0, Math.min(state.fullCanvas.width  - 1, fx)),
+    fy: Math.max(0, Math.min(state.fullCanvas.height - 1, fy)),
+  };
+}
+
+function getPixel(fx, fy) {
+  const d = state.fullCanvas.getContext('2d')
+    .getImageData(fx, fy, 1, 1).data;
+  return { r: d[0], g: d[1], b: d[2], a: d[3] };
+}
+
+/* ================================================================
+   MOUSE / TOUCH EVENTS
+   ================================================================ */
+function onCanvasMove(e) {
+  if (!state.image) return;
+  const { dx, dy, fx, fy } = displayToFull(e.clientX, e.clientY);
+  showLiveColor(fx, fy, e.clientX, e.clientY);
+  updateMagnifier(dx, dy, e.clientX, e.clientY);
+}
+
+function onCanvasLeave() {
+  document.getElementById('livePreview').classList.remove('show');
+  document.getElementById('magnifier').style.display = 'none';
+}
+
+function onCanvasClick(e) {
+  if (!state.image) return;
+  const { fx, fy } = displayToFull(e.clientX, e.clientY);
+  const px = getPixel(fx, fy);
+
+  // Regular click always picks the color
+
+  addPickedColor(px.r, px.g, px.b, fx, fy, e);
+}
+
+function onCanvasTouch(e) {
+  e.preventDefault();
+  if (!state.image) return;
+  const t = e.touches[0];
+  const { fx, fy } = displayToFull(t.clientX, t.clientY);
+  showLiveColor(fx, fy, t.clientX, t.clientY);
+}
+
+function onCanvasTouchEnd(e) {
+  e.preventDefault();
+  if (!state.image) return;
+  const t = e.changedTouches[0];
+  const { fx, fy } = displayToFull(t.clientX, t.clientY);
+  const px = getPixel(fx, fy);
+  addPickedColor(px.r, px.g, px.b, fx, fy, null);
+  showCursorTip('Added!', t.clientX, t.clientY);
+  document.getElementById('livePreview').classList.remove('show');
+}
+
+/* ================================================================
+   LIVE COLOR PREVIEW
+   ================================================================ */
+function showLiveColor(fx, fy, clientX, clientY) {
+  const px  = getPixel(fx, fy);
+  const hex = rgbToHex(px.r, px.g, px.b);
+  const hsl = rgbToHsl(px.r, px.g, px.b);
+
+  const preview = document.getElementById('livePreview');
+  document.getElementById('liveSwatch').style.background = hex;
+  document.getElementById('liveHex').textContent = hex;
+  document.getElementById('liveRgb').textContent = `rgb(${px.r}, ${px.g}, ${px.b})`;
+  document.getElementById('liveCoords').textContent = `${fx}, ${fy}`;
+  preview.classList.add('show');
+}
+
+/* ================================================================
+   MAGNIFIER
+   ================================================================ */
+function updateMagnifier(dx, dy, clientX, clientY) {
+  const mag    = document.getElementById('magnifier');
+  const magCtx = document.getElementById('magnifierCanvas').getContext('2d');
+  const dc     = document.getElementById('displayCanvas');
+  const zoom   = 6;
+  const size   = 120;
+  const half   = size / 2;
+
+  magCtx.clearRect(0, 0, size, size);
+  magCtx.imageSmoothingEnabled = false;
+  const srcSize = size / zoom;
+  const sx = dx - srcSize / 2;
+  const sy = dy - srcSize / 2;
+  magCtx.drawImage(dc, sx, sy, srcSize, srcSize, 0, 0, size, size);
+
+  // Position magnifier near cursor but not under it
+  const offset = 20;
+  let mx = clientX + offset;
+  let my = clientY - size - offset;
+  if (my < 0) my = clientY + offset;
+  if (mx + size > window.innerWidth) mx = clientX - size - offset;
+
+  mag.style.left    = mx + 'px';
+  mag.style.top     = my + 'px';
+  mag.style.display = 'block';
+}
+
+/* ================================================================
+   PICKED COLORS
+   ================================================================ */
+function addPickedColorFromHex(hex, event) {
+  const c = hexToRgb(hex);
+  addPickedColor(c.r, c.g, c.b, null, null);
+  if (event) showCursorTip('Added!', event.clientX, event.clientY);
+}
+
+function addPickedColor(r, g, b, fx, fy, event) {
+  const hex = rgbToHex(r, g, b);
+  const hsl = rgbToHsl(r, g, b);
+  state.pickedColors.unshift({ r, g, b, hex, hsl, fx, fy });
+  renderPicked();
+  if (event) showCursorTip('Added!', event.clientX, event.clientY);
+}
+
+function renderPicked() {
+  const list    = document.getElementById('pickedList');
+  const section = document.getElementById('pickedSection');
+
+  if (!state.pickedColors.length) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  const premiumBtn = IS_PREMIUM
+    ? `<button class="picked-copy" onclick="setSourceColor('\${c.hex}')" style="white-space:nowrap;">Use as source</button>`
+    : '';
+  list.innerHTML = state.pickedColors.map((c, i) => `
+    <div class="picked-item">
+      <div class="picked-swatch" style="background:${c.hex};"></div>
+      <div class="picked-values">
+        <div class="picked-hex">${c.hex}</div>
+        <div class="picked-rgb">rgb(${c.r}, ${c.g}, ${c.b})</div>
+        <div class="picked-hsl">hsl(${c.hsl.h}, ${c.hsl.s}%, ${c.hsl.l}%)</div>
+      </div>
+      ${IS_PREMIUM ? `<button class="picked-copy" onclick="setSourceColor('${c.hex}', event)" style="white-space:nowrap;font-size:0.68rem;">Use as source</button>` : ''}
+      <button class="picked-copy" onclick="copyText('${c.hex}', this)">Copy</button>
+      <button class="picked-remove" onclick="removePicked(${i})" title="Remove">×</button>
+    </div>
+  `).join('');
+}
+
+function removePicked(i) {
+  state.pickedColors.splice(i, 1);
+  renderPicked();
+}
+
+function clearPicked() {
+  state.pickedColors = [];
+  renderPicked();
+}
+
+function showCursorTip(msg, x, y) {
+  const tip = document.createElement('div');
+  tip.className = 'cursor-tip';
+  tip.textContent = msg;
+  tip.style.left = (x + 12) + 'px';
+  tip.style.top  = (y - 10) + 'px';
+  document.body.appendChild(tip);
+  setTimeout(() => tip.remove(), 1300);
+}
+
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓';
+    setTimeout(() => { btn.innerHTML = orig; }, 1500);
+    // Show cursor tip near the button
+    const rect = btn.getBoundingClientRect();
+    showCursorTip('Copied!', rect.right, rect.top);
+  } catch(e) {
+    showNotification('Copy failed — select manually.', 'error');
+  }
+}
+
+/* ================================================================
+   PALETTE EXTRACTION (k-means)
+   ================================================================ */
+function extractPalette() {
+  const ctx  = state.fullCanvas.getContext('2d');
+  const w    = state.fullCanvas.width;
+  const h    = state.fullCanvas.height;
+  const data = ctx.getImageData(0, 0, w, h).data;
+
+  // Sample pixels
+  const step = Math.max(1, Math.floor(w * h / 8000));
+  const pixels = [];
+  for (let i = 0; i < data.length; i += 4 * step) {
+    if (data[i + 3] < 128) continue; // skip transparent
+    pixels.push([data[i], data[i+1], data[i+2]]);
+  }
+
+  if (!pixels.length) return;
+
+  const k = 6;
+  const palette = kmeans(pixels, k, 12);
+  renderPalette(palette);
+}
+
+function kmeans(pixels, k, iterations) {
+  // Random init
+  let centers = [];
+  const used = new Set();
+  while (centers.length < k) {
+    const idx = Math.floor(Math.random() * pixels.length);
+    if (!used.has(idx)) { used.add(idx); centers.push([...pixels[idx]]); }
+  }
+
+  for (let iter = 0; iter < iterations; iter++) {
+    const clusters = Array.from({length: k}, () => []);
+
+    for (const px of pixels) {
+      let best = 0, bestDist = Infinity;
+      for (let c = 0; c < k; c++) {
+        const d = colorDist(px, centers[c]);
+        if (d < bestDist) { bestDist = d; best = c; }
+      }
+      clusters[best].push(px);
+    }
+
+    let changed = false;
+    for (let c = 0; c < k; c++) {
+      if (!clusters[c].length) continue;
+      const newCenter = [
+        Math.round(clusters[c].reduce((s, p) => s + p[0], 0) / clusters[c].length),
+        Math.round(clusters[c].reduce((s, p) => s + p[1], 0) / clusters[c].length),
+        Math.round(clusters[c].reduce((s, p) => s + p[2], 0) / clusters[c].length),
+      ];
+      if (colorDist(newCenter, centers[c]) > 1) changed = true;
+      centers[c] = newCenter;
+    }
+
+    if (!changed) break;
+  }
+
+  // Deduplicate similar colors
+  const unique = [];
+  for (const c of centers) {
+    if (!unique.some(u => colorDist(u, c) < 25)) unique.push(c);
+  }
+
+  return unique.map(c => ({ r: c[0], g: c[1], b: c[2], hex: rgbToHex(c[0], c[1], c[2]) }));
+}
+
+function renderPalette(palette) {
+  const row     = document.getElementById('paletteRow');
+  const section = document.getElementById('paletteSection');
+
+  row.innerHTML = palette.map(c => `
+    <div class="palette-swatch" title="Click to add to picked colors">
+      <div class="palette-color" style="background:${c.hex};"
+        onclick="addPickedColorFromHex('${c.hex}', event)"></div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <div class="palette-hex">${c.hex}</div>
+        <button class="picked-copy" onclick="copyText('${c.hex}', this)"
+          style="padding:1px 5px;font-size:0.6rem;">⧉</button>
+      </div>
+    </div>
+  `).join('');
+
+  section.style.display = 'block';
+}
+
+/* ================================================================
+   DOWNLOAD PALETTE SWATCH PNG
+   ================================================================ */
+function downloadPalette() {
+  const colors = [
+    ...state.pickedColors.map(c => c.hex),
+  ];
+
+  if (!colors.length) {
+    showNotification('Pick some colors first by clicking on the image.', 'info');
+    return;
+  }
+
+  const swatchW = 100;
+  const swatchH = 120;
+  const labelH  = 20;
+  const c = document.createElement('canvas');
+  c.width  = swatchW * colors.length;
+  c.height = swatchH;
+  const ctx = c.getContext('2d');
+
+  colors.forEach((hex, i) => {
+    ctx.fillStyle = hex;
+    ctx.fillRect(i * swatchW, 0, swatchW, swatchH - labelH);
+    ctx.fillStyle = '#333333';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(hex, i * swatchW + swatchW / 2, swatchH - 5);
+  });
+
+  const a = document.createElement('a');
+  a.href = c.toDataURL('image/png');
+  a.download = 'palette.png';
+  a.click();
+}
+
+/* ================================================================
+   COLOR REPLACEMENT (PREMIUM)
+   ================================================================ */
+function setSourceColor(hex, event) {
+  document.getElementById('sourceColorPicker').value = hex;
+  document.getElementById('sourceColorHex').value = hex;
+  document.getElementById('replaceSection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (event) showCursorTip('Set as source!', event.clientX, event.clientY);
+}
+
+function syncColorInput(which) {
+  const picker = document.getElementById(`${which}ColorPicker`);
+  document.getElementById(`${which}ColorHex`).value = picker.value;
+}
+
+function syncColorPicker(which) {
+  const hex = document.getElementById(`${which}ColorHex`).value;
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    document.getElementById(`${which}ColorPicker`).value = hex;
+  }
+}
+
+function scheduleReplace() {
+  clearTimeout(state.replaceDebounce);
+  state.replaceDebounce = setTimeout(previewReplace, 200);
+}
+
+function previewReplace() {
+  if (!state.image || !IS_PREMIUM) return;
+  const srcHex = document.getElementById('sourceColorHex').value;
+  const tgtHex = document.getElementById('targetColorHex').value;
+  if (!/^#[0-9a-fA-F]{6}$/.test(srcHex) || !/^#[0-9a-fA-F]{6}$/.test(tgtHex)) return;
+
+  const tolerance = parseInt(document.getElementById('toleranceSlider').value);
+  const src = hexToRgb(srcHex);
+  const tgt = hexToRgb(tgtHex);
+
+  // Clone original pixel data
+  const original = state.replaceImageData;
+  const output   = new ImageData(
+    new Uint8ClampedArray(original.data),
+    original.width, original.height
+  );
+
+  const matchMode = document.getElementById('matchMode').value;
+  const maxDist   = (tolerance / 100) * 441;
+  const srcHsl    = rgbToHsl(src.r, src.g, src.b);
+  const tgtHsl    = rgbToHsl(tgt.r, tgt.g, tgt.b);
+
+  for (let i = 0; i < output.data.length; i += 4) {
+    const r = output.data[i], g = output.data[i+1], b = output.data[i+2];
+    let matches = false;
+
+    if (matchMode === 'rgb') {
+      // Strict RGB distance
+      matches = colorDist([r,g,b], [src.r,src.g,src.b]) <= maxDist;
+
+    } else if (matchMode === 'hue') {
+      // Match primarily on hue — ignores lightness/saturation differences
+      // Great for replacing a color across its shadows and highlights
+      const pHsl   = rgbToHsl(r, g, b);
+      const hueDiff = Math.min(
+        Math.abs(pHsl.h - srcHsl.h),
+        360 - Math.abs(pHsl.h - srcHsl.h)
+      );
+      const hueThresh = (tolerance / 100) * 180;
+      matches = hueDiff <= hueThresh;
+
+    } else if (matchMode === 'shade') {
+      // Match hue AND lightness — more selective than hue-only
+      const pHsl    = rgbToHsl(r, g, b);
+      const hueDiff = Math.min(
+        Math.abs(pHsl.h - srcHsl.h),
+        360 - Math.abs(pHsl.h - srcHsl.h)
+      );
+      const lightDiff = Math.abs(pHsl.l - srcHsl.l);
+      const hueThresh   = (tolerance / 100) * 180;
+      const lightThresh = (tolerance / 100) * 50;
+      matches = hueDiff <= hueThresh && lightDiff <= lightThresh;
+    }
+
+    if (matches) {
+      if (matchMode === 'hue') {
+        // Preserve original lightness and saturation — only swap hue
+        // Convert pixel to HSL, replace hue with target hue, convert back
+        const pHsl  = rgbToHsl(r, g, b);
+        const newRgb = hslToRgb(tgtHsl.h, pHsl.s, pHsl.l);
+        output.data[i]   = newRgb.r;
+        output.data[i+1] = newRgb.g;
+        output.data[i+2] = newRgb.b;
+      } else {
+        output.data[i]   = tgt.r;
+        output.data[i+1] = tgt.g;
+        output.data[i+2] = tgt.b;
+      }
+    }
+  }
+
+  // Draw result to replace canvas
+  const rc  = document.getElementById('replaceCanvas');
+  const w   = original.width;
+  const h   = original.height;
+  const maxW = document.querySelector('.card').clientWidth - 48;
+  const scale = Math.min(1, maxW / w);
+  rc.width  = Math.round(w * scale);
+  rc.height = Math.round(h * scale);
+
+  // Draw output at display size
+  const tmp = document.createElement('canvas');
+  tmp.width = w; tmp.height = h;
+  tmp.getContext('2d').putImageData(output, 0, 0);
+  rc.getContext('2d').drawImage(tmp, 0, 0, rc.width, rc.height);
+
+  // Store for download
+  state.pendingReplaceCanvas = tmp;
+
+  document.getElementById('replacePreview').classList.add('show');
+  document.getElementById('downloadReplaceBtn').style.display = 'inline-block';
+}
+
+function applyReplace() {
+  if (!state.image) {
+    showNotification('Upload an image first.', 'info');
+    return;
+  }
+  previewReplace();
+}
+
+function downloadReplaced() {
+  if (!state.pendingReplaceCanvas) return;
+  const a = document.createElement('a');
+  a.href = state.pendingReplaceCanvas.toDataURL('image/png');
+  a.download = 'color-replaced.png';
+  a.click();
+}
+
+// Hover effect for download button
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('downloadReplaceBtn');
+  if (btn) {
+    btn.addEventListener('mouseenter', () => {
+      btn.style.background = 'var(--premium-light)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = 'none';
+    });
+  }
+});
+
+/* ================================================================
+   COLOR UTILITIES
+   ================================================================ */
+function colorDist(a, b) {
+  const dr = a[0]-b[0], dg = a[1]-b[1], db = a[2]-b[2];
+  return Math.sqrt(dr*dr + dg*dg + db*db);
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return {r, g, b};
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  let h, s, l = (max+min)/2;
+  if (max === min) { h = s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+    switch(max) {
+      case r: h = ((g-b)/d + (g<b?6:0))/6; break;
+      case g: h = ((b-r)/d + 2)/6; break;
+      case b: h = ((r-g)/d + 4)/6; break;
+    }
+  }
+  return { h: Math.round(h*360), s: Math.round(s*100), l: Math.round(l*100) };
+}
+
+function hslToRgb(h, s, l) {
+  h /= 360; s /= 100; l /= 100;
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q-p)*6*t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q-p)*(2/3-t)*6;
+      return p;
+    };
+    const q = l < 0.5 ? l*(1+s) : l+s-l*s;
+    const p = 2*l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return { r: Math.round(r*255), g: Math.round(g*255), b: Math.round(b*255) };
+}
+</script>
+
+</body>
+</html>

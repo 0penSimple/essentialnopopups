@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Code Generator — EssentialBits</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  .qr-input-row {
+    display: flex; flex-direction: column; gap: 10px; margin-bottom: 1rem;
+  }
+
+  .qr-output {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 1.25rem; padding: 1.5rem;
+    background: var(--warm-bg); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 1.25rem;
+  }
+
+  #qrCanvas { border-radius: 8px; display: block; max-width: 100%; }
+
+  .qr-meta {
+    font-size: 0.78rem; color: var(--muted);
+    text-align: center; word-break: break-all; max-width: 320px;
+  }
+
+  .qr-actions {
+    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+    margin-bottom: 1.25rem;
+  }
+
+  .btn-secondary {
+    background: var(--warm-bg); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    font-family: inherit; font-size: 0.82rem; font-weight: 500;
+    padding: 10px 18px; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-secondary:hover { border-color: var(--teal-border); color: var(--teal); }
+
+  .qr-preview-section { display:none; }
+  .qr-preview-section.show { display:block; }
+
+  .options-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 12px; margin-bottom: 1.25rem;
+  }
+  @media (max-width: 520px) {
+    
+    .qr-input-row { flex-direction: column; }
+  }
+
+  .color-row {
+    display: flex; gap: 16px; align-items: center; margin-bottom: 1.25rem;
+  }
+  .color-group { display: flex; flex-direction: column; gap: 5px; }
+  .color-group label { font-size: 0.78rem; color: var(--muted); }
+  .color-group input[type="color"] {
+    width: 48px; height: 36px;
+    border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer; background: none; padding: 2px;
+  }
+
+  .qr-entries { display:flex; flex-direction:column; gap:8px; margin-bottom:1rem; }
+  .qr-entry { display:flex; align-items:center; gap:8px; }
+  .qr-entry input { flex:1; }
+  .qr-entry-remove { background:none; border:none; color:var(--faint); font-size:1.1rem; cursor:pointer; padding:0 4px; transition:color 0.15s; line-height:1; flex-shrink:0; }
+  .qr-entry-remove:hover { color:var(--error); }
+  .btn-add-more { font-size:0.78rem; color:var(--teal); background:none; border:1px dashed var(--teal-border); border-radius:8px; padding:8px 14px; cursor:pointer; transition:all 0.15s; margin-bottom:1rem; display:none; }
+  .btn-add-more:hover { background:var(--teal-light); }
+  .btn-add-more.show { display:block; }
+
+  /* Logo upload — premium only, hidden by default */
+  .logo-section { display:none; margin-bottom:1.25rem; }
+  .logo-section.show { display:block; }
+  .logo-upload-row { display:flex; align-items:center; gap:10px; }
+  .logo-preview {
+    width:48px; height:48px; border-radius:8px;
+    border:1px solid var(--border); object-fit:contain;
+    background:var(--warm-bg); display:none; flex-shrink:0;
+  }
+  .logo-preview.show { display:block; }
+  .logo-filename { font-size:0.78rem; color:var(--muted); flex:1; }
+  .logo-remove { background:none; border:none; color:var(--faint); font-size:0.78rem; cursor:pointer; padding:4px 8px; border-radius:6px; transition:all 0.15s; }
+  .logo-remove:hover { color:var(--error); background:var(--warm-bg); }
+  .logo-note { font-size:0.72rem; color:var(--faint); margin-top:6px; line-height:1.5; }
+
+  /* CUSTOMIZE PANEL */
+  .customize-btn {
+    width:100%; background:none; border:1px dashed var(--premium-border);
+    border-radius:10px; color:var(--premium); font-family:inherit;
+    font-size:0.82rem; font-weight:500; padding:10px; cursor:pointer;
+    transition:all 0.15s; display:none; margin-bottom:0.75rem;
+  }
+  .customize-btn.show { display:block; }
+  .customize-btn:hover { background:var(--premium-light); }
+  .customize-panel {
+    display:none; margin-bottom:0.75rem;
+    background:var(--premium-light); border:1.5px solid var(--premium-border);
+    border-radius:12px; padding:1.25rem;
+  }
+  .customize-panel.show { display:block; }
+  .customize-title {
+    font-size:0.72rem; font-weight:500; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--premium); margin-bottom:10px;
+  }
+  .shape-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .shape-btn {
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    padding:10px 6px; border-radius:8px; cursor:pointer;
+    border:1.5px solid var(--premium-border); background:var(--surface);
+    transition:all 0.15s; font-family:inherit;
+  }
+  .shape-btn:hover { border-color:var(--premium); }
+  .shape-btn.active { border-color:var(--premium); background:white; box-shadow:0 0 0 2px var(--premium); }
+  .shape-btn span { font-size:0.68rem; color:var(--muted); }
+  .shape-btn.active span { color:var(--premium); font-weight:500; }
+  .shape-preview { width:36px; height:36px; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="https://essentialbits.pro">Home</a>
+      <span>›</span>
+      <span>Productivity</span>
+      <span>›</span>
+      <span>QR Code Generator</span>
+    </div>
+    <h1>QR Code Generator</h1>
+    <div class="info-btn-row">
+      <p>Turn any link, text, email, or phone number into a scannable QR code — instantly, in your browser.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot"><div class="ad-slot-inner">728 × 90 — Ad</div></div>
+
+  <div class="card">
+
+    <label>Text or URL</label>
+    <div class="qr-entries" id="qrEntries">
+      <div class="qr-entry">
+        <input type="text" class="input-field qr-input"
+          placeholder="https://essentialbits.pro or any text…"
+          oninput="onInputChange()"
+          onkeydown="if(event.key==='Enter') generate()">
+      </div>
+    </div>
+
+    <button class="btn-add-more" id="addMoreBtn" onclick="addEntry()">+ Add another</button>
+
+    <button class="btn-primary" id="generateBtn" onclick="generate()" style="margin-bottom:1.25rem;">
+      Generate QR code
+    </button>
+
+    <div class="options-row">
+      <div class="setting-group">
+        <label>Size</label>
+        <select class="select-field" id="qrSize" onchange="regenerateIfExists()">
+          <option value="200">Small (200px)</option>
+          <option value="300" selected>Medium (300px)</option>
+          <option value="400">Large (400px)</option>
+          <option value="600">XL (600px)</option>
+        </select>
+      </div>
+      <div class="setting-group">
+        <label>Error correction</label>
+        <select class="select-field" id="qrEcc" onchange="regenerateIfExists()">
+          <option value="L">Low — smaller file</option>
+          <option value="M" selected>Medium — balanced</option>
+          <option value="Q">High — more robust</option>
+          <option value="H">Max — logo-ready</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="color-row">
+      <div class="color-group">
+        <label>QR color</label>
+        <input type="color" id="qrFg" value="#000000" onchange="regenerateIfExists()">
+      </div>
+      <div class="color-group">
+        <label>Background</label>
+        <input type="color" id="qrBg" value="#ffffff" onchange="regenerateIfExists()">
+      </div>
+    </div>
+
+    <!-- Logo overlay -->
+    <div class="logo-section" id="logoSection">
+      <label>Logo / image overlay</label>
+      <div class="logo-upload-row">
+        <img id="logoPreview" class="logo-preview" alt="Logo preview">
+        <div>
+          <input type="file" id="logoInput" accept="image/*" style="display:none" onchange="loadLogo(this.files[0])">
+          <button class="btn-secondary" onclick="document.getElementById('logoInput').click()" style="font-size:0.78rem;padding:8px 14px;">
+            Choose image
+          </button>
+        </div>
+        <span class="logo-filename" id="logoFilename">No image selected</span>
+        <button class="logo-remove" id="logoRemoveBtn" onclick="removeLogo()" style="display:none;">✕ Remove</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;margin-bottom:6px;">
+        <button id="shapeCircle" class="btn-secondary" onclick="setLogoShape('circle')"
+          style="flex:1;padding:7px;font-size:0.78rem;background:var(--teal-light);border-color:var(--teal-border);color:var(--teal-text);">
+          ● Circle
+        </button>
+        <button id="shapeSquare" class="btn-secondary" onclick="setLogoShape('square')"
+          style="flex:1;padding:7px;font-size:0.78rem;">
+          ■ Square
+        </button>
+      </div>
+      <div class="logo-note">PNG with transparent background works best. Error correction is automatically set to Maximum when a logo is used.</div>
+    </div>
+
+    <div class="qr-preview-section" id="previewSection">
+      <div class="qr-output">
+        <div id="qrContainer" style="display:flex;justify-content:center;"></div>
+        <div class="qr-meta" id="qrMeta"></div>
+      </div>
+      <button class="customize-btn" id="customizeBtn" onclick="toggleCustomize()">
+        ✶ Customize your QR
+      </button>
+      <div class="customize-panel" id="customizePanel">
+        <div class="customize-title">Module shape</div>
+        <div class="shape-grid" style="margin-bottom:1rem;">
+          <button class="shape-btn active" id="shape-square" onclick="setShape('square')"><svg class="shape-preview" viewBox="0 0 36 36"><rect x="4" y="4" width="10" height="10" fill="#1a1a18"/><rect x="16" y="4" width="4" height="4" fill="#1a1a18"/><rect x="22" y="4" width="10" height="10" fill="#1a1a18"/><rect x="4" y="16" width="4" height="4" fill="#1a1a18"/><rect x="16" y="16" width="4" height="4" fill="#1a1a18"/><rect x="4" y="22" width="10" height="10" fill="#1a1a18"/></svg><span>Square</span></button>
+          <button class="shape-btn" id="shape-rounded" onclick="setShape('rounded')"><svg class="shape-preview" viewBox="0 0 36 36"><rect x="4" y="4" width="10" height="10" rx="2" fill="#1a1a18"/><rect x="16" y="4" width="4" height="4" rx="1" fill="#1a1a18"/><rect x="22" y="4" width="10" height="10" rx="2" fill="#1a1a18"/><rect x="4" y="16" width="4" height="4" rx="1" fill="#1a1a18"/><rect x="16" y="16" width="4" height="4" rx="1" fill="#1a1a18"/><rect x="4" y="22" width="10" height="10" rx="2" fill="#1a1a18"/></svg><span>Rounded</span></button>
+          <button class="shape-btn" id="shape-dots" onclick="setShape('dots')"><svg class="shape-preview" viewBox="0 0 36 36"><circle cx="9" cy="9" r="4" fill="#1a1a18"/><circle cx="18" cy="6" r="2" fill="#1a1a18"/><circle cx="27" cy="9" r="4" fill="#1a1a18"/><circle cx="6" cy="18" r="2" fill="#1a1a18"/><circle cx="18" cy="18" r="2" fill="#1a1a18"/><circle cx="9" cy="27" r="4" fill="#1a1a18"/></svg><span>Dots</span></button>
+          <button class="shape-btn" id="shape-extra" onclick="setShape('extra')"><svg class="shape-preview" viewBox="0 0 36 36"><rect x="4" y="4" width="10" height="10" rx="5" fill="#1a1a18"/><rect x="16" y="4" width="4" height="4" rx="2" fill="#1a1a18"/><rect x="22" y="4" width="10" height="10" rx="5" fill="#1a1a18"/><rect x="4" y="16" width="4" height="4" rx="2" fill="#1a1a18"/><rect x="16" y="16" width="4" height="4" rx="2" fill="#1a1a18"/><rect x="4" y="22" width="10" height="10" rx="5" fill="#1a1a18"/></svg><span>Extra round</span></button>
+        </div>
+        <div class="customize-title">Outer shape</div>
+        <div class="shape-grid">
+          <button class="shape-btn active" id="outer-square" onclick="setOuterShape('square')"><svg class="shape-preview" viewBox="0 0 36 36"><rect x="3" y="3" width="30" height="30" fill="#1a1a18"/></svg><span>Square</span></button>
+          <button class="shape-btn" id="outer-rounded-rect" onclick="setOuterShape('rounded-rect')"><svg class="shape-preview" viewBox="0 0 36 36"><rect x="3" y="3" width="30" height="30" rx="6" fill="#1a1a18"/></svg><span>Rounded</span></button>
+          <button class="shape-btn" id="outer-circle" onclick="setOuterShape('circle')"><svg class="shape-preview" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="#1a1a18"/></svg><span>Circle</span></button>
+          <button class="shape-btn" id="outer-octagon" onclick="setOuterShape('octagon')"><svg class="shape-preview" viewBox="0 0 36 36"><polygon points="11,3 25,3 33,11 33,25 25,33 11,33 3,25 3,11" fill="#1a1a18"/></svg><span>Octagon</span></button>
+          <button class="shape-btn" id="outer-shield" onclick="setOuterShape('shield')"><svg class="shape-preview" viewBox="0 0 36 36"><path d="M3,3 L33,3 L33,22 Q33,33 18,33 Q3,33 3,22 Z" fill="#1a1a18"/></svg><span>Shield</span></button>
+          <button class="shape-btn" id="outer-folded" onclick="setOuterShape('folded')"><svg class="shape-preview" viewBox="0 0 36 36"><polygon points="3,3 33,3 33,27 27,33 3,33" fill="#1a1a18"/><polygon points="27,33 33,27 27,27" fill="#6b6860"/></svg><span>Folded</span></button>
+        </div>
+      </div>
+      <div class="qr-actions">
+        <button class="btn-primary" id="downloadBtn" onclick="download()">Download QR code</button>
+        <button class="btn-secondary" onclick="copyToClipboard()">Copy to clipboard</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="ad-slot"><div class="ad-slot-inner">300 × 250 — Ad</div></div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your text and URLs are never sent anywhere.</li>
+      <li>You can generate QR codes for URLs, plain text, email addresses (prefix with <strong>mailto:</strong>), phone numbers (prefix with <strong>tel:</strong>), or Wi-Fi credentials.</li>
+      <li><strong>Error correction</strong> controls how much of the QR code can be damaged or obscured and still scan correctly. Use High or Max if you plan to place a logo over the centre.</li>
+      <li>SVG format is ideal for printing — it stays sharp at any size. PNG is better for digital use.</li>
+      <li>Most modern phone cameras scan QR codes natively without a separate app — just point and hold.
+      <li>Premium users can unlock the Customize panel for additional options: custom module shapes (rounded, dots, extra round) and outer frame shapes (circle, octagon, shield, and more).</li>
+      <li><strong>Logo overlay:</strong> upload a PNG or image to embed in the centre of your QR code. Error correction is automatically maximised so the code still scans reliably. Keep logos simple — detailed or large images may affect scan reliability.</li>
+      <li><strong>Batch mode (Premium):</strong> prepare a CSV file with two columns — the first is the filename (e.g. "product-a"), the second is the text or URL for that QR code. Upload it to generate all QR codes at once and download them as a ZIP.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="../shared.js"></script>
+
+<script>
+let hasGenerated = false;
+let logoImg      = null; // loaded Image object, null if no logo
+let logoShape    = 'circle'; // 'circle' or 'square'
+let qrShape      = 'square'; // square, rounded, dots, extra
+let outerShape   = 'square'; // square, rounded-rect, circle, octagon, shield, folded
+
+function setLogoShape(shape) {
+  logoShape = shape;
+  document.getElementById("shapeCircle").style.cssText =
+    shape === 'circle'
+      ? "flex:1;padding:7px;font-size:0.78rem;background:var(--teal-light);border-color:var(--teal-border);color:var(--teal-text);"
+      : "flex:1;padding:7px;font-size:0.78rem;";
+  document.getElementById("shapeSquare").style.cssText =
+    shape === 'square'
+      ? "flex:1;padding:7px;font-size:0.78rem;background:var(--teal-light);border-color:var(--teal-border);color:var(--teal-text);"
+      : "flex:1;padding:7px;font-size:0.78rem;";
+  if (hasGenerated && getEntries().length === 1) generate();
+}
+
+window.addEventListener('load', () => {
+  if (typeof QRCode === 'undefined') {
+    showNotification("QR library failed to load — please refresh the page.", "error");
+  }
+  // Logo available to all users
+  document.getElementById("logoSection").classList.add("show");
+  // Batch (add more) is premium only
+  if (IS_PREMIUM) {
+    document.getElementById("addMoreBtn").classList.add("show");
+    document.getElementById("customizeBtn").classList.add("show");
+  }
+});
+
+/* ── LOGO ── */
+function loadLogo(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      logoImg = img;
+      const preview = document.getElementById("logoPreview");
+      preview.src = e.target.result;
+      preview.classList.add("show");
+      document.getElementById("logoFilename").textContent = file.name;
+      document.getElementById("logoRemoveBtn").style.display = "inline-block";
+      // Regenerate with logo
+      if (hasGenerated && getEntries().length === 1) generate();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLogo() {
+  logoImg = null;
+  const preview = document.getElementById("logoPreview");
+  preview.src = "";
+  preview.classList.remove("show");
+  document.getElementById("logoFilename").textContent = "No image selected";
+  document.getElementById("logoRemoveBtn").style.display = "none";
+  document.getElementById("logoInput").value = "";
+  if (hasGenerated && getEntries().length === 1) generate();
+}
+
+/* Draw logo on top of QR canvas — white area blends into QR, no visible border */
+function overlayLogo(canvas) {
+  if (!logoImg) return;
+  const ctx    = canvas.getContext("2d");
+  const cx     = canvas.width  / 2;
+  const cy     = canvas.height / 2;
+  const aspect = logoImg.naturalWidth / logoImg.naturalHeight;
+  // Logo takes up 28% of QR size
+  const maxW   = Math.min(canvas.width, canvas.height) * 0.28;
+  let lw, lh;
+  if (aspect >= 1) { lw = maxW; lh = lw / aspect; }
+  else             { lh = maxW; lw = lh * aspect; }
+  const lx = cx - lw / 2;
+  const ly = cy - lh / 2;
+  // Tiny white margin — just enough to visually separate from QR modules
+  const margin = maxW * 0.06;
+
+  ctx.save();
+
+  if (logoShape === 'circle') {
+    const r = Math.max(lw, lh) / 2 + margin;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    // Clip logo to circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - margin, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(logoImg, lx, ly, lw, lh);
+  } else {
+    // True square — sharp corners
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(lx - margin, ly - margin, lw + margin * 2, lh + margin * 2);
+    ctx.drawImage(logoImg, lx, ly, lw, lh);
+  }
+
+  ctx.restore();
+}
+
+/* Composite QR + logo onto a fresh canvas and return data URL */
+function getCompositeDataUrl(sourceCanvas) {
+  const out = document.createElement("canvas");
+  out.width  = sourceCanvas.width;
+  out.height = sourceCanvas.height;
+  const ctx = out.getContext("2d");
+  ctx.drawImage(sourceCanvas, 0, 0);
+  if (logoImg) overlayLogo(out);
+  return out.toDataURL("image/png");
+}
+
+/* ── ENTRIES ── */
+function addEntry() {
+  const entries = document.getElementById("qrEntries");
+  const div = document.createElement("div");
+  div.className = "qr-entry";
+  div.innerHTML = `
+    <input type="text" class="input-field qr-input"
+      placeholder="https://example.com or any text…"
+      oninput="onInputChange()"
+      onkeydown="if(event.key==='Enter') generate()">
+    <button class="qr-entry-remove" onclick="removeEntry(this)" title="Remove">×</button>
+  `;
+  entries.appendChild(div);
+  div.querySelector("input").focus();
+  updateGenerateBtn();
+}
+
+function removeEntry(btn) {
+  btn.closest(".qr-entry").remove();
+  updateGenerateBtn();
+}
+
+function getEntries() {
+  return Array.from(document.querySelectorAll(".qr-input"))
+    .map(i => i.value.trim())
+    .filter(v => v.length > 0);
+}
+
+function updateGenerateBtn() {
+  const count = getEntries().length;
+  const btn = document.getElementById("generateBtn");
+  if (count > 1) {
+    btn.textContent = `Generate & download ${count} QR codes`;
+  } else {
+    btn.textContent = "Generate QR code";
+  }
+}
+
+/* ── INPUT CHANGE ── */
+function onInputChange() {
+  clearTimeout(window._qrTimer);
+  updateGenerateBtn();
+  window._qrTimer = setTimeout(() => {
+    const entries = getEntries();
+    if (entries.length === 1) {
+      generate();
+    } else if (entries.length === 0) {
+      document.getElementById("previewSection").classList.remove("show");
+      clearNotification();
+    }
+  }, 600);
+}
+
+function regenerateIfExists() {
+  if (hasGenerated && getEntries().length === 1) generate();
+}
+
+/* ── GENERATE ── */
+async function generate() {
+  const entries = getEntries();
+  if (!entries.length) return;
+
+  const size = parseInt(document.getElementById("qrSize").value);
+  const ecc  = document.getElementById("qrEcc").value;
+  const fg   = document.getElementById("qrFg").value;
+  const bg   = document.getElementById("qrBg").value;
+
+  if (entries.length === 1) {
+    // Single mode — show preview
+    try {
+      const container = document.getElementById("qrContainer");
+      container.innerHTML = "";
+      // Force H error correction when logo is present
+      const actualEcc = logoImg ? "H" : ecc;
+      new QRCode(container, {
+        text: entries[0], width: size, height: size,
+        colorDark: fg, colorLight: bg,
+        correctLevel: QRCode.CorrectLevel[actualEcc]
+      });
+      // Wait for QRCode to render
+      await new Promise(r => setTimeout(r, 150));
+      const qrCanvas = container.querySelector("canvas");
+      const qrImg    = container.querySelector("img");
+
+      var workCanvas;
+      if (qrCanvas) {
+        workCanvas = document.createElement("canvas");
+        workCanvas.width = qrCanvas.width; workCanvas.height = qrCanvas.height;
+        workCanvas.getContext("2d").drawImage(qrCanvas, 0, 0);
+      } else if (qrImg) {
+        workCanvas = document.createElement("canvas");
+        workCanvas.width = qrImg.naturalWidth || size;
+        workCanvas.height = workCanvas.width;
+        workCanvas.getContext("2d").drawImage(qrImg, 0, 0, workCanvas.width, workCanvas.height);
+      }
+      if (workCanvas) {
+        try { if (qrShape !== 'square') applyShape(workCanvas, fg, bg); } catch(e) { console.warn(e); }
+        if (logoImg) overlayLogo(workCanvas);
+        var finalCanvas = applyOuterShape(workCanvas, bg, fg);
+        var shaped = outerShape !== 'square';
+        finalCanvas.style.cssText = "display:block;max-width:100%;" + (shaped ? "" : "border-radius:8px;");
+        container.innerHTML = "";
+        container.appendChild(finalCanvas);
+        // When shaped, use page bg so transparent canvas blends naturally
+        var qrOut = document.querySelector('.qr-output');
+        if (qrOut) {
+          qrOut.style.background   = shaped ? 'var(--bg)' : '';
+          qrOut.style.border       = shaped ? 'none' : '';
+          qrOut.style.borderRadius = shaped ? '0' : '';
+          qrOut.style.padding      = shaped ? '1.5rem' : '';
+        }
+      }
+      document.getElementById("previewSection").classList.add("show");
+      document.getElementById("qrMeta").textContent =
+        entries[0].length > 60 ? entries[0].slice(0, 57) + "…" : entries[0];
+      document.getElementById("downloadBtn").textContent = "Download QR code";
+      hasGenerated = true;
+      clearNotification();
+      // Scroll to preview so user sees the QR and download button
+      document.getElementById("previewSection").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch(e) {
+      showNotification("Could not generate QR code — try shorter text.", "error");
+    }
+  } else {
+    // Batch mode — generate all and zip
+    await btnLoading("generateBtn", "Generating…", entries.length);
+
+    const zip = new JSZip();
+    const tmp = document.createElement("div");
+    tmp.style.cssText = "position:fixed;left:-9999px;top:0;";
+    document.body.appendChild(tmp);
+
+    let success = 0;
+    for (let i = 0; i < entries.length; i++) {
+      try {
+        tmp.innerHTML = "";
+        await new Promise((resolve, reject) => {
+          try {
+            new QRCode(tmp, {
+              text: entries[i], width: size, height: size,
+              colorDark: fg, colorLight: bg,
+              correctLevel: QRCode.CorrectLevel[logoImg ? "H" : ecc]
+            });
+            setTimeout(resolve, 100);
+          } catch(e) { reject(e); }
+        });
+        const canvas = tmp.querySelector("canvas");
+        if (!canvas) throw new Error("no canvas");
+        let dataUrl;
+        if (logoImg) {
+          const composite = document.createElement("canvas");
+          composite.width  = canvas.width;
+          composite.height = canvas.height;
+          composite.getContext("2d").drawImage(canvas, 0, 0);
+          overlayLogo(composite);
+          dataUrl = composite.toDataURL("image/png");
+        } else {
+          dataUrl = canvas.toDataURL("image/png");
+        }
+        zip.file(`qrcode-${i + 1}.png`, dataUrl.split(",")[1], { base64: true });
+        success++;
+      } catch(e) { /* skip failed */ }
+    }
+
+    document.body.removeChild(tmp);
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = "qr-codes.zip";
+    a.click(); URL.revokeObjectURL(url);
+
+    btnDone(
+      "generateBtn",
+      `✓ Done — ${success} QR codes downloaded`,
+      `Generate & download ${entries.length} QR codes`
+    );
+    document.getElementById("previewSection").classList.remove("show");
+  }
+}
+
+/* ── DOWNLOAD SINGLE ── */
+async function download() {
+  const text = getEntries()[0];
+  if (!text) return;
+
+  const size   = parseInt(document.getElementById("qrSize").value);
+  const ecc    = document.getElementById("qrEcc").value;
+  const fg     = document.getElementById("qrFg").value;
+  const bg     = document.getElementById("qrBg").value;
+  const hiSize = size * 4; // 4x resolution for print quality
+
+  // Render high-res QR offscreen
+  const tmp = document.createElement("div");
+  tmp.style.cssText = "position:fixed;left:-9999px;top:0;";
+  document.body.appendChild(tmp);
+
+  try {
+    new QRCode(tmp, {
+      text, width: hiSize, height: hiSize,
+      colorDark: fg, colorLight: bg,
+      correctLevel: QRCode.CorrectLevel[logoImg ? "H" : ecc]
+    });
+
+    await new Promise(r => setTimeout(r, 200));
+    const hiCanvas = tmp.querySelector("canvas");
+    if (!hiCanvas) throw new Error("no canvas");
+
+    // Composite with logo at high res
+    let out = document.createElement("canvas");
+    out.width = hiSize; out.height = hiSize;
+    out.getContext("2d").drawImage(hiCanvas, 0, 0);
+    if (qrShape !== 'square') applyShape(out, fg, bg);
+    if (logoImg) overlayLogo(out);
+    out = applyOuterShape(out, bg, fg);
+
+    const a = document.createElement("a");
+    a.href = out.toDataURL("image/png");
+    a.download = "qrcode.png";
+    a.click();
+  } finally {
+    document.body.removeChild(tmp);
+  }
+}
+
+/* ── COPY ── */
+async function copyToClipboard() {
+  const container = document.getElementById("qrContainer");
+  const canvas = container.querySelector("canvas");
+  const img    = container.querySelector("img");
+  try {
+    let blob;
+    if (canvas) {
+      blob = await new Promise(r => canvas.toBlob(r));
+    } else if (img) {
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext("2d").drawImage(img, 0, 0);
+      blob = await new Promise(r => c.toBlob(r));
+    } else return;
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    showNotification("QR code copied to clipboard.", "info");
+  } catch(e) {
+    showNotification("Copy not supported in this browser — use Download instead.", "info");
+  }
+}
+
+/* ── CUSTOMIZE ── */
+function toggleCustomize() {
+  var panel = document.getElementById("customizePanel");
+  var btn   = document.getElementById("customizeBtn");
+  var open  = panel.classList.toggle("show");
+  btn.textContent = open ? "✶ Customize your QR ▲" : "✶ Customize your QR";
+}
+
+function setShape(shape) {
+  qrShape = shape;
+  ['square','rounded','dots','extra'].forEach(function(s) {
+    document.getElementById('shape-' + s).classList.toggle('active', s === shape);
+  });
+  if (hasGenerated && getEntries().length === 1) generate();
+}
+
+function setOuterShape(shape) {
+  outerShape = shape;
+  ['square','rounded-rect','circle','octagon','shield','folded'].forEach(function(s) {
+    var el = document.getElementById('outer-' + s);
+    if (el) el.classList.toggle('active', s === shape);
+  });
+  if (hasGenerated && getEntries().length === 1) generate();
+}
+
+/* ── OUTER SHAPE RENDERER ── */
+function applyOuterShape(qrCanvas, bg, fg) {
+  fg = fg || '#000000';
+  if (outerShape === 'square') return qrCanvas;
+
+  // Detect the quiet zone (white border) qrcodejs adds internally
+  // by scanning inward from each edge until we hit a dark pixel
+  var sCtx = qrCanvas.getContext('2d');
+  var w = qrCanvas.width, h = qrCanvas.height;
+  var pxData = sCtx.getImageData(0, 0, w, h).data;
+  var quietZone = 0;
+  // Scan from left edge inward
+  for (var x = 0; x < w/2; x++) {
+    var dark = false;
+    for (var y = 0; y < h; y++) {
+      var idx = (y * w + x) * 4;
+      if (pxData[idx] < 128) { dark = true; break; }
+    }
+    if (dark) { quietZone = x; break; }
+  }
+
+  // For circle/shield: don't crop, and expand canvas outward so circle is larger than QR
+  // For other shapes: crop the quiet zone tightly
+  var breathe, crop, croppedSize;
+  if (outerShape === 'circle' || outerShape === 'shield') {
+    crop = 0;
+    croppedSize = w;
+  } else {
+    breathe = Math.max(2, Math.round(w * 0.01));
+    crop = Math.max(0, quietZone - breathe);
+    croppedSize = w - crop * 2;
+  }
+
+  // Create cropped canvas
+  var cropped = document.createElement('canvas');
+  cropped.width = croppedSize; cropped.height = croppedSize;
+  cropped.getContext('2d').drawImage(qrCanvas, -crop, -crop);
+
+  // For circle/shield expand canvas outward so the QR fits well inside the shape
+  var expand = outerShape === 'circle' ? Math.round(croppedSize * 0.055) // tune circle margin
+             : outerShape === 'shield' ? Math.round(croppedSize * 0.09) // tune shield margin
+             : 0;
+  var size = croppedSize + expand * 2;
+  var expandedCanvas = document.createElement('canvas');
+  expandedCanvas.width = size; expandedCanvas.height = size;
+  expandedCanvas.getContext('2d').drawImage(cropped, expand, expand);
+  var cropped = expandedCanvas;
+  var out  = document.createElement('canvas');
+  out.width = size; out.height = size;
+  var ctx = out.getContext('2d');
+  // NO background fill here — clip path will handle it
+  // roundRect polyfill
+  if (!ctx.roundRect) {
+    ctx.roundRect = function(x,y,w,h,r) {
+      if(w<2*r)r=w/2;if(h<2*r)r=h/2;
+      this.beginPath();this.moveTo(x+r,y);
+      this.arcTo(x+w,y,x+w,y+h,r);this.arcTo(x+w,y+h,x,y+h,r);
+      this.arcTo(x,y+h,x,y,r);this.arcTo(x,y,x+w,y,r);
+      this.closePath();
+    };
+  }
+  ctx.save();
+  ctx.beginPath();
+  if (outerShape === 'rounded-rect') {
+    ctx.roundRect(0, 0, size, size, size * 0.08);
+  } else if (outerShape === 'circle') {
+    var circPad = 1; // minimal — expand variable above controls circle size
+    ctx.arc(size/2, size/2, size/2 - circPad, 0, Math.PI*2);
+  } else if (outerShape === 'octagon') {
+    var c = size * 0.18;
+    ctx.moveTo(c,0); ctx.lineTo(size-c,0); ctx.lineTo(size,c);
+    ctx.lineTo(size,size-c); ctx.lineTo(size-c,size); ctx.lineTo(c,size);
+    ctx.lineTo(0,size-c); ctx.lineTo(0,c); ctx.closePath();
+  } else if (outerShape === 'shield') {
+    var shPad = Math.round(size * 0.06); // margin from edges
+    ctx.moveTo(shPad,shPad); ctx.lineTo(size-shPad,shPad);
+    ctx.lineTo(size-shPad,size*0.55);
+    ctx.quadraticCurveTo(size-shPad,size*0.92,size/2,size-shPad);
+    ctx.quadraticCurveTo(shPad,size*0.92,shPad,size*0.55); ctx.closePath();
+  } else if (outerShape === 'folded') {
+    var fold = size*0.15;
+    ctx.moveTo(0,0); ctx.lineTo(size,0); ctx.lineTo(size,size-fold);
+    ctx.lineTo(size-fold,size); ctx.lineTo(0,size); ctx.closePath();
+  }
+  ctx.clip();
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(cropped, 0, 0);
+  ctx.restore();
+
+  // Draw stroke outline matching the shape
+  ctx.save();
+  ctx.beginPath();
+  if (outerShape === 'rounded-rect') {
+    var r2 = size * 0.10;
+    ctx.moveTo(r2, 0); ctx.arcTo(size,0,size,size,r2);
+    ctx.arcTo(size,size,0,size,r2); ctx.arcTo(0,size,0,0,r2);
+    ctx.arcTo(0,0,size,0,r2); ctx.closePath();
+  } else if (outerShape === 'circle') {
+    var circPad2 = 1;
+    ctx.arc(size/2, size/2, size/2 - circPad2, 0, Math.PI*2);
+  } else if (outerShape === 'octagon') {
+    var c2 = size * 0.18;
+    ctx.moveTo(c2,0); ctx.lineTo(size-c2,0); ctx.lineTo(size,c2);
+    ctx.lineTo(size,size-c2); ctx.lineTo(size-c2,size); ctx.lineTo(c2,size);
+    ctx.lineTo(0,size-c2); ctx.lineTo(0,c2); ctx.closePath();
+  } else if (outerShape === 'shield') {
+    var shPad = Math.round(size * 0.06); // margin from edges
+    ctx.moveTo(shPad,shPad); ctx.lineTo(size-shPad,shPad);
+    ctx.lineTo(size-shPad,size*0.55);
+    ctx.quadraticCurveTo(size-shPad,size*0.92,size/2,size-shPad);
+    ctx.quadraticCurveTo(shPad,size*0.92,shPad,size*0.55); ctx.closePath();
+  } else if (outerShape === 'folded') {
+    var fold2 = size*0.14;
+    ctx.moveTo(0,0); ctx.lineTo(size,0); ctx.lineTo(size,size-fold2);
+    ctx.lineTo(size-fold2,size); ctx.lineTo(0,size); ctx.closePath();
+  }
+  ctx.strokeStyle = fg && fg !== '#ffffff' ? fg : 'rgba(0,0,0,0.15)';
+  ctx.lineWidth = Math.max(2, size * 0.008);
+  ctx.stroke();
+  ctx.restore();
+
+  if (outerShape === 'folded') {
+    var fold = size*0.15;
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.moveTo(size-fold,size); ctx.lineTo(size,size-fold);
+    ctx.lineTo(size-fold,size-fold); ctx.closePath(); ctx.fill();
+  }
+  return out;
+}
+
+/* ── MODULE SHAPE RENDERER ── */
+function applyShape(canvas, fg, bg) {
+  if (qrShape === 'square') return;
+  if (!CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r) {
+      if(w<2*r)r=w/2;if(h<2*r)r=h/2;
+      this.beginPath();this.moveTo(x+r,y);
+      this.arcTo(x+w,y,x+w,y+h,r);this.arcTo(x+w,y+h,x,y+h,r);
+      this.arcTo(x,y+h,x,y,r);this.arcTo(x,y,x+w,y,r);
+      this.closePath();
+    };
+  }
+  var ctx=canvas.getContext('2d'), size=canvas.width;
+  var snap=ctx.getImageData(0,0,size,size), px=snap.data;
+  var moduleSize=4, inDark=false, runLen=0;
+  var scanRow=Math.floor(size*0.15);
+  for(var x=0;x<size;x++){
+    var i=(scanRow*size+x)*4, dark=px[i]<128;
+    if(dark&&!inDark){inDark=true;runLen=1;}
+    else if(dark&&inDark){runLen++;}
+    else if(!dark&&inDark){if(runLen>1){moduleSize=runLen;break;}inDark=false;runLen=0;}
+  }
+  var qrModules=Math.round(size/moduleSize);
+  var finderEnd=7*moduleSize, finderStart2=size-finderEnd;
+  function isFinder(x,y){
+    return (x<finderEnd+moduleSize&&y<finderEnd+moduleSize)||
+           (x>=finderStart2-moduleSize&&y<finderEnd+moduleSize)||
+           (x<finderEnd+moduleSize&&y>=finderStart2-moduleSize);
+  }
+  ctx.fillStyle=bg; ctx.fillRect(0,0,size,size);
+  for(var row=0;row<qrModules;row++){
+    for(var col=0;col<qrModules;col++){
+      var cx=col*moduleSize+Math.floor(moduleSize/2);
+      var cy=row*moduleSize+Math.floor(moduleSize/2);
+      if(px[(cy*size+cx)*4]>=128) continue;
+      var rx=col*moduleSize, ry=row*moduleSize, s=moduleSize;
+      ctx.fillStyle=fg;
+      if(isFinder(rx,ry)){ctx.fillRect(rx,ry,s,s);}
+      else if(qrShape==='rounded'){ctx.beginPath();ctx.roundRect(rx,ry,s,s,s*0.3);ctx.fill();}
+      else if(qrShape==='dots'){ctx.beginPath();ctx.arc(rx+s/2,ry+s/2,s*0.42,0,Math.PI*2);ctx.fill();}
+      else if(qrShape==='extra'){ctx.beginPath();ctx.roundRect(rx,ry,s,s,s*0.48);ctx.fill();}
+    }
+  }
+}
+</script>
+</body>
+</html>

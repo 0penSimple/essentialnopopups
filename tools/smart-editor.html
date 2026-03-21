@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Editor — EssentialBits</title>
+<link rel="stylesheet" href="../shared.css">
+
+<!-- CodeMirror 5 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+
+<style>
+/* ── MODE TOGGLE ── */
+.mode-toggle {
+  display: flex;
+  background: var(--warm-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 0;
+  width: fit-content;
+  margin-bottom: 1.25rem;
+}
+
+.mode-btn {
+  padding: 7px 18px;
+  border-radius: 7px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mode-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.mode-btn .mode-icon { font-size: 0.9rem; }
+
+/* ── TOOLBAR ── */
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: var(--warm-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+
+.toolbar-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.12s;
+  line-height: 1;
+}
+
+.toolbar-btn:hover {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.toolbar-btn.active {
+  background: var(--teal-light);
+  border-color: var(--teal-border);
+  color: var(--teal);
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.toolbar-select {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 4px 6px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.12s;
+}
+
+.toolbar-select:hover,
+.toolbar-select:focus {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+/* ── EDITOR AREA ── */
+.editor-wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+/* Writer contenteditable */
+#writerArea {
+  min-height: 420px;
+  padding: 1.5rem 2rem 40vh;
+  font-size: 0.95rem;
+  line-height: 1.8;
+  color: var(--text);
+  outline: none;
+  font-family: 'Georgia', serif;
+  caret-color: var(--teal);
+}
+
+#writerArea:empty::before {
+  content: attr(data-placeholder);
+  color: var(--faint);
+  font-style: italic;
+  pointer-events: none;
+}
+
+#writerArea h1 { font-size: 1.6rem; font-weight: 600; margin: 0.5em 0 0.3em; }
+#writerArea h2 { font-size: 1.3rem; font-weight: 600; margin: 0.5em 0 0.3em; }
+#writerArea h3 { font-size: 1.1rem; font-weight: 600; margin: 0.5em 0 0.3em; }
+#writerArea p  { margin: 0 0 0.5em; }
+#writerArea ul, #writerArea ol { padding-left: 1.5em; margin: 0.3em 0; }
+#writerArea blockquote {
+  border-left: 3px solid var(--teal-border);
+  margin: 0.5em 0;
+  padding: 0.2em 1em;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* CodeMirror overrides */
+.CodeMirror {
+  height: 70vh;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  border-radius: 0 0 8px 8px;
+}
+
+/* Focus mode — handled via JS class on writerArea */
+
+/* ── STATUS BAR ── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 12px;
+  background: var(--warm-bg);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  font-size: 0.72rem;
+  color: var(--faint);
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.status-item strong {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.status-sep { color: var(--border); }
+
+.status-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── EXPORT ROW ── */
+.export-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+  align-items: center;
+}
+
+/* ── FOCUS MODE OVERLAY ── */
+body.focus-mode .page-header,
+body.focus-mode .ad-slot,
+body.focus-mode .export-row,
+body.focus-mode .mode-toggle,
+body.focus-mode .width-control,
+body.focus-mode #globalTheme {
+  opacity: 0.12;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+body.focus-mode .editor-toolbar {
+  opacity: 0.35;
+  transition: opacity 0.3s;
+}
+
+body.focus-mode .editor-toolbar:hover {
+  opacity: 1;
+}
+
+body.focus-mode .status-bar {
+  opacity: 0.25;
+}
+
+/* ── SESSION RESTORE NOTICE ── */
+.restore-notice {
+  display: none;
+  background: var(--teal-light);
+  border: 1px solid var(--teal-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  color: var(--teal-text);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.restore-notice button {
+  background: none;
+  border: none;
+  color: var(--teal);
+  font-size: 0.72rem;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: underline;
+}
+
+/* Premium lock inline */
+.toolbar-premium {
+  font-size: 0.65rem;
+  color: var(--premium);
+  background: var(--premium-light);
+  border: 1px solid var(--premium-border);
+  border-radius: 4px;
+  padding: 2px 5px;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+
+@media (max-width: 520px) {
+  #writerArea { padding: 1rem; }
+  .status-right { margin-left: 0; width: 100%; }
+}
+
+/* ── WRITER THEMES ── */
+.editor-wrap.theme-dark {
+  background: #1e1e2e;
+}
+.editor-wrap.theme-dark #writerArea {
+  background: #1e1e2e;
+  color: #cdd6f4;
+}
+.editor-wrap.theme-sepia {
+  background: #f4ecd8;
+}
+.editor-wrap.theme-sepia #writerArea {
+  background: #f4ecd8;
+  color: #3d2b1f;
+}
+.editor-wrap.theme-sepia .CodeMirror {
+  background: #f4ecd8;
+  color: #3d2b1f;
+}
+.editor-wrap.theme-sepia .CodeMirror-gutters {
+  background: #ecdfc8;
+  border-right-color: #d9c9a8;
+}
+.editor-wrap.theme-sepia .CodeMirror-linenumber { color: #9e8a6e; }
+.editor-wrap.theme-sepia .CodeMirror-cursor { border-left-color: #3d2b1f; }
+.editor-wrap.theme-sepia .CodeMirror-activeline-background { background: rgba(0,0,0,0.04); }
+
+/* ── FOCUS MODE — dim non-active blocks ── */
+#writerArea.focus-active > * {
+  opacity: 0.2;
+  transition: opacity 0.25s;
+}
+#writerArea.focus-active > *.focus-line {
+  opacity: 1;
+}
+#writerArea.focus-active:focus-within > *:only-child {
+  opacity: 1;
+}
+
+/* ── WIDTH CONTROL ── */
+.width-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.width-control input[type="range"] {
+  accent-color: var(--teal);
+  width: 120px;
+}
+.width-label { min-width: 70px; color: var(--faint); font-size: 0.72rem; }
+
+.editor-outer {
+  transition: max-width 0.3s;
+  margin: 0 auto;
+}
+
+/* NIKUD TOOLBAR */
+.nikud-bar {
+  display:none; align-items:center; gap:3px; flex-wrap:wrap;
+  padding:6px 10px; background:#fafaf7; border:1px solid #e0d9c8;
+  border-radius:8px 8px 0 0; border-bottom:none; direction:rtl;
+}
+.nikud-bar.show { display:flex; }
+.nikud-label { font-size:0.68rem; color:var(--faint); margin-left:8px;
+  direction:ltr; letter-spacing:0.04em; text-transform:uppercase; }
+.nikud-btn {
+  background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  padding:5px 9px; font-size:1.25rem; cursor:pointer; transition:all 0.12s;
+  font-family:'David Libre','Arial Hebrew',serif; line-height:1.4;
+  color:var(--text); min-width:38px; text-align:center;
+}
+.nikud-btn:hover { background:#fef3c7; border-color:#fbbf24; }
+.nikud-sep-n { width:1px; height:18px; background:var(--border); margin:0 3px; flex-shrink:0; }
+/* RTL blocks use Hebrew-friendly font */
+#writerArea [dir="rtl"] { font-family:'David Libre','Arial Hebrew','Times New Roman',serif; }
+
+/* ── MASTER TOOLBOX (MOBILE) ── */
+.toolbox-trigger {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 200;
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: var(--teal);
+  border: none;
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  display: none; /* shown via JS when writer mode active */
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.toolbox-trigger:hover { background: var(--teal-mid); transform: scale(1.05); }
+.toolbox-trigger.active { background: var(--text); }
+
+.toolbox-panel {
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px 10px 0 0;
+  border-bottom: none;
+  padding: 8px 10px;
+  display: none;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.07);
+}
+.toolbox-panel.show { display: block; }
+
+.toolbox-section { margin-bottom: 4px; }
+.toolbox-section:last-child { margin-bottom: 0; }
+.toolbox-section-label { font-size:0.58rem; font-weight:600; letter-spacing:0.08em;
+  text-transform:uppercase; color:var(--faint); margin-bottom:3px; }
+.toolbox-divider { border:none; border-top:1px solid var(--border); margin:4px 0; }
+
+/* Toolbox rows — always single line, never wrap */
+.toolbox-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.tb-btn { background:var(--warm-bg); border:1px solid var(--border); border-radius:6px;
+  padding:4px 10px; font-size:0.82rem; font-family:inherit; color:var(--text); cursor:pointer;
+  transition:all 0.12s; text-align:center; line-height:1.4; flex-shrink:0;
+  user-select:none; -webkit-user-select:none; white-space:nowrap; }
+.tb-btn:active { background:var(--teal-light); border-color:var(--teal-border); }
+.tb-btn.tb-wide { padding:4px 14px; }
+
+/* Nikud — wraps freely, big touch targets */
+.nikud-row { display:flex; flex-wrap:wrap; gap:5px;
+  padding-top:8px; border-top:1px solid var(--border); margin-top:6px; direction:rtl; }
+.tb-nikud { background:var(--warm-bg); border:1px solid var(--border); border-radius:8px;
+  padding:10px 8px; font-size:1.4rem; font-family:'David Libre','Arial Hebrew',serif;
+  color:var(--text); cursor:pointer; text-align:center; line-height:1.3; min-width:44px;
+  user-select:none; -webkit-user-select:none; transition:all 0.12s; }
+.tb-nikud:active { background:#fef3c7; border-color:#fbbf24; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="https://essentialbits.pro">Home</a>
+      <span>›</span>
+      <span>Productivity</span>
+      <span>›</span>
+      <span>Smart Editor</span>
+    </div>
+    <h1>Smart Editor</h1>
+    <div class="info-btn-row">
+      <p>A clean writing editor and a full code editor in one tool. Switch modes anytime — no cloud, no login, auto-saved in your browser.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Not sure what to do?</div>
+          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <!-- Session restore notice -->
+  <div class="restore-notice" id="restoreNotice" style="display:none;">
+    <span>📄 Your previous session was restored.</span>
+    <button onclick="clearSession()">Clear & start fresh</button>
+  </div>
+
+  <div class="ad-slot"><div class="ad-slot-inner">728 × 90 — Ad</div></div>
+
+  <!-- WIDTH CONTROL — sits just above card, scrolls with page -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;
+    font-size:0.75rem;color:var(--muted);">
+    <span>Editor width:</span>
+    <input type="range" id="widthSlider" min="500" max="1200" value="640" step="10"
+      style="accent-color:var(--teal);width:160px;"
+      oninput="onWidthSlide(this.value)">
+    <span id="widthLabel" style="min-width:55px;color:var(--faint);
+      font-family:monospace;font-size:0.72rem;">640px</span>
+  </div>
+
+  <div class="card">
+
+    <!-- Theme + Font size controls -->
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:1rem;">
+      <div style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--muted);">
+        <span>Theme:</span>
+        <select class="toolbar-select" id="globalTheme" onchange="setGlobalTheme(this.value)"
+          style="background:var(--warm-bg);border:1px solid var(--border);">
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="sepia">Sepia</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--muted);">
+        <span>Size:</span>
+        <button onclick="changeFontSize(-1)" style="
+          background:var(--warm-bg);border:1px solid var(--border);border-radius:6px;
+          padding:3px 9px;cursor:pointer;font-size:0.78rem;font-family:inherit;
+          color:var(--muted);transition:all 0.15s;line-height:1.4;"
+          title="Decrease font size">A−</button>
+        <span id="fontSizeLabel" style="min-width:32px;text-align:center;
+          font-family:monospace;font-size:0.72rem;color:var(--faint);">16px</span>
+        <button onclick="changeFontSize(1)" style="
+          background:var(--warm-bg);border:1px solid var(--border);border-radius:6px;
+          padding:3px 9px;cursor:pointer;font-size:0.95rem;font-family:inherit;
+          color:var(--muted);transition:all 0.15s;line-height:1.4;"
+          title="Increase font size">A+</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:0;font-size:0.78rem;color:var(--muted);">
+        <button onclick="changeLineHeight(-1)" class="lg-dec" style="
+          background:var(--warm-bg);border:1px solid var(--border);border-radius:6px 0 0 6px;
+          padding:3px 8px;cursor:pointer;font-size:0.78rem;font-family:inherit;
+          color:var(--muted);transition:all 0.15s;line-height:1.4;border-right:none;">−</button>
+        <span class="lg-label" style="background:var(--warm-bg);border:1px solid var(--border);
+          padding:3px 8px;font-size:0.72rem;font-family:monospace;white-space:nowrap;">1.8</span>
+        <button onclick="changeLineHeight(1)" class="lg-inc" style="
+          background:var(--warm-bg);border:1px solid var(--border);border-radius:0 6px 6px 0;
+          padding:3px 8px;cursor:pointer;font-size:0.78rem;font-family:inherit;
+          color:var(--muted);transition:all 0.15s;line-height:1.4;border-left:none;">+</button>
+      </div>
+    </div>
+
+    <!-- MODE TOGGLE -->
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btnWriterMode" onclick="switchMode('writer')">
+        <span class="mode-icon">✍️</span> Writer
+      </button>
+      <button class="mode-btn" id="btnCodeMode" onclick="switchMode('code')">
+        <span class="mode-icon">💻</span> Code
+      </button>
+    </div>
+
+    <!-- WRITER TOOLBAR -->
+    <!-- NIKUD TOOLBAR - auto-shown on Hebrew text -->
+    <div class="nikud-bar" id="nikudBar">
+      <span class="nikud-label">נִיקּוּד</span>
+      <div class="nikud-sep-n"></div>
+      <button class="nikud-btn" onclick="insertNikud('\u05BE')" title="מקף">־</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05F3')" title="גרש">׳</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05F4')" title="גרשיים">״</button>
+      <div class="nikud-sep-n"></div>
+      <button class="nikud-btn" onclick="insertNikud('\u05B0')" title="שווא">בְ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05B1')" title="חטף סגול">בֱ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05B2')" title="חטף פתח">בֲ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05B3')" title="חטף קמץ">בֳ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05B4')" title="חיריק">בִ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05B5')" title="צרי">בֵ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05B6')" title="סגול">בֶ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05B7')" title="פתח">בַ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05B8')" title="קמץ">בָ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05B9')" title="חולם">בֹ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05BB')" title="קיבוץ">בֻ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05BC')" title="דגש/שורוק">בּ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05C1')" title="שִן">שׁ</button>
+      <button class="nikud-btn" onclick="insertNikud('\u05C2')" title="שִן שמאלית">שׂ</button>
+    </div>
+
+    <div class="editor-toolbar" id="writerToolbar">
+      <select class="toolbar-select" id="headingSelect" onchange="applyHeading(this.value)">
+        <option value="div">Paragraph</option>
+        <option value="h1">Heading 1</option>
+        <option value="h2">Heading 2</option>
+        <option value="h3">Heading 3</option>
+      </select>
+      <div class="toolbar-sep"></div>
+      <button class="toolbar-btn" onclick="fmt('bold')" title="Bold (⌘B)"><strong>B</strong></button>
+      <button class="toolbar-btn" onclick="fmt('italic')" title="Italic (⌘I)"><em>I</em></button>
+      <button class="toolbar-btn" onclick="fmt('underline')" title="Underline (⌘U)" style="text-decoration:underline;">U</button>
+      <button class="toolbar-btn" onclick="fmt('strikeThrough')" title="Strikethrough"><s>S</s></button>
+      <div class="toolbar-sep"></div>
+      <button class="toolbar-btn" onclick="fmt('insertUnorderedList')" title="Bullet list">☰</button>
+      <button class="toolbar-btn" onclick="fmt('insertOrderedList')" title="Numbered list">1.</button>
+      <button class="toolbar-btn" onclick="fmt('formatBlock', 'blockquote')" title="Quote">"</button>
+      <div class="toolbar-sep"></div>
+      <button class="toolbar-btn" onclick="fmt('justifyLeft')" title="Align left">⬅</button>
+      <button class="toolbar-btn" onclick="fmt('justifyCenter')" title="Center">⬛</button>
+      <button class="toolbar-btn" onclick="fmt('justifyRight')" title="Align right">➡</button>
+      <div class="toolbar-sep"></div>
+      <button class="toolbar-btn" onclick="fmt('undo')" title="Undo">↩</button>
+      <button class="toolbar-btn" onclick="fmt('redo')" title="Redo">↪</button>
+      <div class="toolbar-sep"></div>
+      <button class="toolbar-btn" id="focusBtn" onclick="toggleFocus()" title="Focus mode">
+        ◎ Focus
+      </button>
+      <button class="toolbar-btn" id="typewriterBtn" onclick="toggleTypewriter()" title="Typewriter mode — Premium">
+        ⌨ Typewriter <span class="toolbar-premium">✦</span>
+      </button>
+      <div class="toolbar-sep"></div>
+      <button class="toolbar-btn" id="toolboxBtn" onclick="toggleToolbox()" title="Mobile toolbox — arrows, nikud, formatting">✎ Toolbox</button>
+    </div>
+
+    <!-- CODE TOOLBAR -->
+    <div class="editor-toolbar" id="codeToolbar" style="display:none;">
+      <select class="toolbar-select" id="languageSelect" onchange="setLanguage(this.value)">
+        <option value="htmlmixed">HTML</option>
+        <option value="javascript">JavaScript</option>
+        <option value="css">CSS</option>
+        <option value="python">Python</option>
+        <option value="sql">SQL</option>
+        <option value="text">Plain text</option>
+      </select>
+      <div class="toolbar-sep"></div>
+      <button class="toolbar-btn" id="lineNumBtn" onclick="toggleLineNumbers()" title="Toggle line numbers">
+        # Lines
+      </button>
+      <button class="toolbar-btn" id="wrapBtn" onclick="toggleWrap()" title="Toggle word wrap">
+        ↵ Wrap
+      </button>
+      <div class="toolbar-sep"></div>
+      <button class="toolbar-btn" onclick="cmAction('undo')" title="Undo">↩</button>
+      <button class="toolbar-btn" onclick="cmAction('redo')" title="Redo">↪</button>
+      <!-- Theme now controlled by global theme selector above -->
+    </div>
+
+    <!-- EDITOR AREA -->
+    <div class="editor-outer" id="editorOuter">
+    <div class="editor-wrap" id="editorWrap">
+      <!-- WRITER -->
+      <div id="writerArea"
+        contenteditable="true"
+        spellcheck="true"
+        dir="auto"
+        data-placeholder="Start writing… your work is saved automatically."
+        oninput="onWriterInput()"
+        onkeyup="updateFocusLine(); updateDirButtons();"
+        onclick="updateFocusLine(); updateDirButtons();"
+        onkeydown="writerKeydown(event)"
+        onpaste="setTimeout(detectHebrew,50)"
+        onkeyup="writerKeyup(event)">
+      </div>
+      <!-- CODE (CodeMirror mounts here) -->
+      <textarea id="codeArea" style="display:none;"></textarea>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="status-bar" id="statusBar">
+      <span class="status-item"><strong id="statWords">0</strong> words</span>
+      <span class="status-sep">·</span>
+      <span class="status-item"><strong id="statChars">0</strong> chars</span>
+      <span class="status-sep">·</span>
+      <span class="status-item"><strong id="statLines">0</strong> lines</span>
+      <span class="status-sep" id="readSep">·</span>
+      <span class="status-item" id="readItem">~<strong id="statRead">0</strong> min read</span>
+      <div class="status-right">
+        <span id="statCursor" style="display:none;font-family:monospace;font-size:0.7rem;"></span>
+        <span id="autoSaveStatus" style="color:var(--faint);font-size:0.7rem;">Auto-saved</span>
+      </div>
+    </div>
+
+    </div><!-- end editor-outer -->
+
+    <!-- MASTER TOOLBOX PANEL -->
+<div class="toolbox-panel" id="toolboxPanel">
+
+  <!-- ROW 1: UNDO/REDO | ARROWS | SPACE/ENTER/DELETE -->
+  <div class="toolbox-row">
+    <button class="tb-btn" onmousedown="tbFmt('undo')">&#8617;</button>
+    <button class="tb-btn" onmousedown="tbFmt('redo')">&#8618;</button>
+    <div class="toolbox-sep"></div>
+    <div style="display:flex;gap:3px;margin:0 auto;">
+      <button class="tb-btn" onmousedown="tbMove('up')" ontouchstart="tbTouchMove(event,'up')">&#8593;</button>
+      <button class="tb-btn" onmousedown="tbMove('down')" ontouchstart="tbTouchMove(event,'down')">&#8595;</button>
+      <button class="tb-btn" onmousedown="tbMove('left')" ontouchstart="tbTouchMove(event,'left')">&#8592;</button>
+      <button class="tb-btn" onmousedown="tbMove('right')" ontouchstart="tbTouchMove(event,'right')">&#8594;</button>
+    </div>
+    <div class="toolbox-sep"></div>
+    <button class="tb-btn tb-wide" onmousedown="tbInsert(' ')" ontouchstart="tbTouchInsert(event,' ')">Space</button>
+    <button class="tb-btn" onmousedown="tbInsert('\n')" ontouchstart="tbTouchInsert(event,'\n')">&#8629;</button>
+    <button class="tb-btn" onmousedown="tbFmt('delete')" ontouchstart="tbFmt('delete')">&#9003;</button>
+  </div>
+
+  <!-- ROW 2: FORMATTING (one row) -->
+  <div class="toolbox-row" style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border);">
+    <button class="tb-btn" onmousedown="tbFmt('bold')"><strong>B</strong></button>
+    <button class="tb-btn" onmousedown="tbFmt('italic')"><em>I</em></button>
+    <button class="tb-btn" onmousedown="tbFmt('underline')" style="text-decoration:underline;">U</button>
+    <button class="tb-btn" onmousedown="tbFmt('strikeThrough')"><s>S</s></button>
+    <div class="toolbox-sep"></div>
+    <button class="tb-btn" onmousedown="tbHeading('h1')">H1</button>
+    <button class="tb-btn" onmousedown="tbHeading('h2')">H2</button>
+    <button class="tb-btn" onmousedown="tbHeading('h3')">H3</button>
+    <button class="tb-btn" onmousedown="tbHeading('div')">&#182;</button>
+    <div class="toolbox-sep"></div>
+    <button class="tb-btn" onmousedown="tbFmt('justifyRight')">&#11013;</button>
+    <button class="tb-btn" onmousedown="tbFmt('justifyCenter')">&#11035;</button>
+    <button class="tb-btn" onmousedown="tbFmt('justifyLeft')">&#10145;</button>
+    <div class="toolbox-sep"></div>
+    <button class="tb-btn lg-dec" onmousedown="changeLineHeight(-1)">−</button>
+    <span class="lg-label" style="font-size:0.72rem;font-family:monospace;padding:0 4px;white-space:nowrap;color:var(--muted);">1.8</span>
+    <button class="tb-btn lg-inc" onmousedown="changeLineHeight(1)">+</button>
+  </div>
+
+  <!-- ROW 3: NIKUD (only when Hebrew detected, big buttons) -->
+  <div class="nikud-row" id="tbNikudSection" style="display:none;">
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B0')" ontouchstart="tbTouchNikud(event,'\u05B0')">בְ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B1')" ontouchstart="tbTouchNikud(event,'\u05B1')">בֱ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B2')" ontouchstart="tbTouchNikud(event,'\u05B2')">בֲ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B3')" ontouchstart="tbTouchNikud(event,'\u05B3')">בֳ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B4')" ontouchstart="tbTouchNikud(event,'\u05B4')">בִ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B5')" ontouchstart="tbTouchNikud(event,'\u05B5')">בֵ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B6')" ontouchstart="tbTouchNikud(event,'\u05B6')">בֶ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B7')" ontouchstart="tbTouchNikud(event,'\u05B7')">בַ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B8')" ontouchstart="tbTouchNikud(event,'\u05B8')">בָ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B9')" ontouchstart="tbTouchNikud(event,'\u05B9')">בֹ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05BB')" ontouchstart="tbTouchNikud(event,'\u05BB')">בֻ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05BC')" ontouchstart="tbTouchNikud(event,'\u05BC')">בּ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05C1')" ontouchstart="tbTouchNikud(event,'\u05C1')">שׁ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05C2')" ontouchstart="tbTouchNikud(event,'\u05C2')">שׂ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05BE')" ontouchstart="tbTouchNikud(event,'\u05BE')">־</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05F3')" ontouchstart="tbTouchNikud(event,'\u05F3')">׳</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05F4')" ontouchstart="tbTouchNikud(event,'\u05F4')">״</button>
+  </div>
+
+</div>
+
+    <!-- EXPORT ROW -->
+    <div class="export-row">
+      <label style="font-size:0.78rem;color:var(--muted);margin-right:4px;">Export:</label>
+      <button class="btn-secondary" onclick="exportTxt()" style="font-size:0.82rem;padding:7px 14px;">
+        TXT
+      </button>
+      <button class="btn-secondary" id="exportPdfBtn" onclick="exportPdf()" style="font-size:0.82rem;padding:7px 14px;">
+        PDF
+      </button>
+      <button class="btn-secondary" id="exportDocxBtn" onclick="exportDocx()"
+        style="font-size:0.82rem;padding:7px 14px;display:flex;align-items:center;gap:5px;">
+        DOCX <span class="toolbar-premium">✦</span>
+      </button>
+      <button class="btn-secondary" onclick="openFile()" style="font-size:0.82rem;padding:7px 14px;margin-left:auto;">
+        📂 Open file
+      </button>
+      <input type="file" id="fileInput" accept=".txt,.html,.js,.css,.py,.sql,.md,.json" style="display:none" onchange="loadFile(this)">
+    </div>
+
+  </div>
+
+  <div class="ad-slot"><div class="ad-slot-inner">300 × 250 — Ad</div></div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Your work is <strong>auto-saved in your browser</strong> every 2 seconds. Closing and reopening the page will restore your last session.</li>
+      <li>Use <strong>A− / A+</strong> to adjust the text size for your comfort — applies to the whole document and is remembered next time you open the editor. Use <strong>− / +</strong> next to the number to control line spacing (1.2 = tight, 1.8 = default, 2.8 = very airy). Both settings are saved automatically.</li>
+      <li><strong>Writer mode</strong> is for notes, drafts, articles, and any text where formatting matters. Use the toolbar to apply headings, bold, lists, and more. Enable Focus mode to dim everything except your current paragraph.</li>
+      <li><strong>Code mode</strong> gives you syntax highlighting for HTML, JavaScript, CSS, Python, and SQL, along with line numbers, bracket matching, and auto-closing brackets. Perfect for editing HTML files or writing quick code snippets.</li>
+      <li>Switching between modes transfers your content as plain text. If you switch from Writer to Code, formatting (bold, headings etc.) will be lost — you'll be warned before this happens.</li>
+      <li>Use <strong>Open file</strong> to load any .txt, .html, .js, .css, .py, or other text file directly from your computer.</li>
+      <li>PDF export is available in Writer mode. DOCX export requires <strong>✦ Premium</strong>.</li>
+      <li><strong>Typewriter mode (✦ Premium)</strong> keeps your current line vertically centered as you type — reduces eye movement and helps you stay in flow.</li>
+    </ul>
+  </div>
+
+</div>
+
+
+
+<footer id="shared-footer"></footer>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="../shared.js"></script>
+
+<script>
+/* ================================================================
+   STATE
+   ================================================================ */
+const FONT_SIZES = [11, 13, 15, 16, 18, 20, 24, 28];
+let fontSizeIdx = 3; // default 16px
+const LINE_HEIGHTS = [1.2, 1.4, 1.6, 1.8, 2.0, 2.4, 2.8];
+let lineHeightIdx = 3; // default 1.8
+
+const state = {
+  mode: 'writer',           // 'writer' | 'code'
+  writerSnapshot: '',       // saved HTML when leaving writer
+  codeSnapshot: '',         // saved text when leaving code
+  focusMode: false,
+  typewriterMode: false,
+  lineNumbers: true,
+  wordWrap: false,
+  autoSaveTimer: null,
+  cm: null,                 // CodeMirror instance
+};
+
+/* ================================================================
+   INIT
+   ================================================================ */
+window.addEventListener('load', () => {
+  initCodeMirror();
+  restoreSession();
+  updateStatus();
+  updateExportButtons();
+  updateToolboxNikud();
+  // KEY FIX: prevent toolbox panel from ever stealing focus from the editor
+  var panel = document.getElementById('toolboxPanel');
+  if (panel) {
+    panel.addEventListener('mousedown', function(e) { e.preventDefault(); });
+    panel.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
+  }
+});
+
+function initCodeMirror() {
+  state.cm = CodeMirror.fromTextArea(document.getElementById('codeArea'), {
+    mode: 'htmlmixed',
+    theme: 'default',
+    lineNumbers: true,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    styleActiveLine: true,
+    lineWrapping: false,
+    tabSize: 2,
+    indentWithTabs: false,
+    extraKeys: { 'Tab': 'indentMore', 'Shift-Tab': 'indentLess' }
+  });
+  state.cm.on('change', () => { onCodeInput(); });
+  state.cm.on('cursorActivity', updateCursorPos);
+  // Hide CodeMirror initially (writer mode is default)
+  state.cm.getWrapperElement().style.display = 'none';
+}
+
+/* ================================================================
+   MODE SWITCHING
+   ================================================================ */
+function switchMode(newMode) {
+  if (newMode === state.mode) return;
+
+  if (newMode === 'code' && state.mode === 'writer') {
+    // Check if writer has formatting
+    const html = document.getElementById('writerArea').innerHTML;
+    const plain = document.getElementById('writerArea').innerText;
+    const hasFormatting = html !== plain && html.includes('<');
+
+    if (hasFormatting && plain.trim()) {
+      if (!confirm('Switching to Code mode will remove text formatting (bold, headings, etc.). Plain text will be kept.\n\nContinue?')) {
+        return;
+      }
+    }
+    state.writerSnapshot = html;
+    state.cm.setValue(plain);
+  }
+
+  if (newMode === 'writer' && state.mode === 'code') {
+    state.codeSnapshot = state.cm.getValue();
+    document.getElementById('writerArea').innerText = state.codeSnapshot;
+  }
+
+  state.mode = newMode;
+
+  // Toggle UI
+  const isWriter = newMode === 'writer';
+  document.getElementById('writerArea').style.display    = isWriter ? '' : 'none';
+  state.cm.getWrapperElement().style.display             = isWriter ? 'none' : '';
+  document.getElementById('writerToolbar').style.display = isWriter ? '' : 'none';
+  document.getElementById('codeToolbar').style.display   = isWriter ? 'none' : '';
+  document.getElementById('btnWriterMode').classList.toggle('active', isWriter);
+  document.getElementById('btnCodeMode').classList.toggle('active', !isWriter);
+
+  // Status bar adjustments
+  document.getElementById('readSep').style.display  = isWriter ? '' : 'none';
+  document.getElementById('readItem').style.display = isWriter ? '' : 'none';
+  document.getElementById('statCursor').style.display = isWriter ? 'none' : '';
+
+  // Export buttons
+  updateExportButtons();
+
+  if (!isWriter) state.cm.refresh();
+  updateStatus();
+}
+
+function updateExportButtons() {
+  const isWriter = state.mode === 'writer';
+  document.getElementById('exportPdfBtn').style.display  = isWriter ? '' : 'none';
+  document.getElementById('exportDocxBtn').style.display = isWriter ? '' : 'none';
+}
+
+/* ================================================================
+   WRITER
+   ================================================================ */
+function fmt(command, value) {
+  const area = document.getElementById('writerArea');
+  area.focus();
+
+  const blockCmds = ['justifyLeft','justifyCenter','justifyRight','justifyFull',
+                     'insertUnorderedList','insertOrderedList'];
+  if (blockCmds.includes(command)) {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && !sel.isCollapsed) {
+      // If selection end is at offset 0 of its container (start of next line),
+      // move end back by 1 to avoid including that block
+      const range = sel.getRangeAt(0).cloneRange();
+      if (range.endOffset === 0 && range.endContainer !== range.startContainer) {
+        range.setEnd(range.endContainer, 0);
+        // Move end to end of previous block
+        range.setEnd(range.startContainer,
+          range.startContainer.length || range.startContainer.childNodes.length);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+  }
+
+  document.execCommand(command, false, value || null);
+  onWriterInput();
+  updateFocusLine();
+}
+
+function applyHeading(tag) {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  document.execCommand('formatBlock', false, tag);
+  onWriterInput();
+}
+
+function writerKeydown(e) {
+  // Tab key → indent
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    document.execCommand('insertText', false, '  ');
+  }
+}
+
+function writerKeyup(e) {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
+  var range = sel.getRangeAt(0);
+  var node = range.startContainer;
+  if (node.nodeType !== 3) return;
+  var offset = range.startOffset;
+  var txt = node.textContent;
+  var COMBINING = /[\u05B0-\u05C7\u05F3\u05F4]/;
+  if (offset >= 0 && offset < txt.length && COMBINING.test(txt[offset])) {
+    var delta = e.key === 'ArrowLeft' ? 1 : -1;
+    var newOff = offset + delta;
+    if (newOff >= 0 && newOff <= txt.length) {
+      range.setStart(node, newOff);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+}
+
+function onWriterInput() {
+  updateStatus();
+  scheduleAutoSave();
+  detectHebrew();
+}
+
+/* ================================================================
+   HEBREW SUPPORT — NIKUD + RTL/LTR
+   ================================================================ */
+var HEBREW_RE = /[א-ת]/;
+
+function updateDirButtons() {
+  var area = document.getElementById('writerArea');
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  var node = sel.getRangeAt(0).startContainer;
+  var block = node.nodeType === 3 ? node.parentElement : node;
+  while (block && block.parentElement !== area) block = block.parentElement;
+  if (!block) return;
+  var dir = block.getAttribute('dir') || 'ltr';
+  var rtlBtn = document.getElementById('rtlBtn');
+  var ltrBtn = document.getElementById('ltrBtn');
+  if (rtlBtn) rtlBtn.classList.toggle('active', dir === 'rtl');
+  if (ltrBtn) ltrBtn.classList.toggle('active', dir === 'ltr');
+}
+
+function detectHebrew() {
+  var area = document.getElementById('writerArea');
+  var bar = document.getElementById('nikudBar');
+  if (!area || !bar) return;
+  var hasHebrew = HEBREW_RE.test(area.innerText || '');
+  var tbSec = document.getElementById('tbNikudSection');
+  if (tbSec) tbSec.style.display = hasHebrew ? 'block' : 'none';
+  bar.classList.toggle('show', hasHebrew);
+  // Use dir="auto" per block — lets the browser BiDi algorithm
+  // determine direction from the first strong character in each block.
+  // This is the W3C recommended approach for mixed Hebrew/English text.
+  area.childNodes.forEach(function(node) {
+    if (node.nodeType !== 1) return;
+    if (!node.getAttribute('dir')) {
+      node.setAttribute('dir', 'auto');
+    }
+  });
+}
+
+function setBlockDir(dir) {
+  var area = document.getElementById('writerArea');
+  area.focus();
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  var node = sel.getRangeAt(0).startContainer;
+  var block = node.nodeType === 3 ? node.parentElement : node;
+  while (block && block.parentElement !== area) block = block.parentElement;
+  if (!block) return;
+  // Set explicit direction overriding auto-detection
+  block.setAttribute('dir', dir);
+  // Let text-align follow direction naturally via CSS
+  block.style.textAlign = dir === 'rtl' ? 'right' : dir === 'ltr' ? 'left' : '';
+  var rb = document.getElementById('rtlBtn'); if(rb) rb.classList.toggle('active', dir==='rtl');
+  var lb = document.getElementById('ltrBtn'); if(lb) lb.classList.toggle('active', dir==='ltr');
+  onWriterInput();
+}
+
+// Hebrew combining characters range U+05B0-U+05C7 (nikud + cantillation)
+var NIKUD_RE = /[ְ-ׇ׳״]/;
+
+function insertNikud(char) {
+  var area = document.getElementById('writerArea');
+  area.focus();
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  var range = sel.getRangeAt(0);
+
+  // If there's a selection, strip combining chars and keep base letters
+  if (!range.collapsed) {
+    var selected = range.toString();
+    var base = selected.replace(/[\u05B0-\u05C7]/g, '');
+    if (base.length > 0) {
+      document.execCommand('insertText', false, base);
+    } else {
+      document.execCommand('delete', false, null);
+    }
+  }
+
+  // Insert nikud via execCommand so it registers in undo history
+  document.execCommand('insertText', false, char);
+  onWriterInput();
+}
+
+function changeLineHeight(dir) {
+  lineHeightIdx = Math.max(0, Math.min(LINE_HEIGHTS.length - 1, lineHeightIdx + dir));
+  applyLineHeight();
+  scheduleAutoSave();
+}
+
+function applyLineHeight() {
+  const lh = LINE_HEIGHTS[lineHeightIdx];
+  document.getElementById('writerArea').style.lineHeight = lh;
+  // Update all LG labels
+  document.querySelectorAll('.lg-label').forEach(el => el.textContent = lh.toFixed(1));
+  // Disable buttons at limits
+  document.querySelectorAll('.lg-dec').forEach(btn => btn.style.opacity = lineHeightIdx === 0 ? '0.35' : '1');
+  document.querySelectorAll('.lg-inc').forEach(btn => btn.style.opacity = lineHeightIdx === LINE_HEIGHTS.length-1 ? '0.35' : '1');
+}
+
+/* ================================================================
+   FOCUS MODE
+   ================================================================ */
+function changeFontSize(dir) {
+  fontSizeIdx = Math.max(0, Math.min(FONT_SIZES.length - 1, fontSizeIdx + dir));
+  applyFontSize();
+  scheduleAutoSave();
+}
+
+function applyFontSize() {
+  const size = FONT_SIZES[fontSizeIdx];
+  document.getElementById('writerArea').style.fontSize = size + 'px';
+  if (state.cm) {
+    state.cm.getWrapperElement().style.fontSize = size + 'px';
+    state.cm.refresh();
+  }
+  document.getElementById('fontSizeLabel').textContent = size + 'px';
+  document.querySelectorAll('[onclick^="changeFontSize"]').forEach((btn, i) => {
+    if (i === 0) btn.style.opacity = fontSizeIdx === 0 ? '0.35' : '1';
+    if (i === 1) btn.style.opacity = fontSizeIdx === FONT_SIZES.length-1 ? '0.35' : '1';
+  });
+}
+
+function toggleFocus() {
+  state.focusMode = !state.focusMode;
+  document.body.classList.toggle('focus-mode', state.focusMode);
+  const area = document.getElementById('writerArea');
+  area.classList.toggle('focus-active', state.focusMode);
+  document.getElementById('focusBtn').classList.toggle('active', state.focusMode);
+  if (!state.focusMode) {
+    area.querySelectorAll('.focus-line').forEach(el => el.classList.remove('focus-line'));
+  }
+  updateFocusLine();
+}
+
+function updateFocusLine() {
+  const area = document.getElementById('writerArea');
+  if (!state.focusMode) return;
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const node = sel.getRangeAt(0).startContainer;
+  // Walk up to find direct child of writerArea
+  let block = node.nodeType === 3 ? node.parentElement : node;
+  while (block && block.parentElement !== area) {
+    block = block.parentElement;
+  }
+  area.querySelectorAll('.focus-line').forEach(el => el.classList.remove('focus-line'));
+  if (block && block.parentElement === area) {
+    block.classList.add('focus-line');
+  }
+}
+
+/* ================================================================
+   TYPEWRITER MODE (PREMIUM)
+   ================================================================ */
+function toggleTypewriter() {
+  if (!IS_PREMIUM) {
+    showNotification('Typewriter mode is a Premium feature.', 'info');
+    return;
+  }
+  state.typewriterMode = !state.typewriterMode;
+  document.getElementById('typewriterBtn').classList.toggle('active', state.typewriterMode);
+  if (state.typewriterMode) {
+    document.getElementById('writerArea').addEventListener('keyup', scrollTypewriter);
+  } else {
+    document.getElementById('writerArea').removeEventListener('keyup', scrollTypewriter);
+  }
+}
+
+function scrollTypewriter() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0).cloneRange();
+  range.collapse(true); // collapse to cursor position
+  // Insert a temporary span to get accurate position
+  const span = document.createElement('span');
+  span.style.cssText = 'display:inline;width:0;height:0;overflow:hidden;';
+  range.insertNode(span);
+  const rect = span.getBoundingClientRect();
+  span.parentNode.removeChild(span);
+  if (!rect || rect.top === 0) return;
+  const targetY = window.scrollY + rect.top - (window.innerHeight * 0.45);
+  window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+}
+
+/* ================================================================
+   CODE MODE
+   ================================================================ */
+function setLanguage(lang) {
+  state.cm.setOption('mode', lang === 'text' ? null : lang);
+}
+
+function toggleLineNumbers() {
+  state.lineNumbers = !state.lineNumbers;
+  state.cm.setOption('lineNumbers', state.lineNumbers);
+  document.getElementById('lineNumBtn').classList.toggle('active', state.lineNumbers);
+}
+
+function toggleWrap() {
+  state.wordWrap = !state.wordWrap;
+  state.cm.setOption('lineWrapping', state.wordWrap);
+  document.getElementById('wrapBtn').classList.toggle('active', state.wordWrap);
+}
+
+function setGlobalTheme(theme) {
+  const wrap = document.getElementById('editorWrap');
+  const area = document.getElementById('writerArea');
+  // Remove all theme classes
+  wrap.classList.remove('theme-dark', 'theme-sepia');
+  // Apply writer theme
+  if (theme === 'dark') {
+    wrap.classList.add('theme-dark');
+    state.cm.setOption('theme', 'dracula');
+  } else if (theme === 'sepia') {
+    wrap.classList.add('theme-sepia');
+    state.cm.setOption('theme', 'default');
+  } else {
+    state.cm.setOption('theme', 'default');
+  }
+}
+
+let widthDebounce = null;
+function onWidthSlide(val) {
+  const w = parseInt(val);
+  const isFull = w >= 1200;
+  document.getElementById('widthLabel').textContent = isFull ? 'Full' : w + 'px';
+  clearTimeout(widthDebounce);
+  widthDebounce = setTimeout(() => setEditorWidth(w), 60);
+}
+
+function setEditorWidth(w) {
+  const card = document.querySelector('.card');
+  if (!card) return;
+  const isFull = w >= 1200;
+  const page = document.querySelector('.page');
+  const pageRect = page.getBoundingClientRect();
+  const targetW = isFull ? window.innerWidth * 0.92 : w;
+
+  card.style.width = targetW + 'px';
+  card.style.maxWidth = targetW + 'px';
+  card.style.boxSizing = 'border-box';
+
+  // Use negative margins to bleed outside the page's 640px max-width
+  if (targetW > pageRect.width) {
+    const overflow = (targetW - pageRect.width) / 2;
+    card.style.marginLeft  = -overflow + 'px';
+    card.style.marginRight = -overflow + 'px';
+  } else {
+    card.style.marginLeft  = '';
+    card.style.marginRight = '';
+  }
+}
+
+function cmAction(action) {
+  if (action === 'undo') state.cm.execCommand('undo');
+  if (action === 'redo') state.cm.execCommand('redo');
+}
+
+function onCodeInput() {
+  updateStatus();
+  scheduleAutoSave();
+}
+
+function updateCursorPos() {
+  if (state.mode !== 'code') return;
+  const cur = state.cm.getCursor();
+  document.getElementById('statCursor').textContent =
+    `Ln ${cur.line + 1}, Col ${cur.ch + 1}`;
+}
+
+/* ================================================================
+   STATUS BAR
+   ================================================================ */
+function updateStatus() {
+  let text = '';
+  if (state.mode === 'writer') {
+    text = document.getElementById('writerArea').innerText || '';
+  } else {
+    text = state.cm ? state.cm.getValue() : '';
+  }
+
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const chars  = text.length;
+  const lines  = text ? text.split('\n').length : 0;
+  const read   = Math.max(1, Math.ceil(words / 200));
+
+  document.getElementById('statWords').textContent = words;
+  document.getElementById('statChars').textContent = chars;
+  document.getElementById('statLines').textContent = lines;
+  document.getElementById('statRead').textContent  = read;
+}
+
+/* ================================================================
+   AUTO-SAVE
+   ================================================================ */
+function scheduleAutoSave() {
+  clearTimeout(state.autoSaveTimer);
+  document.getElementById('autoSaveStatus').textContent = 'Saving…';
+  state.autoSaveTimer = setTimeout(saveSession, 2000);
+}
+
+function saveSession() {
+  try {
+    const data = {
+      mode:       state.mode,
+      writer:     document.getElementById('writerArea').innerHTML,
+      code:       state.cm ? state.cm.getValue() : '',
+      lang:       document.getElementById('languageSelect').value,
+      fontSizeIdx: fontSizeIdx,
+      lineHeightIdx: lineHeightIdx,
+    };
+    localStorage.setItem('essentialbits_editor', JSON.stringify(data));
+    document.getElementById('autoSaveStatus').textContent = 'Auto-saved';
+  } catch(e) {
+    document.getElementById('autoSaveStatus').textContent = 'Save failed';
+  }
+}
+
+function restoreSession() {
+  try {
+    const raw = localStorage.getItem('essentialbits_editor');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.writer && data.writer.trim() && data.writer !== '<br>') {
+      document.getElementById('writerArea').innerHTML = data.writer;
+      document.getElementById('restoreNotice').style.display = 'flex';
+    }
+    if (data.code && data.code.trim()) {
+      state.cm.setValue(data.code);
+    }
+    if (data.lang) {
+      document.getElementById('languageSelect').value = data.lang;
+      setLanguage(data.lang);
+    }
+    if (data.mode === 'code') switchMode('code');
+    if (data.fontSizeIdx !== undefined) { fontSizeIdx = data.fontSizeIdx; applyFontSize(); }
+    if (data.lineHeightIdx !== undefined) { lineHeightIdx = data.lineHeightIdx; applyLineHeight(); }
+  } catch(e) { /* ignore corrupt data */ }
+}
+
+function clearSession() {
+  localStorage.removeItem('essentialbits_editor');
+  document.getElementById('writerArea').innerHTML = '';
+  state.cm.setValue('');
+  document.getElementById('restoreNotice').style.display = 'none';
+  updateStatus();
+}
+
+/* ================================================================
+   FILE OPEN
+   ================================================================ */
+function openFile() {
+  document.getElementById('fileInput').click();
+}
+
+function loadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const ext = file.name.split('.').pop().toLowerCase();
+    const codeExts = ['html','htm','js','css','py','sql','json','md','ts','jsx','php'];
+
+    if (codeExts.includes(ext)) {
+      // Auto-switch to code mode and set language
+      const langMap = {
+        html:'htmlmixed', htm:'htmlmixed', js:'javascript',
+        css:'css', py:'python', sql:'sql', json:'javascript',
+        md:'text', ts:'javascript', jsx:'javascript', php:'text'
+      };
+      switchMode('code');
+      setLanguage(langMap[ext] || 'text');
+      document.getElementById('languageSelect').value = langMap[ext] || 'text';
+      state.cm.setValue(text);
+    } else {
+      switchMode('writer');
+      document.getElementById('writerArea').innerText = text;
+    }
+    updateStatus();
+    scheduleAutoSave();
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+/* ================================================================
+   EXPORT
+   ================================================================ */
+function exportTxt() {
+  const text = state.mode === 'writer'
+    ? document.getElementById('writerArea').innerText
+    : state.cm.getValue();
+  if (!text.trim()) { showNotification('Nothing to export.', 'info'); return; }
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'document.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function exportPdf() {
+  if (state.mode !== 'writer') return;
+  const area = document.getElementById('writerArea');
+  if (!area.innerText.trim()) { showNotification('Nothing to export.', 'info'); return; }
+
+  showNotification('Generating PDF…', 'info');
+
+  // Use html2canvas if available, otherwise fallback
+  try {
+    const { jsPDF } = window.jspdf || {};
+    // Simple approach: open print dialog with print-friendly styles
+    const win = window.open('', '_blank');
+    win.document.write(`
+      <!DOCTYPE html><html><head>
+      <style>
+        body { font-family: Georgia, serif; font-size: 12pt; line-height: 1.8;
+               margin: 2.5cm; color: #1a1a18; }
+        h1{font-size:20pt} h2{font-size:16pt} h3{font-size:14pt}
+        blockquote{border-left:3px solid #ccc;padding-left:1em;color:#666;font-style:italic}
+      </style></head><body>
+      ${area.innerHTML}
+      <script>window.onload=()=>{window.print();window.close();}<\/script>
+      </body></html>
+    `);
+    win.document.close();
+    clearNotification();
+  } catch(e) {
+    showNotification('PDF export failed. Try printing from your browser.', 'error');
+  }
+}
+
+async function exportDocx() {
+  if (!IS_PREMIUM) {
+    showNotification('DOCX export is a Premium feature.', 'info');
+    return;
+  }
+  const area = document.getElementById('writerArea');
+  if (!area.innerText.trim()) { showNotification('Nothing to export.', 'info'); return; }
+  try {
+    const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const paragraphs = [];
+    area.childNodes.forEach(node => {
+      const tag = node.nodeName.toLowerCase();
+      const txt = esc(node.innerText || node.textContent || '');
+      if (!txt.trim()) return;
+      let style = 'Normal';
+      if (tag === 'h1') style = 'Heading1';
+      else if (tag === 'h2') style = 'Heading2';
+      else if (tag === 'h3') style = 'Heading3';
+      let runs = '';
+      if (node.childNodes && node.childNodes.length > 1) {
+        node.childNodes.forEach(child => {
+          const ct = esc(child.innerText || child.textContent || '');
+          if (!ct) return;
+          const cn = child.nodeName.toLowerCase();
+          const bold = (cn==='b'||cn==='strong') ? '<w:b/>' : '';
+          const ital = (cn==='i'||cn==='em') ? '<w:i/>' : '';
+          runs += `<w:r><w:rPr>${bold}${ital}</w:rPr><w:t xml:space="preserve">${ct}</w:t></w:r>`;
+        });
+      } else {
+        runs = `<w:r><w:t xml:space="preserve">${txt}</w:t></w:r>`;
+      }
+      paragraphs.push(`<w:p><w:pPr><w:pStyle w:val="${style}"/></w:pPr>${runs}</w:p>`);
+    });
+    if (!paragraphs.length) {
+      area.innerText.split('\n').forEach(line => {
+        if (line.trim()) paragraphs.push(`<w:p><w:r><w:t xml:space="preserve">${esc(line)}</w:t></w:r></w:p>`);
+      });
+    }
+    const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs.join('')}<w:sectPr/></w:body></w:document>`;
+    const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:rPr><w:b/><w:sz w:val="48"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:rPr><w:b/><w:sz w:val="36"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:rPr><w:b/><w:sz w:val="28"/></w:rPr></w:style></w:styles>`;
+    const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`;
+    const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
+    const wordRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+    const zip = new JSZip();
+    zip.file('[Content_Types].xml', contentTypes);
+    zip.file('_rels/.rels', rootRels);
+    zip.file('word/document.xml', docXml);
+    zip.file('word/styles.xml', stylesXml);
+    zip.file('word/_rels/document.xml.rels', wordRels);
+    const blob = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'document.docx'; a.click();
+    URL.revokeObjectURL(a.href);
+  } catch(e) {
+    console.error('DOCX error:', e);
+    showNotification('DOCX export failed: ' + e.message, 'error');
+  }
+}
+/* ================================================================
+   MASTER TOOLBOX
+   ================================================================ */
+var tbSavedRange = null;
+var toolboxOpen = false;
+
+function updateToolboxNikud() {
+  var area = document.getElementById('writerArea');
+  var sec = document.getElementById('tbNikudSection');
+  if (!sec || !area) return;
+  sec.style.display = HEBREW_RE.test(area.innerText || '') ? 'block' : 'none';
+}
+
+function toggleToolbox() {
+  toolboxOpen = !toolboxOpen;
+  var panel = document.getElementById('toolboxPanel');
+  var btn = document.getElementById('toolboxBtn');
+  panel.classList.toggle('show', toolboxOpen);
+  if (btn) btn.classList.toggle('active', toolboxOpen);
+  if (toolboxOpen) {
+    updateToolboxNikud();
+    // Don't blur — keep editor focused so selection stays intact
+    // Scroll panel into view
+    setTimeout(function() {
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
+  // Always keep editor focused
+  document.getElementById('writerArea').focus();
+}
+
+function tbRestoreAndFocus() {
+  document.getElementById('writerArea').focus();
+}
+
+function tbSaveCursor() {
+  // No-op — editor stays focused, selection is always live
+}
+
+function tbMove(dir) {
+  var area = document.getElementById('writerArea');
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  var range = sel.getRangeAt(0).cloneRange();
+
+  if (dir === 'up' || dir === 'down') {
+    // Use caretRangeFromPoint for vertical movement
+    var rects = range.getClientRects();
+    if (!rects.length || (rects[0].height === 0 && dir === 'up')) {
+      // Empty line — jump to end of previous sibling block
+      var block = range.startContainer.nodeType === 3
+        ? range.startContainer.parentElement : range.startContainer;
+      while (block && block.parentElement !== area) block = block.parentElement;
+      var prev = block && block.previousElementSibling;
+      if (prev) {
+        // Walk into the last text node so getClientRects works next time
+        var walker2 = document.createTreeWalker(prev, NodeFilter.SHOW_TEXT, null, false);
+        var lastText = null, t2;
+        while ((t2 = walker2.nextNode())) lastText = t2;
+        if (lastText) {
+          range.setStart(lastText, lastText.textContent.length);
+        } else {
+          range.selectNodeContents(prev);
+        }
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      return;
+    }
+    var rect = rects[0];
+    var x = rect.left;
+    // For empty lines rect.height may be 0, so use a fixed line-height offset
+    var lineH = rect.height > 0 ? rect.height : 20;
+    var y = dir === 'up' ? rect.top - lineH : rect.top + lineH * 1.5;
+    var newRange = document.caretRangeFromPoint
+      ? document.caretRangeFromPoint(x, y)
+      : (function() {
+          var pos = document.caretPositionFromPoint && document.caretPositionFromPoint(x, y);
+          if (!pos) return null;
+          var r = document.createRange();
+          r.setStart(pos.offsetNode, pos.offset);
+          return r;
+        })();
+    if (newRange) {
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    }
+    return;
+  }
+
+  // Left/right: walk through text nodes
+  // Note: delta is +1 for left because in RTL context left = forward in DOM
+  var COMBINING = /[\u05B0-\u05C7\u05F3\u05F4]/;
+  var node = range.startContainer;
+  var offset = range.startOffset;
+  var delta = (dir === 'left') ? 1 : -1;
+  var newOff = offset + delta;
+
+  // If we land on a combining nikud character, take one more step
+  if (node.nodeType === 3) {
+    var txt = node.textContent;
+    if (newOff >= 0 && newOff < txt.length && COMBINING.test(txt[newOff])) {
+      newOff += delta;
+    }
+  }
+
+  if (node.nodeType === 3 && newOff >= 0 && newOff <= node.textContent.length) {
+    range.setStart(node, newOff);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } else {
+    var walker = document.createTreeWalker(area, NodeFilter.SHOW_TEXT, null, false);
+    var nodes = []; var n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    var idx = nodes.indexOf(node);
+    if (dir === 'left' && idx < nodes.length - 1) {
+      range.setStart(nodes[idx + 1], 0);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } else if (dir === 'right' && idx > 0) {
+      var prev = nodes[idx - 1];
+      range.setStart(prev, prev.textContent.length);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+}
+
+function tbInsert(text) {
+  var area = document.getElementById('writerArea');
+  area.focus();
+  if (text === '\n') {
+    document.execCommand('insertParagraph', false, null);
+  } else {
+    document.execCommand('insertText', false, text);
+  }
+  updateToolboxNikud();
+}
+
+function tbNikud(char) {
+  var area = document.getElementById('writerArea');
+  area.focus();
+  insertNikud(char);
+}
+
+function tbFmt(cmd) {
+  var area = document.getElementById('writerArea');
+  area.focus();
+  document.execCommand(cmd, false, null);
+}
+
+function tbHeading(tag) {
+  var area = document.getElementById('writerArea');
+  area.focus();
+  document.execCommand('formatBlock', false, tag);
+}
+
+function tbTouchMove(e, dir)  { e.preventDefault(); tbMove(dir); }
+function tbTouchInsert(e, t)  { e.preventDefault(); tbInsert(t); }
+function tbTouchNikud(e, c)   { e.preventDefault(); tbNikud(c); }
+// Note: preventDefault on touchstart prevents iOS keyboard from closing,
+// which is now the desired behaviour — editor stays focused.
+
+</script>
+
+</body>
+</html>
