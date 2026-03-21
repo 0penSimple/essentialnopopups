@@ -352,12 +352,7 @@ body.focus-mode .status-bar {
 }
 
 /* NIKUD TOOLBAR */
-.nikud-bar {
-  display:none; align-items:center; gap:3px; flex-wrap:wrap;
-  padding:6px 10px; background:#fafaf7; border:1px solid #e0d9c8;
-  border-radius:8px 8px 0 0; border-bottom:none; direction:rtl;
-}
-.nikud-bar.show { display:flex; }
+.nikud-bar, .nikud-bar.show { display:none !important; }
 .nikud-label { font-size:0.68rem; color:var(--faint); margin-left:8px;
   direction:ltr; letter-spacing:0.04em; text-transform:uppercase; }
 .nikud-btn {
@@ -521,6 +516,9 @@ body.mobile-edit-mode #editorOuter {
 body.mobile-edit-mode .mobile-topbar {
   display: flex;
 }
+body.mobile-edit-mode .mode-toggle-row {
+  display: none;
+}
 .mobile-topbar-title {
   font-size: 0.9rem;
   font-weight: 500;
@@ -644,7 +642,14 @@ body.mobile-edit-mode .toolbox-panel {
 
     <!-- MOBILE TOP BAR (only visible in full-screen edit mode) -->
     <div class="mobile-topbar">
-      <span class="mobile-topbar-title">✍️ Smart Editor</span>
+      <div style="display:flex;gap:4px;">
+        <button id="mobileWriterBtn" onclick="switchMode('writer')" style="
+          background:var(--teal);color:#fff;border:none;border-radius:6px;
+          padding:5px 10px;font-size:0.78rem;font-family:inherit;cursor:pointer;">✍ Writer</button>
+        <button id="mobileCodeBtn" onclick="switchMode('code')" style="
+          background:var(--warm-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;
+          padding:5px 10px;font-size:0.78rem;font-family:inherit;cursor:pointer;">💻 Code</button>
+      </div>
       <button class="mobile-done-btn" onclick="exitMobileEdit()">Done ✓</button>
     </div>
 
@@ -704,8 +709,6 @@ body.mobile-edit-mode .toolbox-panel {
       <span class="nikud-label">נִיקּוּד</span>
       <div class="nikud-sep-n"></div>
       <button class="nikud-btn" onclick="insertNikud('\u05BE')" title="מקף">־</button>
-      <button class="nikud-btn" onclick="insertNikud('\u05F3')" title="גרש">׳</button>
-      <button class="nikud-btn" onclick="insertNikud('\u05F4')" title="גרשיים">״</button>
       <div class="nikud-sep-n"></div>
       <button class="nikud-btn" onclick="insertNikud('\u05B0')" title="שווא">בְ</button>
       <button class="nikud-btn" onclick="insertNikud('\u05B1')" title="חטף סגול">בֱ</button>
@@ -876,8 +879,6 @@ body.mobile-edit-mode .toolbox-panel {
     <button class="tb-nikud" onmousedown="tbNikud('\u05C1')" onpointerdown="tbNikudPtr(event,'\u05C1')">שׁ</button>
     <button class="tb-nikud" onmousedown="tbNikud('\u05C2')" onpointerdown="tbNikudPtr(event,'\u05C2')">שׂ</button>
     <button class="tb-nikud" onmousedown="tbNikud('\u05BE')" onpointerdown="tbNikudPtr(event,'\u05BE')">־</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05F3')" onpointerdown="tbNikudPtr(event,'\u05F3')">׳</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05F4')" onpointerdown="tbNikudPtr(event,'\u05F4')">״</button>
   </div>
 
 </div>
@@ -997,6 +998,17 @@ function initCodeMirror() {
    ================================================================ */
 function switchMode(newMode) {
   if (newMode === state.mode) return;
+  // Update mobile topbar buttons
+  var mw = document.getElementById('mobileWriterBtn');
+  var mc = document.getElementById('mobileCodeBtn');
+  if (mw && mc) {
+    mw.style.background = newMode === 'writer' ? 'var(--teal)' : 'var(--warm-bg)';
+    mw.style.color = newMode === 'writer' ? '#fff' : 'var(--muted)';
+    mw.style.border = newMode === 'writer' ? 'none' : '1px solid var(--border)';
+    mc.style.background = newMode === 'code' ? 'var(--teal)' : 'var(--warm-bg)';
+    mc.style.color = newMode === 'code' ? '#fff' : 'var(--muted)';
+    mc.style.border = newMode === 'code' ? 'none' : '1px solid var(--border)';
+  }
 
   if (newMode === 'code' && state.mode === 'writer') {
     // Check if writer has formatting
@@ -1703,13 +1715,25 @@ function tbMove(dir) {
     }
     var rect = rects[0];
     var x = rect.left;
-    // Get actual line height from computed style — more reliable than rect.height
     var computedLH = parseFloat(window.getComputedStyle(area).lineHeight) || 24;
     var lineH = rect.height > 4 ? rect.height : computedLH;
     var y = dir === 'up' ? rect.top - lineH : rect.top + lineH * 1.5;
-    // Clamp y to stay within writerArea bounds so cursor can't escape
     var areaRect = area.getBoundingClientRect();
-    y = Math.max(areaRect.top + 2, Math.min(areaRect.bottom - 2, y));
+    // If target line is outside visible area, scroll writerArea first
+    // (only applies in mobile edit mode where writerArea itself scrolls)
+    var isMobileEdit = document.body.classList.contains('mobile-edit-mode');
+    if (isMobileEdit) {
+      if (dir === 'up' && y < areaRect.top) {
+        area.scrollTop -= lineH;
+        y = areaRect.top + 2;
+      } else if (dir === 'down' && y > areaRect.bottom) {
+        area.scrollTop += lineH;
+        y = areaRect.bottom - 2;
+      }
+    } else {
+      // Desktop: clamp to visible area
+      y = Math.max(areaRect.top + 2, Math.min(areaRect.bottom - 2, y));
+    }
     var newRange = document.caretRangeFromPoint
       ? document.caretRangeFromPoint(x, y)
       : (function() {
