@@ -228,6 +228,30 @@ footer { border-top: 1px solid var(--border); background: var(--surface); paddin
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── RESPONSIVE ── */
+/* ── MOBILE NAV & FOOTER (≤768px) ── */
+@media (max-width: 768px) {
+  /* Nav: logo left, premium right — everything else hidden */
+  .nav-links { display: none !important; }
+  .nav-badge { display: none !important; }
+  .nav-changelog { display: none !important; }
+
+  /* Keep nav compact */
+  nav { padding: 0 1rem; }
+
+  /* Footer: stack vertically */
+  footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 1rem;
+  }
+  .footer-right {
+    text-align: left;
+    font-size: 0.72rem;
+  }
+  .footer-right br { display: none; }
+}
+
 @media (max-width: 480px) {
   .preview-grid { grid-template-columns: 1fr; }
   .footer-right { text-align: left; }

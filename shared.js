@@ -38,7 +38,7 @@ const IS_PREMIUM = false;
       <a href="https://essentialbits.pro/" class="nav-logo">Essential<em>Bits</em></a>
       ${isToolPage ? `<a href="https://essentialbits.pro/" class="nav-back">← All tools</a>` : `<ul class="nav-links" style="display:flex;gap:1.5rem;font-size:0.85rem;color:var(--muted);list-style:none;"><li><a href="#video">Video</a></li><li><a href="#image">Images</a></li><li><a href="#audio">Audio</a></li><li><a href="#pdf">PDF</a></li><li><a href="#productivity">Productivity</a></li></ul>`}
       <div style="display:flex;align-items:center;gap:1rem;">
-        <a href="${root}changelog.html" style="font-size:0.78rem;color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--teal)'" onmouseout="this.style.color='var(--muted)'">Changelog</a>
+        <a href="${root}changelog.html" class="nav-changelog" style="font-size:0.78rem;color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--teal)'" onmouseout="this.style.color='var(--muted)'">Changelog</a>
         <a href="${root}premium.html" style="font-size:0.75rem;font-weight:500;color:var(--premium);background:var(--premium-light);border:1px solid var(--premium-border);border-radius:99px;padding:4px 12px;text-decoration:none;transition:all 0.15s;" onmouseover="this.style.background='var(--premium)';this.style.color='#fff'" onmouseout="this.style.background='var(--premium-light)';this.style.color='var(--premium)'">✦ Premium</a>
         <div class="nav-badge">Zero pop-ups, ever</div>
       </div>
