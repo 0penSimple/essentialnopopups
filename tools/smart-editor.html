@@ -282,6 +282,16 @@ body.focus-mode .status-bar {
   .status-right { margin-left: 0; width: 100%; }
 }
 
+@media (max-width: 768px) {
+  /* Hide width slider on mobile — makes no sense on small screens */
+  #widthSliderRow { display: none !important; }
+  /* Prevent card from overflowing */
+  .card { max-width: 100% !important; margin-left: 0 !important; margin-right: 0 !important; width: 100% !important; }
+  /* Toolbox rows: touch-action pan-x so swipe = scroll not button tap */
+  .toolbox-row { touch-action: pan-x; }
+  .nikud-row { touch-action: pan-x; }
+}
+
 /* ── WRITER THEMES ── */
 .editor-wrap.theme-dark {
   background: #1e1e2e;
@@ -476,8 +486,8 @@ body.focus-mode .status-bar {
 
   <div class="ad-slot"><div class="ad-slot-inner">728 × 90 — Ad</div></div>
 
-  <!-- WIDTH CONTROL — sits just above card, scrolls with page -->
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;
+  <!-- WIDTH CONTROL — sits just above card, scrolls with page (hidden on mobile) -->
+  <div id="widthSliderRow" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;
     font-size:0.75rem;color:var(--muted);">
     <span>Editor width:</span>
     <input type="range" id="widthSlider" min="500" max="1200" value="640" step="10"
@@ -668,14 +678,14 @@ body.focus-mode .status-bar {
     <button class="tb-btn" onmousedown="tbFmt('redo')">&#8618;</button>
     <div class="toolbox-sep"></div>
     <div style="display:flex;gap:3px;margin:0 auto;">
-      <button class="tb-btn" onmousedown="tbMove('up')" ontouchstart="tbTouchMove(event,'up')">&#8593;</button>
-      <button class="tb-btn" onmousedown="tbMove('down')" ontouchstart="tbTouchMove(event,'down')">&#8595;</button>
-      <button class="tb-btn" onmousedown="tbMove('left')" ontouchstart="tbTouchMove(event,'left')">&#8592;</button>
-      <button class="tb-btn" onmousedown="tbMove('right')" ontouchstart="tbTouchMove(event,'right')">&#8594;</button>
+      <button class="tb-btn" onmousedown="tbMove('up')" onpointerdown="tbMove('up')">&#8593;</button>
+      <button class="tb-btn" onmousedown="tbMove('down')" onpointerdown="tbMove('down')">&#8595;</button>
+      <button class="tb-btn" onmousedown="tbMove('left')" onpointerdown="tbMove('left')">&#8592;</button>
+      <button class="tb-btn" onmousedown="tbMove('right')" onpointerdown="tbMove('right')">&#8594;</button>
     </div>
     <div class="toolbox-sep"></div>
-    <button class="tb-btn tb-wide" onmousedown="tbInsert(' ')" ontouchstart="tbTouchInsert(event,' ')">Space</button>
-    <button class="tb-btn" onmousedown="tbInsert('\n')" ontouchstart="tbTouchInsert(event,'\n')">&#8629;</button>
+    <button class="tb-btn tb-wide" onmousedown="tbInsert(' ')" onpointerdown="tbInsert(' ')">Space</button>
+    <button class="tb-btn" onmousedown="tbInsert('\n')" onpointerdown="tbInsert('\n')">&#8629;</button>
     <button class="tb-btn" onmousedown="tbFmt('delete')" ontouchstart="tbFmt('delete')">&#9003;</button>
   </div>
 
@@ -702,23 +712,23 @@ body.focus-mode .status-bar {
 
   <!-- ROW 3: NIKUD (only when Hebrew detected, big buttons) -->
   <div class="nikud-row" id="tbNikudSection" style="display:none;">
-    <button class="tb-nikud" onmousedown="tbNikud('\u05B0')" ontouchstart="tbTouchNikud(event,'\u05B0')">בְ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05B1')" ontouchstart="tbTouchNikud(event,'\u05B1')">בֱ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05B2')" ontouchstart="tbTouchNikud(event,'\u05B2')">בֲ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05B3')" ontouchstart="tbTouchNikud(event,'\u05B3')">בֳ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05B4')" ontouchstart="tbTouchNikud(event,'\u05B4')">בִ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05B5')" ontouchstart="tbTouchNikud(event,'\u05B5')">בֵ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05B6')" ontouchstart="tbTouchNikud(event,'\u05B6')">בֶ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05B7')" ontouchstart="tbTouchNikud(event,'\u05B7')">בַ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05B8')" ontouchstart="tbTouchNikud(event,'\u05B8')">בָ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05B9')" ontouchstart="tbTouchNikud(event,'\u05B9')">בֹ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05BB')" ontouchstart="tbTouchNikud(event,'\u05BB')">בֻ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05BC')" ontouchstart="tbTouchNikud(event,'\u05BC')">בּ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05C1')" ontouchstart="tbTouchNikud(event,'\u05C1')">שׁ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05C2')" ontouchstart="tbTouchNikud(event,'\u05C2')">שׂ</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05BE')" ontouchstart="tbTouchNikud(event,'\u05BE')">־</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05F3')" ontouchstart="tbTouchNikud(event,'\u05F3')">׳</button>
-    <button class="tb-nikud" onmousedown="tbNikud('\u05F4')" ontouchstart="tbTouchNikud(event,'\u05F4')">״</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B0')" onpointerdown="tbNikudPtr(event,'\u05B0')">בְ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B1')" onpointerdown="tbNikudPtr(event,'\u05B1')">בֱ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B2')" onpointerdown="tbNikudPtr(event,'\u05B2')">בֲ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B3')" onpointerdown="tbNikudPtr(event,'\u05B3')">בֳ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B4')" onpointerdown="tbNikudPtr(event,'\u05B4')">בִ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B5')" onpointerdown="tbNikudPtr(event,'\u05B5')">בֵ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B6')" onpointerdown="tbNikudPtr(event,'\u05B6')">בֶ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B7')" onpointerdown="tbNikudPtr(event,'\u05B7')">בַ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B8')" onpointerdown="tbNikudPtr(event,'\u05B8')">בָ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05B9')" onpointerdown="tbNikudPtr(event,'\u05B9')">בֹ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05BB')" onpointerdown="tbNikudPtr(event,'\u05BB')">בֻ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05BC')" onpointerdown="tbNikudPtr(event,'\u05BC')">בּ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05C1')" onpointerdown="tbNikudPtr(event,'\u05C1')">שׁ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05C2')" onpointerdown="tbNikudPtr(event,'\u05C2')">שׂ</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05BE')" onpointerdown="tbNikudPtr(event,'\u05BE')">־</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05F3')" onpointerdown="tbNikudPtr(event,'\u05F3')">׳</button>
+    <button class="tb-nikud" onmousedown="tbNikud('\u05F4')" onpointerdown="tbNikudPtr(event,'\u05F4')">״</button>
   </div>
 
 </div>
@@ -1475,10 +1485,10 @@ function toggleToolbox() {
       panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
   } else {
-    // Restore keyboard when toolbox closes
+    // Restore keyboard — set inputmode first, then focus to trigger keyboard
     area.setAttribute('inputmode', 'text');
+    area.focus();
   }
-  area.focus();
 }
 
 function tbRestoreAndFocus() {
@@ -1614,8 +1624,7 @@ function tbHeading(tag) {
 function tbTouchMove(e, dir)  { e.preventDefault(); tbMove(dir); }
 function tbTouchInsert(e, t)  { e.preventDefault(); tbInsert(t); }
 function tbTouchNikud(e, c)   { e.preventDefault(); tbNikud(c); }
-// Note: preventDefault on touchstart prevents iOS keyboard from closing,
-// which is now the desired behaviour — editor stays focused.
+function tbNikudPtr(e, c)     { if (e.pointerType === 'touch') e.preventDefault(); tbNikud(c); }
 
 </script>
 
