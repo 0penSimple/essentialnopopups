@@ -1635,9 +1635,14 @@ function toggleToolbox() {
     // Suppress mobile keyboard while toolbox is active
     area.setAttribute('inputmode', 'none');
     updateToolboxNikud();
+    // After keyboard dismisses (~300ms), force layout recalc
+    // iOS Safari doesn't always update flex heights after viewport resize
     setTimeout(function() {
-      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 50);
+      // Force reflow without visible flash — just read a layout property
+      area.style.transform = 'translateZ(0)';
+      area.offsetHeight; // trigger reflow
+      area.style.transform = '';
+    }, 350);
   } else {
     // Restore keyboard — set inputmode first, then focus to trigger keyboard
     area.setAttribute('inputmode', 'text');
