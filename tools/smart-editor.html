@@ -1635,14 +1635,26 @@ function toggleToolbox() {
     // Suppress mobile keyboard while toolbox is active
     area.setAttribute('inputmode', 'none');
     updateToolboxNikud();
-    // After keyboard dismisses (~300ms), force layout recalc
-    // iOS Safari doesn't always update flex heights after viewport resize
-    setTimeout(function() {
-      // Force reflow without visible flash — just read a layout property
-      area.style.transform = 'translateZ(0)';
-      area.offsetHeight; // trigger reflow
-      area.style.transform = '';
-    }, 350);
+    // Listen for viewport resize (fires when keyboard actually dismisses)
+    var debounceReflow;
+    function onKeyboardDismiss() {
+      clearTimeout(debounceReflow);
+      debounceReflow = setTimeout(function() {
+        area.offsetHeight; // force reflow
+        if (window.visualViewport) {
+          window.visualViewport.removeEventListener('resize', onKeyboardDismiss);
+        } else {
+          window.removeEventListener('resize', onKeyboardDismiss);
+        }
+      }, 50);
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', onKeyboardDismiss);
+    } else {
+      window.addEventListener('resize', onKeyboardDismiss);
+    }
+    // Fallback timeout in case resize never fires (e.g. keyboard already closed)
+    setTimeout(function() { area.offsetHeight; }, 400);
   } else {
     // Restore keyboard — set inputmode first, then focus to trigger keyboard
     area.setAttribute('inputmode', 'text');
