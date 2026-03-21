@@ -972,6 +972,29 @@ window.addEventListener('load', () => {
     panel.addEventListener('mousedown', function(e) { e.preventDefault(); });
     panel.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
   }
+
+  // Fix cursor between lines on mobile: snap to nearest text node on touchend
+  var area = document.getElementById('writerArea');
+  if (area) {
+    area.addEventListener('touchend', function() {
+      setTimeout(function() {
+        var sel = window.getSelection();
+        if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
+        var range = sel.getRangeAt(0);
+        if (!area.contains(range.startContainer)) return;
+        if (range.startContainer.nodeType === 3) return; // already good
+        var fixed = range.cloneRange();
+        fixed = normalizeRange(fixed, area);
+        if (fixed && fixed.startContainer.nodeType === 3) {
+          sel.removeAllRanges();
+          sel.addRange(fixed);
+        }
+      }, 50); // small delay so browser has finished placing cursor
+    });
+  }
+
+  // Prevent pinch zoom in edit mode via CSS touch-action
+  area.style.touchAction = 'pan-x pan-y';
 });
 
 function initCodeMirror() {
@@ -1895,22 +1918,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-/* Normalize selection on every selectionchange — fixes tap between lines on mobile */
-document.addEventListener('selectionchange', function() {
-  var area = document.getElementById('writerArea');
-  if (!area) return;
-  var sel = window.getSelection();
-  if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
-  var range = sel.getRangeAt(0);
-  if (!area.contains(range.startContainer)) return;
-  if (range.startContainer.nodeType === 3) return; // already text node, fine
-  var newRange = range.cloneRange();
-  newRange = normalizeRange(newRange, area);
-  if (newRange && newRange.startContainer.nodeType === 3) {
-    sel.removeAllRanges();
-    sel.addRange(newRange);
-  }
-});
 
 </script>
 
