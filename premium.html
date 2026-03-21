@@ -538,8 +538,7 @@ async function handleSignup() {
   btn.innerHTML = `<span class="spinner"></span> Saving your spot…`;
 
   try {
-    // Formspree endpoint — replace YOUR_FORM_ID with your actual Formspree form ID
-    const res = await fetch("https://formspree.io/f/YOUR_FORM_ID", {
+    const res = await fetch("https://formspree.io/f/mlgpvlrw", {
       method:  "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body:    JSON.stringify({ email, plan: selectedPlan, source: "premium-early-access" })
