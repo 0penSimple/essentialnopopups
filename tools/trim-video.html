@@ -189,8 +189,6 @@
     isPremium: IS_PREMIUM
   };
 
-  let ffmpeg     = null;
-  let ffmpegReady = false;
 
   /* ── SETUP ── */
   document.addEventListener("DOMContentLoaded", () => {
@@ -437,57 +435,6 @@
     return null;
   }
 
-  /* ── FFMPEG ── */
-  async function loadFFmpeg() {
-    if (ffmpegReady) return;
-
-    if (typeof SharedArrayBuffer === "undefined") {
-      showStatus("⚠️ Your browser does not support the required features. Please try Chrome or Firefox.", true);
-      return;
-    }
-
-    showStatus("Loading FFmpeg (~20MB, once per session)...");
-
-    try {
-      await loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
-      const { createFFmpeg, fetchFile } = FFmpeg;
-      window._fetchFile = fetchFile;
-      ffmpeg = createFFmpeg({
-        log: false,
-        corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js",
-        progress: ({ ratio }) => {
-          const pct = Math.round(ratio * 100);
-          document.getElementById("progressFill").style.width = pct + "%";
-          document.getElementById("progressPct").textContent  = pct + "%";
-        }
-      });
-      await ffmpeg.load();
-      ffmpegReady = true;
-      hideStatus();
-    } catch(e) {
-      showStatus(`⚠️ Failed to load FFmpeg: ${e.message}. Please refresh and try again.`, true);
-    }
-  }
-
-  function showStatus(msg, isError = false) {
-    const el = document.getElementById("ffmpegStatus");
-    el.style.display = "flex";
-    document.getElementById("ffmpegStatusText").textContent = msg;
-    if (isError) el.querySelector(".spinner").style.display = "none";
-  }
-
-  function hideStatus() {
-    document.getElementById("ffmpegStatus").style.display = "none";
-  }
-
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-      const s = document.createElement("script");
-      s.src = src; s.onload = resolve; s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  }
 
   /* ── TRIM ── */
   async function trimAll() {
@@ -496,7 +443,7 @@
     if (!ffmpegReady) {
       showStatus("Loading FFmpeg (~20MB)...");
       await loadFFmpeg();
-      if (!ffmpegReady) return;
+      if (!window.ffmpegReady) return;
     }
 
     const total = state.files.length;
@@ -517,10 +464,10 @@
         document.getElementById("progressFill").style.width = "0%";
         document.getElementById("progressPct").textContent  = "0%";
 
-        ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
+        window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
 
         // -c copy = stream copy, no re-encoding — instant and lossless
-        await ffmpeg.run(
+        await window.ffmpeg.run(
           "-i",  "input",
           "-ss", item.start.toFixed(3),
           "-to", item.end.toFixed(3),
@@ -528,11 +475,11 @@
           "-y",  `output.${ext}`
         );
 
-        const data = ffmpeg.FS("readFile", `output.${ext}`);
+        const data = window.ffmpeg.FS("readFile", `output.${ext}`);
         const blob = new Blob([data.buffer], { type: item.file.type || "video/mp4" });
 
-        ffmpeg.FS("unlink", "input");
-        ffmpeg.FS("unlink", `output.${ext}`);
+        window.ffmpeg.FS("unlink", "input");
+        window.ffmpeg.FS("unlink", `output.${ext}`);
 
         return { filename: outName, data: blob };
       },

@@ -161,6 +161,7 @@
       <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
       <li>MP3 is smaller and works everywhere. WAV is lossless and better for professional use.</li>
       <li>WebM files that contain video will have the video stripped — only the audio track is converted.</li>
+      <li>FFmpeg (~20MB) loads once on first use and is cached by your browser for future visits.</li>
       <li>Conversion time depends on file size — a typical 5MB MP3 takes around 15–30 seconds.</li>
     </ul>
   </div>
@@ -178,9 +179,6 @@
     isPremium: IS_PREMIUM
   };
 
-  let ffmpeg = null;       // FFmpeg instance
-  let ffmpegLoaded = false;// whether FFmpeg core is loaded
-  let ffmpegLoading = false;
 
   /* ── SETUP ── */
   document.addEventListener("DOMContentLoaded", () => {
@@ -298,72 +296,17 @@
   }
 
   /* ── LOAD FFMPEG ── */
-  async function loadFFmpeg() {
-    if (ffmpegLoaded || ffmpegLoading) return;
-    ffmpegLoading = true;
-
-    if (typeof SharedArrayBuffer === "undefined") {
-      document.getElementById("ffmpegStatus").classList.add("show");
-      document.getElementById("ffmpegStatusText").textContent =
-        "⚠️ Your browser does not support the required features. Please try Chrome or Firefox.";
-      ffmpegLoading = false;
-      return;
-    }
-
-    document.getElementById("ffmpegStatus").classList.add("show");
-    document.getElementById("ffmpegStatusText").textContent = "Loading FFmpeg (~20MB, once per session)...";
-
-    try {
-      await loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
-
-      const { createFFmpeg, fetchFile } = FFmpeg;
-      window._fetchFile = fetchFile;
-
-      ffmpeg = createFFmpeg({
-        log: true,
-        corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js",
-        progress: ({ ratio }) => {
-          const pct = Math.round(ratio * 100);
-          document.getElementById("progressFill").style.width = pct + "%";
-          document.getElementById("progressPct").textContent  = pct + "%";
-        }
-      });
-
-      await ffmpeg.load();
-
-      ffmpegLoaded  = true;
-      ffmpegLoading = false;
-      document.getElementById("ffmpegStatus").classList.remove("show");
-      console.log("FFmpeg loaded successfully");
-
-    } catch(e) {
-      ffmpegLoading = false;
-      document.getElementById("ffmpegStatus").classList.add("show");
-      document.getElementById("ffmpegStatusText").textContent =
-        `⚠️ Failed to load FFmpeg: ${e.message}. Please refresh and try again.`;
-      console.error("FFmpeg load error:", e);
-    }
-  }
-
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-      const s = document.createElement("script");
-      s.src = src; s.onload = resolve; s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  }
 
   /* ── CONVERT ── */
   async function convert() {
     if (state.files.length === 0) return;
 
     // Load FFmpeg if not already loaded
-    if (!ffmpegLoaded) {
+    if (!window.ffmpegReady) {
       document.getElementById("ffmpegStatus").classList.add("show");
       document.getElementById("ffmpegStatusText").textContent = "Loading FFmpeg (~20MB)...";
       await loadFFmpeg();
-      if (!ffmpegLoaded) return; // load failed
+      if (!window.ffmpegReady) return; // load failed
     }
 
     const total   = state.files.length;
@@ -390,7 +333,7 @@
         document.getElementById("progressPct").textContent  = "0%";
 
         // Write input to virtual filesystem
-        ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
+        window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
 
         // Build FFmpeg command
         let args;
@@ -400,17 +343,17 @@
           args = ["-i", "input", "-codec:a", "pcm_s16le", "-y", "output.wav"];
         }
 
-        await ffmpeg.run(...args);
+        await window.ffmpeg.run(...args);
 
         // Read output
-        const data = ffmpeg.FS("readFile", `output.${ext}`);
+        const data = window.ffmpeg.FS("readFile", `output.${ext}`);
         const blob = new Blob([data.buffer], {
           type: format === "mp3" ? "audio/mpeg" : "audio/wav"
         });
 
         // Clean up
-        ffmpeg.FS("unlink", "input");
-        ffmpeg.FS("unlink", `output.${ext}`);
+        window.ffmpeg.FS("unlink", "input");
+        window.ffmpeg.FS("unlink", `output.${ext}`);
 
         return { filename: outName, data: blob };
       },
