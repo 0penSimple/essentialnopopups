@@ -173,6 +173,16 @@
       </div>
     </div>
 
+    <!-- PHONE MODE (only shown on mobile when image is loaded) -->
+    <div id="phoneModeGroup" style="display:none; margin-bottom:1.25rem;">
+      <label>Processing mode</label>
+      <div class="mode-tabs">
+        <div class="mode-tab active" id="tabFast" onclick="setPhoneMode('fast')">⚡ Fast</div>
+        <div class="mode-tab" id="tabReliable" onclick="setPhoneMode('reliable')">📱 Phone-safe</div>
+      </div>
+      <div id="phoneModeHint" style="font-size:0.75rem; color:var(--muted); line-height:1.5;"></div>
+    </div>
+
     <!-- OFFSET SLIDER (premium) -->
     <div class="offset-group" id="offsetGroup" style="display:none;">
       <label>Audio start offset <span class="premium-badge">✦ Premium</span></label>
@@ -249,6 +259,13 @@
       <li>The output keeps the video's original format and quality — only the audio track is changed.</li>
       <li>You can also drop a <strong>static image</strong> (JPG, PNG, WebP) instead of a video. The image will be held for the full duration of the audio and exported as an MP4 — useful for turning a podcast or song into a shareable video.</li>
     </ul>
+
+    <h3 style="margin-top:1.25rem;">Common issues</h3>
+    <ul class="info-list">
+      <li><strong>"Your browser does not support the required features"</strong> — This tool requires SharedArrayBuffer, which is unavailable on iOS (iPhone/iPad) in all browsers. On Android, refreshing the page usually fixes it.</li>
+      <li><strong>Image + audio downloads with no sound</strong> — Can happen on some phones in Fast mode. Use the tool again with the muted video as input, or switch to <strong>Phone-safe mode</strong> which always includes audio.</li>
+      <li><strong>Image + audio loads forever on phone</strong> — Switch to <strong>Phone-safe mode</strong> using the toggle that appears on mobile when an image is loaded. It works on Android and iOS Safari 14.1+ but takes as long as the audio to process.</li>
+    </ul>
   </div>
 
 </div>
@@ -263,6 +280,7 @@
     videoDur:     0,
     audioDur:     0,
     videoIsImage: false,  // true when an image is loaded instead of a video
+    phoneMode:    'fast', // 'fast' | 'reliable' — only relevant for image+audio on mobile
     alignment:    "start",  // "start" | "end"
     offset:       0,        // seconds (premium)
     isPremium:    IS_PREMIUM
@@ -420,7 +438,31 @@
       }
     }
 
+    // Show phone mode toggle only on mobile when image is loaded
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const showPhoneMode = bothLoaded && state.videoIsImage && isMobile;
+    document.getElementById("phoneModeGroup").style.display = showPhoneMode ? "block" : "none";
+    if (showPhoneMode) updatePhoneModeHint();
+
     updateBtn();
+  }
+
+  function setPhoneMode(mode) {
+    state.phoneMode = mode;
+    document.getElementById("tabFast").classList.toggle("active", mode === "fast");
+    document.getElementById("tabReliable").classList.toggle("active", mode === "reliable");
+    updatePhoneModeHint();
+  }
+
+  function updatePhoneModeHint() {
+    const hint = document.getElementById("phoneModeHint");
+    if (!hint) return;
+    if (state.phoneMode === "fast") {
+      hint.textContent = "Uses FFmpeg — finishes in seconds but may hang or produce no audio on some phones. If it fails, switch to Phone-safe.";
+    } else {
+      const mins = state.audioDur > 0 ? Math.ceil(state.audioDur / 60) : "?";
+      hint.textContent = "Uses your browser directly — works on Android and iOS (Safari 14.1+) but takes as long as the audio (" + mins + " min). Keep the tab open while it runs.";
+    }
   }
 
   function updateBtn() {
@@ -535,30 +577,21 @@
 
       let success = false;
 
-      if (state.videoIsImage) {
-        // Use native browser APIs — no FFmpeg needed for image+audio.
-        // Canvas captures the image as a 1fps video stream, MediaRecorder
-        // records it alongside the audio track. Fast, works on Android Chrome.
-        showNotification("Loading files...", "info");
-
+      if (state.videoIsImage && state.phoneMode === "reliable") {
+        // Phone-safe mode: use canvas + MediaRecorder — always works on Android,
+        // but records in real time so takes as long as the audio duration.
         const blob = await new Promise((resolve, reject) => {
-          // 1. Load image onto canvas
           const img = new Image();
           const imgUrl = URL.createObjectURL(state.videoFile);
           img.onload = async () => {
             URL.revokeObjectURL(imgUrl);
             try {
-              // Make dimensions even (required by some encoders)
               const w = img.width  % 2 === 0 ? img.width  : img.width  - 1;
               const h = img.height % 2 === 0 ? img.height : img.height - 1;
               const canvas = document.createElement("canvas");
               canvas.width = w; canvas.height = h;
               canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-
-              // 2. Get video stream from canvas at 1fps
               const videoStream = canvas.captureStream(1);
-
-              // 3. Get audio stream from audio file
               const audioCtx = new AudioContext();
               const arrayBuf = await state.audioFile.arrayBuffer();
               const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
@@ -567,37 +600,27 @@
               const dest = audioCtx.createMediaStreamDestination();
               source.connect(dest);
               source.start(0);
-
-              // 4. Combine streams and record
               const combined = new MediaStream([
                 ...videoStream.getTracks(),
                 ...dest.stream.getTracks()
               ]);
+              const mimeType =
+                MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" :
+                MediaRecorder.isTypeSupported("video/webm") ? "video/webm" :
+                MediaRecorder.isTypeSupported("video/mp4") ? "video/mp4" : null;
 
-              const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-                ? "video/webm;codecs=vp9,opus"
-                : "video/webm";
+              if (!mimeType) throw new Error("Your browser does not support video recording. Try Chrome on Android or update your iOS.");
 
               const recorder = new MediaRecorder(combined, { mimeType });
               const chunks = [];
               recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-              recorder.onstop = () => {
-                audioCtx.close();
-                resolve(new Blob(chunks, { type: mimeType }));
-              };
+              recorder.onstop = () => { audioCtx.close(); resolve(new Blob(chunks, { type: mimeType })); };
               recorder.onerror = e => reject(e.error);
-
-              showNotification("Encoding... this may take a moment.", "info");
-              recorder.start();
-
-              // Stop recording when audio ends
               const duration = audioBuf.duration * 1000;
-              setTimeout(() => {
-                source.stop();
-                recorder.stop();
-              }, duration);
-
-              // Update progress bar based on elapsed time
+              const mins = Math.ceil(audioBuf.duration / 60);
+              showNotification("Recording... this will take ~" + mins + " min. Keep this tab open.", "info");
+              recorder.start();
+              setTimeout(() => { source.stop(); recorder.stop(); }, duration);
               const startTime = Date.now();
               const progressInterval = setInterval(() => {
                 const elapsed = Date.now() - startTime;
@@ -606,27 +629,74 @@
                 document.getElementById("progressPct").textContent = pct + "%";
                 if (elapsed >= duration) clearInterval(progressInterval);
               }, 500);
-
             } catch(err) { reject(err); }
           };
           img.onerror = () => reject(new Error("Could not load image"));
           img.src = imgUrl;
         });
 
-        // Download the result directly — no FFmpeg involved
+        const ext = blob.type.includes("mp4") ? "mp4" : "webm";
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url; a.download = "output_combined.webm";
+        a.href = url; a.download = "output_combined." + ext;
         document.body.appendChild(a); a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-
         document.getElementById("progressFill").style.width = "100%";
         document.getElementById("progressPct").textContent = "100%";
         document.getElementById("progressLabel").textContent = "Done!";
         btnDone("combineBtn", "✓ Done!", "Combine & download");
         refreshAds();
-        return; // skip the rest of the combine() flow
+        return;
+
+      } else if (state.videoIsImage) {
+        // Fast mode (FFmpeg) — works reliably on desktop, may hang on some phones
+        showNotification("Step 1/3: Loading files...", "info");
+        ffmpeg.FS("writeFile", "image", await window._fetchFile(state.videoFile));
+        ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
+
+        showNotification("Step 2/3: Encoding image to clip...", "info");
+        const scaleFilter = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+        await ffmpeg.run(
+          "-loop",    "1",
+          "-r",       "1",
+          "-i",       "image",
+          "-vf",      scaleFilter,
+          "-t",       "1",
+          "-c:v",     "libx264",
+          "-tune",    "stillimage",
+          "-preset",  "ultrafast",
+          "-pix_fmt", "yuv420p",
+          "-y",       "clip.mp4"
+        );
+
+        var clipOk = false;
+        try { var c = ffmpeg.FS("readFile", "clip.mp4"); clipOk = c.length > 0; } catch(_) {}
+        if (!clipOk) throw new Error("Step 2 failed: could not encode image to clip");
+
+        showNotification("Step 3/3: Muxing with audio...", "info");
+        const audioFilter = "[1:a]volume=" + audioVol + "[aout]";
+        await ffmpeg.run(
+          "-stream_loop", "-1",
+          "-i",     "clip.mp4",
+          "-i",     "audio",
+          "-filter_complex", audioFilter,
+          "-map",   "0:v",
+          "-map",   "[aout]",
+          "-c:v",   "copy",
+          "-c:a",   "aac",
+          "-shortest",
+          "-y",     "output.mp4"
+        );
+
+        try {
+          const check = ffmpeg.FS("readFile", "output.mp4");
+          success = check.length > 0;
+        } catch(e) { success = false; }
+
+        try { ffmpeg.FS("unlink", "image"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "audio"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "clip.mp4"); } catch(_) {}
 
       } else {
         // Normal video + audio path
