@@ -318,7 +318,8 @@
       });
     }
 
-    loadFFmpeg();
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (!isIOS) loadFFmpeg();
   });
 
   /* ── FILE SLOTS ── */
@@ -440,8 +441,11 @@
 
     // Show phone mode toggle only on mobile when image is loaded
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     const showPhoneMode = bothLoaded && state.videoIsImage && isMobile;
     document.getElementById("phoneModeGroup").style.display = showPhoneMode ? "block" : "none";
+    // Auto-select phone-safe on iOS since Fast mode won't work there
+    if (showPhoneMode && isIOS && state.phoneMode === "fast") setPhoneMode("reliable");
     if (showPhoneMode) updatePhoneModeHint();
 
     updateBtn();
@@ -545,10 +549,21 @@
   async function combine() {
     if (!state.videoFile || !state.audioFile) return;
 
-    if (!ffmpegReady) {
-      document.getElementById("ffmpegStatus").classList.add("show");
-      await loadFFmpeg();
-      if (!ffmpegReady) return;
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    // Phone-safe mode uses no FFmpeg — skip the FFmpeg check entirely
+    const usingPhoneSafe = state.videoIsImage && state.phoneMode === "reliable";
+
+    if (!usingPhoneSafe) {
+      if (isIOS) {
+        showNotification("Fast mode does not work on iOS. Switch to Phone-safe mode to combine image + audio on iPhone/iPad.", "error");
+        return;
+      }
+      if (!ffmpegReady) {
+        document.getElementById("ffmpegStatus").classList.add("show");
+        await loadFFmpeg();
+        if (!ffmpegReady) return;
+      }
     }
 
     await btnLoading("combineBtn", "Combining...");
