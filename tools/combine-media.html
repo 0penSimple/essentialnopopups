@@ -472,8 +472,10 @@
       await loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
       const { createFFmpeg, fetchFile } = FFmpeg;
       window._fetchFile = fetchFile;
+      const ffmpegLogs = [];
       ffmpeg = createFFmpeg({
-        log: false,
+        log: true,
+        logger: ({ message }) => { ffmpegLogs.push(message); },
         corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js",
         progress: ({ ratio }) => {
           const pct = Math.round(ratio * 100);
@@ -613,7 +615,10 @@
         try { ffmpeg.FS("unlink", "audio"); } catch(_) {}
       }
 
-      if (!success) throw new Error("Conversion failed — please check your files and try again.");
+      if (!success) {
+        const lastLogs = ffmpegLogs.slice(-5).join(" | ");
+        throw new Error("Conversion failed: " + (lastLogs || "unknown error"));
+      }
 
       const data = ffmpeg.FS("readFile", "output.mp4");
       const blob = new Blob([data.buffer], { type: "video/mp4" });
