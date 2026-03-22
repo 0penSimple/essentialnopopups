@@ -517,14 +517,14 @@
     document.getElementById("progressLabel").textContent = "Combining...";
 
     try {
-      const outName = "output_combined.mp4";
+      const outName = state.videoIsImage ? "output_combined.webm" : "output_combined.mp4";
       showNotification(
         'Files loaded — ' +
         (state.videoIsImage ? 'Image' : 'Video') + ': ' + formatBytes(state.videoFile.size) +
         ' | Audio: ' + formatBytes(state.audioFile.size),
         'info'
       );
-      const ext     = "mp4";
+      const ext = "mp4";
 
       const audioVol = state.isPremium
         ? (parseInt(document.getElementById("audioVolSlider").value) / 100).toFixed(2)
@@ -547,21 +547,22 @@
           "-i",     "image",
           "-vf",    scaleFilter,
           "-t",     "1",
-          "-c:v",   "libx264",
-          "-tune",  "stillimage",
+          "-c:v",   "libvpx",
+          "-b:v",   "0",
+          "-crf",   "10",
           "-pix_fmt", "yuv420p",
-          "-y",     "clip.mp4"
+          "-y",     "clip.webm"
         );
 
         var clipOk = false;
-        try { var c = ffmpeg.FS("readFile", "clip.mp4"); clipOk = c.length > 0; } catch(_) {}
+        try { var c = ffmpeg.FS("readFile", "clip.webm"); clipOk = c.length > 0; } catch(_) {}
         if (!clipOk) throw new Error("Step 2 failed: could not encode image to clip");
 
         showNotification("Step 3/3: Muxing with audio...", "info");
         const audioFilter = "[1:a]volume=" + audioVol + "[aout]";
         await ffmpeg.run(
           "-stream_loop", "-1",
-          "-i",     "clip.mp4",
+          "-i",     "clip.webm",
           "-i",     "audio",
           "-filter_complex", audioFilter,
           "-map",   "0:v",
@@ -569,17 +570,17 @@
           "-c:v",   "copy",
           "-c:a",   "aac",
           "-shortest",
-          "-y",     "output.mp4"
+          "-y",     "output.webm"
         );
 
         try {
-          const check = ffmpeg.FS("readFile", "output.mp4");
+          const check = ffmpeg.FS("readFile", "output.webm");
           success = check.length > 0;
         } catch(e) { success = false; }
 
         try { ffmpeg.FS("unlink", "image"); } catch(_) {}
         try { ffmpeg.FS("unlink", "audio"); } catch(_) {}
-        try { ffmpeg.FS("unlink", "clip.mp4"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "clip.webm"); } catch(_) {}
 
       } else {
         // Normal video + audio path
@@ -637,9 +638,11 @@
         throw new Error("Conversion failed — please check your files and try again.");
       }
 
-      const data = ffmpeg.FS("readFile", "output.mp4");
-      const blob = new Blob([data.buffer], { type: "video/mp4" });
-      try { ffmpeg.FS("unlink", "output.mp4"); } catch(_) {}
+      const outputFile = state.videoIsImage ? "output.webm" : "output.mp4";
+      const outputMime = state.videoIsImage ? "video/webm" : "video/mp4";
+      const data = ffmpeg.FS("readFile", outputFile);
+      const blob = new Blob([data.buffer], { type: outputMime });
+      try { ffmpeg.FS("unlink", outputFile); } catch(_) {}
 
       // Download
       const url = URL.createObjectURL(blob);
