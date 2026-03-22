@@ -126,15 +126,15 @@
     <label>Your files</label>
     <div class="file-pair">
 
-      <!-- VIDEO SLOT -->
+      <!-- VIDEO OR IMAGE SLOT -->
       <div class="file-slot" id="videoSlot">
-        <input type="file" id="videoInput" accept="video/*,.mp4,.mov,.avi,.mkv,.webm"
+        <input type="file" id="videoInput" accept="video/*,image/*,.mp4,.mov,.avi,.mkv,.webm,.jpg,.jpeg,.png,.gif,.webp"
                onchange="handleSlot('video', this.files[0]); this.value=''">
         <button class="file-slot-clear" id="videoClear" style="display:none"
                 onclick="clearSlot('video', event)">×</button>
-        <div class="file-slot-icon">🎬</div>
-        <div class="file-slot-label">Video</div>
-        <div class="file-slot-text" id="videoText"><strong>Click or drag</strong> a video here</div>
+        <div class="file-slot-icon" id="videoIcon">🎬</div>
+        <div class="file-slot-label" id="videoLabel">Video or Image</div>
+        <div class="file-slot-text" id="videoText"><strong>Click or drag</strong> a video or image here</div>
         <div class="file-slot-meta" id="videoMeta"></div>
       </div>
 
@@ -247,6 +247,7 @@
       <li><strong>Start together</strong> — audio starts at the beginning of the video and stops when it ends or the video ends, whichever comes first.</li>
       <li><strong>End together</strong> — audio is delayed so it finishes exactly when the video does. Only shown when audio is shorter than the video.</li>
       <li>The output keeps the video's original format and quality — only the audio track is changed.</li>
+      <li>You can also drop a <strong>static image</strong> (JPG, PNG, WebP) instead of a video. The image will be held for the full duration of the audio and exported as an MP4 — useful for turning a podcast or song into a shareable video.</li>
     </ul>
   </div>
 
@@ -257,13 +258,14 @@
 <script src="../shared.js"></script>
 <script>
   const state = {
-    videoFile:  null,
-    audioFile:  null,
-    videoDur:   0,
-    audioDur:   0,
-    alignment:  "start",  // "start" | "end"
-    offset:     0,        // seconds (premium)
-    isPremium:  IS_PREMIUM
+    videoFile:    null,
+    audioFile:    null,
+    videoDur:     0,
+    audioDur:     0,
+    videoIsImage: false,  // true when an image is loaded instead of a video
+    alignment:    "start",  // "start" | "end"
+    offset:       0,        // seconds (premium)
+    isPremium:    IS_PREMIUM
   };
 
   let ffmpeg      = null;
@@ -306,20 +308,34 @@
     if (!file) return;
 
     if (type === "video") {
-      if (!file.type.startsWith("video/") && !/\.(mp4|mov|avi|mkv|webm|flv|wmv|m4v)$/i.test(file.name)) {
-        showNotification(`"${file.name}" doesn't look like a video file.`, "error");
+      const isImage = file.type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(file.name);
+      const isVideo = file.type.startsWith("video/") || /\.(mp4|mov|avi|mkv|webm|flv|wmv|m4v)$/i.test(file.name);
+      if (!isImage && !isVideo) {
+        showNotification(`"${file.name}" doesn't look like a video or image file.`, "error");
         return;
       }
-      state.videoFile = file;
-      // Get duration via video element
-      const vid = document.createElement("video");
-      vid.preload = "metadata";
-      vid.onloadedmetadata = () => {
-        URL.revokeObjectURL(vid.src);
-        state.videoDur = vid.duration;
+      state.videoFile    = file;
+      state.videoIsImage = isImage;
+
+      if (isImage) {
+        // Images have no duration — duration comes from the audio
+        state.videoDur = 0;
+        document.getElementById("videoIcon").textContent  = "🖼";
+        document.getElementById("videoLabel").textContent = "Image";
         updateUI();
-      };
-      vid.src = URL.createObjectURL(file);
+      } else {
+        // Get duration via video element
+        document.getElementById("videoIcon").textContent  = "🎬";
+        document.getElementById("videoLabel").textContent = "Video";
+        const vid = document.createElement("video");
+        vid.preload = "metadata";
+        vid.onloadedmetadata = () => {
+          URL.revokeObjectURL(vid.src);
+          state.videoDur = vid.duration;
+          updateUI();
+        };
+        vid.src = URL.createObjectURL(file);
+      }
 
       document.getElementById("videoSlot").classList.add("loaded");
       document.getElementById("videoText").textContent = file.name;
@@ -354,9 +370,11 @@
   function clearSlot(type, e) {
     e.stopPropagation();
     if (type === "video") {
-      state.videoFile = null; state.videoDur = 0;
+      state.videoFile = null; state.videoDur = 0; state.videoIsImage = false;
       document.getElementById("videoSlot").classList.remove("loaded");
-      document.getElementById("videoText").innerHTML = `<strong>Click or drag</strong> a video here`;
+      document.getElementById("videoIcon").textContent  = "🎬";
+      document.getElementById("videoLabel").textContent = "Video or Image";
+      document.getElementById("videoText").innerHTML = `<strong>Click or drag</strong> a video or image here`;
       document.getElementById("videoMeta").textContent = "";
       document.getElementById("videoClear").style.display = "none";
     } else {
@@ -377,14 +395,16 @@
     const videoDur   = state.videoDur;
 
     // Show/hide alignment and controls only when both files loaded
-    document.getElementById("alignmentGroup").style.display = bothLoaded && !state.isPremium ? "block" : "none";
-    document.getElementById("offsetGroup").style.display    = bothLoaded && state.isPremium  ? "block" : "none";
+    // Hide alignment when an image is loaded — image always runs the full audio duration
+    const showAlignment = bothLoaded && !state.isPremium && !state.videoIsImage;
+    document.getElementById("alignmentGroup").style.display = showAlignment ? "block" : "none";
+    document.getElementById("offsetGroup").style.display    = bothLoaded && state.isPremium && !state.videoIsImage ? "block" : "none";
     document.getElementById("volumeGroup").style.display    = bothLoaded ? "block" : "none";
 
     if (bothLoaded) {
-      // Hide "end together" if audio is longer than video — it doesn't make sense
+      // Hide "end together" if audio is longer than video, or if using an image
       const endOption = document.getElementById("optEnd");
-      if (audioDur > videoDur) {
+      if (state.videoIsImage || audioDur > videoDur) {
         endOption.style.display = "none";
         if (state.alignment === "end") selectAlignment("start");
       } else {
@@ -497,73 +517,106 @@
     document.getElementById("progressLabel").textContent = "Combining...";
 
     try {
-      const ext     = state.videoFile.name.split(".").pop().toLowerCase();
-      const outName = state.videoFile.name.replace(/\.[^.]+$/, `_combined.${ext}`);
+      const outName = "output_combined.mp4";
+      const ext     = "mp4";
 
-      ffmpeg.FS("writeFile", "video", await window._fetchFile(state.videoFile));
-      ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
-
-      // Calculate audio offset in seconds
-      let audioOffset = 0;
-      if (state.isPremium) {
-        audioOffset = state.offset;
-      } else if (state.alignment === "end") {
-        audioOffset = Math.max(0, state.videoDur - state.audioDur);
-      }
-
-      const videoVol = state.isPremium
-        ? (parseInt(document.getElementById("videoVolSlider").value) / 100).toFixed(2)
-        : "1";
       const audioVol = state.isPremium
         ? (parseInt(document.getElementById("audioVolSlider").value) / 100).toFixed(2)
         : "1";
+      const videoVol = state.isPremium
+        ? (parseInt(document.getElementById("videoVolSlider").value) / 100).toFixed(2)
+        : "1";
 
-      const delayMs = Math.round(audioOffset * 1000);
+      let success = false;
 
-      // Build both filter variants
-      const mixFilter = delayMs > 0
-        ? `[1:a]adelay=${delayMs}|${delayMs},volume=${audioVol}[delayed];[0:a]volume=${videoVol}[va];[va][delayed]amix=inputs=2:duration=first[aout]`
-        : `[1:a]volume=${audioVol}[na];[0:a]volume=${videoVol}[va];[va][na]amix=inputs=2:duration=first[aout]`;
+      if (state.videoIsImage) {
+        // Image + audio → video: loop the image for the full duration of the audio
+        ffmpeg.FS("writeFile", "image", await window._fetchFile(state.videoFile));
+        ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
 
-      const audioOnlyFilter = delayMs > 0
-        ? `[1:a]adelay=${delayMs}|${delayMs},volume=${audioVol}[aout]`
-        : `[1:a]volume=${audioVol}[aout]`;
+        const imgExt = state.videoFile.name.split(".").pop().toLowerCase();
+        const audioFilter = `[1:a]volume=${audioVol}[aout]`;
 
-      const runFFmpeg = async (filter) => {
         await ffmpeg.run(
-          "-i",              "video",
+          "-loop",           "1",
+          "-i",              "image",
           "-i",              "audio",
-          "-filter_complex", filter,
+          "-filter_complex", audioFilter,
           "-map",            "0:v",
           "-map",            "[aout]",
-          "-c:v",            "copy",
+          "-c:v",            "libx264",
+          "-tune",           "stillimage",
           "-c:a",            "aac",
           "-shortest",
-          "-y",              `output.${ext}`
+          "-pix_fmt",        "yuv420p",
+          "-y",              "output.mp4"
         );
-        // FFmpeg.wasm doesn't always throw on failure — check file exists
-        try {
-          const check = ffmpeg.FS("readFile", `output.${ext}`);
-          return check.length > 0;
-        } catch(e) {
-          return false;
-        }
-      };
 
-      // Try mixing first (video has audio), fall back to audio-only (muted video)
-      let success = await runFFmpeg(mixFilter);
-      if (!success) {
-        try { ffmpeg.FS("unlink", `output.${ext}`); } catch(_) {}
-        success = await runFFmpeg(audioOnlyFilter);
-        if (!success) throw new Error("Conversion failed — please check your files and try again.");
+        try {
+          const check = ffmpeg.FS("readFile", "output.mp4");
+          success = check.length > 0;
+        } catch(e) { success = false; }
+
+        try { ffmpeg.FS("unlink", "image"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "audio"); } catch(_) {}
+
+      } else {
+        // Normal video + audio path
+        ffmpeg.FS("writeFile", "video", await window._fetchFile(state.videoFile));
+        ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
+
+        // Calculate audio offset in seconds
+        let audioOffset = 0;
+        if (state.isPremium) {
+          audioOffset = state.offset;
+        } else if (state.alignment === "end") {
+          audioOffset = Math.max(0, state.videoDur - state.audioDur);
+        }
+
+        const delayMs = Math.round(audioOffset * 1000);
+
+        const mixFilter = delayMs > 0
+          ? `[1:a]adelay=${delayMs}|${delayMs},volume=${audioVol}[delayed];[0:a]volume=${videoVol}[va];[va][delayed]amix=inputs=2:duration=first[aout]`
+          : `[1:a]volume=${audioVol}[na];[0:a]volume=${videoVol}[va];[va][na]amix=inputs=2:duration=first[aout]`;
+
+        const audioOnlyFilter = delayMs > 0
+          ? `[1:a]adelay=${delayMs}|${delayMs},volume=${audioVol}[aout]`
+          : `[1:a]volume=${audioVol}[aout]`;
+
+        const runFFmpeg = async (filter) => {
+          await ffmpeg.run(
+            "-i",              "video",
+            "-i",              "audio",
+            "-filter_complex", filter,
+            "-map",            "0:v",
+            "-map",            "[aout]",
+            "-c:v",            "copy",
+            "-c:a",            "aac",
+            "-shortest",
+            "-y",              "output.mp4"
+          );
+          try {
+            const check = ffmpeg.FS("readFile", "output.mp4");
+            return check.length > 0;
+          } catch(e) { return false; }
+        };
+
+        // Try mixing first (video has audio), fall back to audio-only (muted video)
+        success = await runFFmpeg(mixFilter);
+        if (!success) {
+          try { ffmpeg.FS("unlink", "output.mp4"); } catch(_) {}
+          success = await runFFmpeg(audioOnlyFilter);
+        }
+
+        try { ffmpeg.FS("unlink", "video"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "audio"); } catch(_) {}
       }
 
-      const data = ffmpeg.FS("readFile", `output.${ext}`);
-      const blob = new Blob([data.buffer], { type: state.videoFile.type || "video/mp4" });
+      if (!success) throw new Error("Conversion failed — please check your files and try again.");
 
-      ffmpeg.FS("unlink", "video");
-      ffmpeg.FS("unlink", "audio");
-      ffmpeg.FS("unlink", `output.${ext}`);
+      const data = ffmpeg.FS("readFile", "output.mp4");
+      const blob = new Blob([data.buffer], { type: "video/mp4" });
+      try { ffmpeg.FS("unlink", "output.mp4"); } catch(_) {}
 
       // Download
       const url = URL.createObjectURL(blob);
