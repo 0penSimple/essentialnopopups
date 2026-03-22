@@ -264,7 +264,7 @@
     <ul class="info-list">
       <li><strong>"Your browser does not support the required features"</strong> — This tool requires SharedArrayBuffer, which is unavailable on iOS (iPhone/iPad) in all browsers. On Android, refreshing the page usually fixes it.</li>
       <li><strong>Image + audio downloads with no sound</strong> — Can happen on some phones in Fast mode. Use the tool again with the muted video as input, or switch to <strong>Phone-safe mode</strong> which always includes audio.</li>
-      <li><strong>Image + audio loads forever on phone</strong> — Switch to <strong>Phone-safe mode</strong> using the toggle that appears on mobile when an image is loaded. It always works on Android but takes as long as the audio to process, and outputs WebM format.</li>
+      <li><strong>Image + audio loads forever on phone</strong> — Switch to <strong>Phone-safe mode</strong> using the toggle that appears on mobile when an image is loaded. It works on Android and iOS Safari 14.1+ but takes as long as the audio to process.</li>
     </ul>
   </div>
 
@@ -461,9 +461,11 @@
       hint.textContent = "Uses FFmpeg — finishes in seconds but may hang or produce no audio on some phones. If it fails, switch to Phone-safe.";
     } else {
       const mins = state.audioDur > 0 ? Math.ceil(state.audioDur / 60) : "?";
-      hint.textContent = "Uses your browser directly — always works on Android but takes as long as the audio (" + mins + " min). Output is WebM format.";
+      hint.textContent = "Uses your browser directly — works on Android and iOS (Safari 14.1+) but takes as long as the audio (" + mins + " min). Keep the tab open while it runs.";
     }
   }
+
+  function updateBtn() {
     const btn = document.getElementById("combineBtn");
     btn.disabled = !(state.videoFile && state.audioFile);
     btn.classList.remove("btn-done");
@@ -602,8 +604,13 @@
                 ...videoStream.getTracks(),
                 ...dest.stream.getTracks()
               ]);
-              const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-                ? "video/webm;codecs=vp9,opus" : "video/webm";
+              const mimeType =
+                MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" :
+                MediaRecorder.isTypeSupported("video/webm") ? "video/webm" :
+                MediaRecorder.isTypeSupported("video/mp4") ? "video/mp4" : null;
+
+              if (!mimeType) throw new Error("Your browser does not support video recording. Try Chrome on Android or update your iOS.");
+
               const recorder = new MediaRecorder(combined, { mimeType });
               const chunks = [];
               recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
@@ -628,9 +635,10 @@
           img.src = imgUrl;
         });
 
+        const ext = blob.type.includes("mp4") ? "mp4" : "webm";
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url; a.download = "output_combined.webm";
+        a.href = url; a.download = "output_combined." + ext;
         document.body.appendChild(a); a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
