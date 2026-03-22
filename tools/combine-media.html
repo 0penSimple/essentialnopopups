@@ -493,17 +493,28 @@
     if (state.resultUrl) URL.revokeObjectURL(state.resultUrl);
     state.resultUrl = url;
 
-    // Wire up the download button — stays available until user resets
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     const dlBtn = document.getElementById("downloadBtn");
-    dlBtn.href = url;
-    dlBtn.download = filename;
+
+    if (isIOS) {
+      // iOS Safari blocks anchor download clicks — open the file directly in the browser
+      // User can then long-press to save, or use the share sheet
+      dlBtn.href = url;
+      dlBtn.removeAttribute("download");
+      dlBtn.target = "_blank";
+      dlBtn.textContent = "⬇ Open file (tap & hold to save)";
+    } else {
+      dlBtn.href = url;
+      dlBtn.download = filename;
+      dlBtn.removeAttribute("target");
+      dlBtn.textContent = "⬇ Download";
+      // Auto-trigger download on non-iOS
+      dlBtn.click();
+    }
 
     // Hide combine button, show result row
     document.getElementById("combineBtn").style.display = "none";
     document.getElementById("resultRow").style.display = "flex";
-
-    // Trigger the first download automatically
-    dlBtn.click();
     refreshAds();
   }
 
