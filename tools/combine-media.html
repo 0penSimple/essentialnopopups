@@ -543,14 +543,14 @@
         showNotification("Step 2/2: Encoding...", "info");
         // Single-step: 1fps + ultrafast preset = trivial work per frame on mobile.
         // For a 6-min audio this is only ~360 frames total, each encodes in milliseconds.
-        const vf = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+        const vf = "[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]";
         const af = "[1:a]volume=" + audioVol + "[aout]";
         await ffmpeg.run(
           "-loop",    "1",
           "-r",       "1",
           "-i",       "image",
           "-i",       "audio",
-          "-filter_complex", vf + "[v];" + af,
+          "-filter_complex", vf + ";" + af,
           "-map",     "[v]",
           "-map",     "[aout]",
           "-c:v",     "libx264",
