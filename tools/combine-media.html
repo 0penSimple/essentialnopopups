@@ -473,15 +473,7 @@
       const { createFFmpeg, fetchFile } = FFmpeg;
       window._fetchFile = fetchFile;
       ffmpeg = createFFmpeg({
-        log: true,
-        logger: ({ type, message }) => {
-          window._ffmpegLog = (window._ffmpegLog || '') + '[' + type + '] ' + message + String.fromCharCode(10);
-          const box = document.getElementById('_debugBox');
-          if (box) {
-            box.textContent = window._ffmpegLog;
-            box.scrollTop = box.scrollHeight;
-          }
-        },
+        log: false,
         corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js",
         progress: ({ ratio }) => {
           const pct = Math.round(ratio * 100);
@@ -511,16 +503,6 @@
   async function combine() {
     if (!state.videoFile || !state.audioFile) return;
 
-    // Debug box
-    var debugBox = document.getElementById('_debugBox');
-    if (!debugBox) {
-      debugBox = document.createElement('div');
-      debugBox.id = '_debugBox';
-      document.querySelector('.card').appendChild(debugBox);
-    }
-    debugBox.style.cssText = 'margin-top:1rem;padding:12px;background:#1a1a18;color:#9FE1CB;font-family:monospace;font-size:0.7rem;border-radius:8px;height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;';
-    debugBox.textContent = 'ffmpegReady=' + ffmpegReady + ' | videoIsImage=' + state.videoIsImage + ' | SAB=' + (typeof SharedArrayBuffer !== 'undefined') + ' | video=' + (state.videoFile ? state.videoFile.name : 'null') + ' | audio=' + (state.audioFile ? state.audioFile.name : 'null');
-
     if (!ffmpegReady) {
       document.getElementById("ffmpegStatus").classList.add("show");
       await loadFFmpeg();
@@ -536,6 +518,12 @@
 
     try {
       const outName = "output_combined.mp4";
+      showNotification(
+        'Files loaded — ' +
+        (state.videoIsImage ? 'Image' : 'Video') + ': ' + formatBytes(state.videoFile.size) +
+        ' | Audio: ' + formatBytes(state.audioFile.size),
+        'info'
+      );
       const ext     = "mp4";
 
       const audioVol = state.isPremium
@@ -548,37 +536,40 @@
       let success = false;
 
       if (state.videoIsImage) {
-        // Image + audio → video: loop the image for the full duration of the audio
+        showNotification("Step 1/3: Loading files...", "info");
         ffmpeg.FS("writeFile", "image", await window._fetchFile(state.videoFile));
         ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
 
-        // Step 1: encode the image into a tiny 1-frame video clip (near-instant)
-        const scaleFilter = `scale=trunc(iw/2)*2:trunc(ih/2)*2`;
+        showNotification("Step 2/3: Encoding image to clip...", "info");
+        const scaleFilter = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
         await ffmpeg.run(
-          "-loop",      "1",
-          "-i",         "image",
-          "-vf",        scaleFilter,
-          "-t",         "1",           // just 1 second / ~25 frames
-          "-c:v",       "libx264",
-          "-tune",      "stillimage",
-          "-pix_fmt",   "yuv420p",
-          "-y",         "clip.mp4"
+          "-loop",  "1",
+          "-i",     "image",
+          "-vf",    scaleFilter,
+          "-t",     "1",
+          "-c:v",   "libx264",
+          "-tune",  "stillimage",
+          "-pix_fmt", "yuv420p",
+          "-y",     "clip.mp4"
         );
 
-        // Step 2: loop that tiny clip for the full audio duration, mux with audio
-        // -stream_loop -1 = loop the clip infinitely, -shortest cuts at audio end
-        const audioFilter = `[1:a]volume=${audioVol}[aout]`;
+        var clipOk = false;
+        try { var c = ffmpeg.FS("readFile", "clip.mp4"); clipOk = c.length > 0; } catch(_) {}
+        if (!clipOk) throw new Error("Step 2 failed: could not encode image to clip");
+
+        showNotification("Step 3/3: Muxing with audio...", "info");
+        const audioFilter = "[1:a]volume=" + audioVol + "[aout]";
         await ffmpeg.run(
           "-stream_loop", "-1",
-          "-i",           "clip.mp4",
-          "-i",           "audio",
+          "-i",     "clip.mp4",
+          "-i",     "audio",
           "-filter_complex", audioFilter,
-          "-map",         "0:v",
-          "-map",         "[aout]",
-          "-c:v",         "copy",       // no re-encoding — just copy the looped clip
-          "-c:a",         "aac",
+          "-map",   "0:v",
+          "-map",   "[aout]",
+          "-c:v",   "copy",
+          "-c:a",   "aac",
           "-shortest",
-          "-y",           "output.mp4"
+          "-y",     "output.mp4"
         );
 
         try {
@@ -643,8 +634,7 @@
       }
 
       if (!success) {
-        const lastLogs = ffmpegLogs.slice(-5).join(" | ");
-        throw new Error("Conversion failed: " + (lastLogs || "unknown error"));
+        throw new Error("Conversion failed — please check your files and try again.");
       }
 
       const data = ffmpeg.FS("readFile", "output.mp4");
@@ -666,8 +656,6 @@
       refreshAds();
 
     } catch(e) {
-      const box = document.getElementById('_debugBox');
-      if (box) box.textContent += 'ERROR: ' + e.message + ' | ' + (e.stack || '');
       showNotification('Error: ' + e.message, 'error');
       document.getElementById('combineBtn').disabled = false;
       document.getElementById('combineBtn').textContent = 'Combine & download';
