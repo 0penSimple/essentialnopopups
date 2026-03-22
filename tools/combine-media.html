@@ -534,15 +534,16 @@
         ffmpeg.FS("writeFile", "image", await window._fetchFile(state.videoFile));
         ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
 
-        const imgExt = state.videoFile.name.split(".").pop().toLowerCase();
-        const audioFilter = `[1:a]volume=${audioVol}[aout]`;
+        // Combine audio filter with scale filter to ensure dimensions are divisible by 2
+        // (libx264 requires this — most photos fail silently without it)
+        const combinedFilter = `[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2[v];[1:a]volume=${audioVol}[aout]`;
 
         await ffmpeg.run(
           "-loop",           "1",
           "-i",              "image",
           "-i",              "audio",
-          "-filter_complex", audioFilter,
-          "-map",            "0:v",
+          "-filter_complex", combinedFilter,
+          "-map",            "[v]",
           "-map",            "[aout]",
           "-c:v",            "libx264",
           "-tune",           "stillimage",
