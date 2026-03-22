@@ -243,6 +243,18 @@
       Combine &amp; download
     </button>
 
+    <!-- Shown after processing completes -->
+    <div id="resultRow" style="display:none; gap:8px; margin-top:8px;">
+      <a id="downloadBtn" class="btn-primary" style="text-decoration:none; flex:1;">
+        ⬇ Download
+      </a>
+      <button onclick="resetTool()" style="
+        background:none; border:1px solid var(--border); border-radius:10px;
+        color:var(--muted); font-family:inherit; font-size:0.875rem;
+        padding:14px 18px; cursor:pointer; transition:all 0.2s; white-space:nowrap;
+      ">Start over</button>
+    </div>
+
   </div>
 
   <div class="ad-slot">
@@ -281,6 +293,7 @@
     audioDur:     0,
     videoIsImage: false,  // true when an image is loaded instead of a video
     phoneMode:    'fast', // 'fast' | 'reliable' — only relevant for image+audio on mobile
+    resultUrl:    null,   // holds the blob URL after processing so it can be re-downloaded
     alignment:    "start",  // "start" | "end"
     offset:       0,        // seconds (premium)
     isPremium:    IS_PREMIUM
@@ -473,6 +486,47 @@
     const btn = document.getElementById("combineBtn");
     btn.disabled = !(state.videoFile && state.audioFile);
     btn.classList.remove("btn-done");
+  }
+
+  function showResult(url, filename) {
+    // Revoke any previous result URL
+    if (state.resultUrl) URL.revokeObjectURL(state.resultUrl);
+    state.resultUrl = url;
+
+    // Wire up the download button — stays available until user resets
+    const dlBtn = document.getElementById("downloadBtn");
+    dlBtn.href = url;
+    dlBtn.download = filename;
+
+    // Hide combine button, show result row
+    document.getElementById("combineBtn").style.display = "none";
+    document.getElementById("resultRow").style.display = "flex";
+
+    // Trigger the first download automatically
+    dlBtn.click();
+    refreshAds();
+  }
+
+  function resetTool() {
+    // Revoke blob URL and clear state
+    if (state.resultUrl) { URL.revokeObjectURL(state.resultUrl); state.resultUrl = null; }
+
+    // Clear both file slots
+    clearSlot("video", { stopPropagation: () => {} });
+    clearSlot("audio", { stopPropagation: () => {} });
+
+    // Reset progress bar
+    document.getElementById("progressSection").classList.remove("show");
+    document.getElementById("progressFill").style.width = "0%";
+    document.getElementById("progressPct").textContent = "0%";
+    document.getElementById("progressLabel").textContent = "Combining...";
+
+    // Show combine button, hide result row
+    document.getElementById("combineBtn").style.display = "";
+    document.getElementById("resultRow").style.display = "none";
+
+    clearNotification();
+    updateBtn();
   }
 
   /* ── ALIGNMENT ── */
@@ -675,16 +729,10 @@
 
         const ext = blob.type.includes("mp4") ? "mp4" : "webm";
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url; a.download = "output_combined." + ext;
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
         document.getElementById("progressFill").style.width = "100%";
         document.getElementById("progressPct").textContent = "100%";
         document.getElementById("progressLabel").textContent = "Done!";
-        btnDone("combineBtn", "✓ Done!", "Combine & download");
-        refreshAds();
+        showResult(url, "output_combined." + ext);
         return;
 
       } else if (state.videoIsImage) {
@@ -796,19 +844,11 @@
       const blob = new Blob([data.buffer], { type: "video/mp4" });
       try { ffmpeg.FS("unlink", "output.mp4"); } catch(_) {}
 
-      // Download
       const url = URL.createObjectURL(blob);
-      const a   = document.createElement("a");
-      a.href = url; a.download = outName;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
       document.getElementById("progressFill").style.width = "100%";
       document.getElementById("progressPct").textContent  = "100%";
       document.getElementById("progressLabel").textContent = "Done!";
-      btnDone("combineBtn", "✓ Done!", "Combine & download");
-      refreshAds();
+      showResult(url, outName);
 
     } catch(e) {
       showNotification('Error: ' + e.message, 'error');
