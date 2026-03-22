@@ -542,6 +542,7 @@
 
         await ffmpeg.run(
           "-loop",           "1",
+          "-framerate",      "1",          // 1fps — static image needs no more, ~25x faster
           "-i",              "image",
           "-i",              "audio",
           "-filter_complex", combinedFilter,
