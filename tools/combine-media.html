@@ -473,9 +473,23 @@
       const { createFFmpeg, fetchFile } = FFmpeg;
       window._fetchFile = fetchFile;
       const ffmpegLogs = [];
+      // Create on-screen debug panel for mobile testing
+      let debugBox = document.getElementById('_debugBox');
+      if (!debugBox) {
+        debugBox = document.createElement('div');
+        debugBox.id = '_debugBox';
+        debugBox.style.cssText = 'margin-top:1rem;padding:10px;background:#1a1a18;color:#9FE1CB;font-family:monospace;font-size:0.65rem;border-radius:8px;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;display:none;';
+        document.querySelector('.card').appendChild(debugBox);
+      }
+      debugBox.style.display = 'block';
+      debugBox.textContent = '';
       ffmpeg = createFFmpeg({
         log: true,
-        logger: ({ message }) => { ffmpegLogs.push(message); },
+        logger: ({ type, message }) => {
+          ffmpegLogs.push(message);
+          debugBox.textContent += '[' + type + '] ' + message + '\n';
+          debugBox.scrollTop = debugBox.scrollHeight;
+        },
         corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js",
         progress: ({ ratio }) => {
           const pct = Math.round(ratio * 100);
