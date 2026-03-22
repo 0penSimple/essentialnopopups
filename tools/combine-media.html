@@ -536,24 +536,33 @@
         ffmpeg.FS("writeFile", "image", await window._fetchFile(state.videoFile));
         ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
 
-        // Combine audio filter with scale filter to ensure dimensions are divisible by 2
-        // (libx264 requires this — most photos fail silently without it)
-        const combinedFilter = `[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2[v];[1:a]volume=${audioVol}[aout]`;
-
+        // Step 1: encode the image into a tiny 1-frame video clip (near-instant)
+        const scaleFilter = `scale=trunc(iw/2)*2:trunc(ih/2)*2`;
         await ffmpeg.run(
-          "-loop",           "1",
-          "-framerate",      "1",          // 1fps — static image needs no more, ~25x faster
-          "-i",              "image",
-          "-i",              "audio",
-          "-filter_complex", combinedFilter,
-          "-map",            "[v]",
-          "-map",            "[aout]",
-          "-c:v",            "libx264",
-          "-tune",           "stillimage",
-          "-c:a",            "aac",
+          "-loop",      "1",
+          "-i",         "image",
+          "-vf",        scaleFilter,
+          "-t",         "1",           // just 1 second / ~25 frames
+          "-c:v",       "libx264",
+          "-tune",      "stillimage",
+          "-pix_fmt",   "yuv420p",
+          "-y",         "clip.mp4"
+        );
+
+        // Step 2: loop that tiny clip for the full audio duration, mux with audio
+        // -stream_loop -1 = loop the clip infinitely, -shortest cuts at audio end
+        const audioFilter = `[1:a]volume=${audioVol}[aout]`;
+        await ffmpeg.run(
+          "-stream_loop", "-1",
+          "-i",           "clip.mp4",
+          "-i",           "audio",
+          "-filter_complex", audioFilter,
+          "-map",         "0:v",
+          "-map",         "[aout]",
+          "-c:v",         "copy",       // no re-encoding — just copy the looped clip
+          "-c:a",         "aac",
           "-shortest",
-          "-pix_fmt",        "yuv420p",
-          "-y",              "output.mp4"
+          "-y",           "output.mp4"
         );
 
         try {
@@ -563,6 +572,7 @@
 
         try { ffmpeg.FS("unlink", "image"); } catch(_) {}
         try { ffmpeg.FS("unlink", "audio"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "clip.mp4"); } catch(_) {}
 
       } else {
         // Normal video + audio path
