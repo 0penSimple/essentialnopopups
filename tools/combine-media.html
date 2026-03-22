@@ -472,23 +472,15 @@
       await loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
       const { createFFmpeg, fetchFile } = FFmpeg;
       window._fetchFile = fetchFile;
-      const ffmpegLogs = [];
-      // Create on-screen debug panel for mobile testing
-      let debugBox = document.getElementById('_debugBox');
-      if (!debugBox) {
-        debugBox = document.createElement('div');
-        debugBox.id = '_debugBox';
-        debugBox.style.cssText = 'margin-top:1rem;padding:10px;background:#1a1a18;color:#9FE1CB;font-family:monospace;font-size:0.65rem;border-radius:8px;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;display:none;';
-        document.querySelector('.card').appendChild(debugBox);
-      }
-      debugBox.style.display = 'block';
-      debugBox.textContent = '';
       ffmpeg = createFFmpeg({
         log: true,
         logger: ({ type, message }) => {
-          ffmpegLogs.push(message);
-          debugBox.textContent += '[' + type + '] ' + message + '\n';
-          debugBox.scrollTop = debugBox.scrollHeight;
+          window._ffmpegLog = (window._ffmpegLog || '') + '[' + type + '] ' + message + String.fromCharCode(10);
+          const box = document.getElementById('_debugBox');
+          if (box) {
+            box.textContent = window._ffmpegLog;
+            box.scrollTop = box.scrollHeight;
+          }
         },
         corePath: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js",
         progress: ({ ratio }) => {
@@ -519,15 +511,15 @@
   async function combine() {
     if (!state.videoFile || !state.audioFile) return;
 
-    // Debug: show state at the moment combine is called
-    showNotification(
-      'Debug: ffmpegReady=' + ffmpegReady +
-      ' | videoIsImage=' + state.videoIsImage +
-      ' | SharedArrayBuffer=' + (typeof SharedArrayBuffer !== "undefined") +
-      ' | videoFile=' + (state.videoFile ? state.videoFile.name : 'null') +
-      ' | audioFile=' + (state.audioFile ? state.audioFile.name : 'null'),
-      'info'
-    );
+    // Debug box
+    var debugBox = document.getElementById('_debugBox');
+    if (!debugBox) {
+      debugBox = document.createElement('div');
+      debugBox.id = '_debugBox';
+      document.querySelector('.card').appendChild(debugBox);
+    }
+    debugBox.style.cssText = 'margin-top:1rem;padding:12px;background:#1a1a18;color:#9FE1CB;font-family:monospace;font-size:0.7rem;border-radius:8px;height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;';
+    debugBox.textContent = 'ffmpegReady=' + ffmpegReady + ' | videoIsImage=' + state.videoIsImage + ' | SAB=' + (typeof SharedArrayBuffer !== 'undefined') + ' | video=' + (state.videoFile ? state.videoFile.name : 'null') + ' | audio=' + (state.audioFile ? state.audioFile.name : 'null');
 
     if (!ffmpegReady) {
       document.getElementById("ffmpegStatus").classList.add("show");
@@ -674,8 +666,11 @@
       refreshAds();
 
     } catch(e) {
-      showNotification(`Error: ${e.message}`, "error");
-      btn.disabled = false;
+      const box = document.getElementById('_debugBox');
+      if (box) box.textContent += 'ERROR: ' + e.message + ' | ' + (e.stack || '');
+      showNotification('Error: ' + e.message, 'error');
+      document.getElementById('combineBtn').disabled = false;
+      document.getElementById('combineBtn').textContent = 'Combine & download';
     }
   }
 </script>
