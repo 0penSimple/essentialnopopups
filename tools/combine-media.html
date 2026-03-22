@@ -128,7 +128,7 @@
 
       <!-- VIDEO OR IMAGE SLOT -->
       <div class="file-slot" id="videoSlot">
-        <input type="file" id="videoInput" accept="video/*,image/*,.mp4,.mov,.avi,.mkv,.webm,.jpg,.jpeg,.png,.gif,.webp"
+        <input type="file" id="videoInput"
                onchange="handleSlot('video', this.files[0]); this.value=''">
         <button class="file-slot-clear" id="videoClear" style="display:none"
                 onclick="clearSlot('video', event)">×</button>
@@ -173,7 +173,7 @@
       </div>
     </div>
 
-    <!-- PHONE MODE (only shown on mobile when image is loaded) -->
+    <!-- PHONE MODE (only shown on Android when image is loaded) -->
     <div id="phoneModeGroup" style="display:none; margin-bottom:1.25rem;">
       <label>Processing mode</label>
       <div class="mode-tabs">
@@ -276,7 +276,7 @@
     <ul class="info-list">
       <li><strong>"Your browser does not support the required features"</strong> — This tool requires SharedArrayBuffer, which is unavailable on iOS (iPhone/iPad) in all browsers. On Android, refreshing the page usually fixes it.</li>
       <li><strong>Image + audio downloads with no sound</strong> — Can happen on some phones in Fast mode. Use the tool again with the muted video as input, or switch to <strong>Phone-safe mode</strong> which always includes audio.</li>
-      <li><strong>Image + audio loads forever on phone</strong> — Switch to <strong>Phone-safe mode</strong> using the toggle that appears on mobile when an image is loaded. It works on Android and iOS Safari 14.1+ but takes as long as the audio to process.</li>
+      <li><strong>Image + audio on iPhone/iPad</strong> — Not supported on iOS. The image option is hidden on iPhone/iPad for this reason. Use a desktop or Android device to combine a static image with audio.</li>
     </ul>
   </div>
 
@@ -332,7 +332,16 @@
     }
 
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (!isIOS) loadFFmpeg();
+
+    // On iOS, only allow video files — image+audio encoding is not supported
+    const videoInput = document.getElementById("videoInput");
+    if (isIOS) {
+      videoInput.accept = "video/*,.mp4,.mov,.avi,.mkv,.webm";
+    } else {
+      videoInput.accept = "video/*,image/*,.mp4,.mov,.avi,.mkv,.webm,.jpg,.jpeg,.png,.gif,.webp";
+    }
+
+    loadFFmpeg();
   });
 
   /* ── FILE SLOTS ── */
@@ -455,10 +464,9 @@
     // Show phone mode toggle only on mobile when image is loaded
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const showPhoneMode = bothLoaded && state.videoIsImage && isMobile;
+    // Phone mode toggle only relevant on Android (iOS can't use image+audio at all)
+    const showPhoneMode = bothLoaded && state.videoIsImage && isMobile && !isIOS;
     document.getElementById("phoneModeGroup").style.display = showPhoneMode ? "block" : "none";
-    // Auto-select phone-safe on iOS since Fast mode won't work there
-    if (showPhoneMode && isIOS && state.phoneMode === "fast") setPhoneMode("reliable");
     if (showPhoneMode) updatePhoneModeHint();
 
     updateBtn();
@@ -631,16 +639,9 @@
   async function combine() {
     if (!state.videoFile || !state.audioFile) return;
 
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    // Phone-safe mode uses no FFmpeg — skip the FFmpeg check entirely
     const usingPhoneSafe = state.videoIsImage && state.phoneMode === "reliable";
 
     if (!usingPhoneSafe) {
-      if (isIOS) {
-        showNotification("Fast mode does not work on iOS. Switch to Phone-safe mode to combine image + audio on iPhone/iPad.", "error");
-        return;
-      }
       if (!ffmpegReady) {
         document.getElementById("ffmpegStatus").classList.add("show");
         await loadFFmpeg();
