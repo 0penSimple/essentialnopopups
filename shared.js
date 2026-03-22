@@ -558,3 +558,88 @@ function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinit
     initPill();
   }
 })();
+
+
+/* ── SHARED FFMPEG LOADER ──
+   Centralised FFmpeg initialisation used by all tool pages.
+   Handles iOS (single-thread core, no SharedArrayBuffer needed)
+   vs everything else (multi-thread core) automatically.
+
+   Usage in any tool page:
+     - Remove the tool's own loadFFmpeg(), loadScript(), ffmpeg var, ffmpegReady var
+     - Call window.loadFFmpeg() on DOMContentLoaded
+     - Access window.ffmpeg and window.ffmpegReady as before
+
+   The status banner element must exist in the page:
+     <div class="ffmpeg-status" id="ffmpegStatus">
+       <div class="spinner"></div>
+       <span id="ffmpegStatusText">Loading FFmpeg (~20MB, once per session)...</span>
+     </div>
+
+   The progress bar elements are optional — if present they will be updated:
+     id="progressFill"  (width %)
+     id="progressPct"   (text)
+*/
+
+window.ffmpeg      = null;
+window.ffmpegReady = false;
+
+window.loadScript = function(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+};
+
+window.loadFFmpeg = async function() {
+  if (window.ffmpegReady) return;
+
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // On non-iOS, SharedArrayBuffer is required — show error if missing
+  if (!isIOS && typeof SharedArrayBuffer === "undefined") {
+    const status = document.getElementById("ffmpegStatus");
+    const text   = document.getElementById("ffmpegStatusText");
+    if (status) status.classList.add("show");
+    if (text)   text.textContent = "⚠️ Your browser does not support the required features. Please try Chrome or Firefox.";
+    return;
+  }
+
+  const status = document.getElementById("ffmpegStatus");
+  const text   = document.getElementById("ffmpegStatusText");
+  if (status) status.classList.add("show");
+
+  try {
+    await window.loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    window._fetchFile = fetchFile;
+
+    const opts = {
+      log: false,
+      progress: ({ ratio }) => {
+        const pct = Math.round(ratio * 100);
+        const fill = document.getElementById("progressFill");
+        const pctEl = document.getElementById("progressPct");
+        if (fill)  fill.style.width  = pct + "%";
+        if (pctEl) pctEl.textContent = pct + "%";
+      }
+    };
+
+    if (isIOS) {
+      // Single-thread core — no SharedArrayBuffer needed, works on iOS Safari
+      opts.corePath = "https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js";
+      opts.mainName = "main";
+    } else {
+      opts.corePath = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js";
+    }
+
+    window.ffmpeg = createFFmpeg(opts);
+    await window.ffmpeg.load();
+    window.ffmpegReady = true;
+    if (status) status.classList.remove("show");
+  } catch(e) {
+    if (text) text.textContent = "⚠️ Failed to load FFmpeg: " + e.message + ". Please refresh and try again.";
+  }
+};
