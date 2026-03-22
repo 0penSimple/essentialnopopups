@@ -628,14 +628,37 @@
 
               const recorder = new MediaRecorder(combined, { mimeType });
               const chunks = [];
+              let resolved = false;
+
+              function finish() {
+                if (resolved) return;
+                resolved = true;
+                audioCtx.close();
+                resolve(new Blob(chunks, { type: mimeType }));
+              }
+
               recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-              recorder.onstop = () => { audioCtx.close(); resolve(new Blob(chunks, { type: mimeType })); };
+              recorder.onstop = finish;
               recorder.onerror = e => reject(e.error);
               const duration = audioBuf.duration * 1000;
               const mins = Math.ceil(audioBuf.duration / 60);
               showNotification("Recording... this will take ~" + mins + " min. Keep this tab open.", "info");
-              recorder.start();
-              setTimeout(() => { source.stop(); recorder.stop(); }, duration);
+              // timeslice=1000 forces ondataavailable every second — keeps iOS from hanging
+              recorder.start(1000);
+              setTimeout(() => {
+                clearInterval(progressInterval);
+                document.getElementById("progressFill").style.width = "100%";
+                document.getElementById("progressPct").textContent = "100%";
+                document.getElementById("progressLabel").textContent = "Finishing...";
+                source.stop();
+                // Request any remaining data before stopping
+                if (recorder.state !== "inactive") {
+                  recorder.requestData();
+                  recorder.stop();
+                }
+                // iOS sometimes never fires onstop — force resolve after 3 seconds
+                setTimeout(finish, 3000);
+              }, duration);
               const startTime = Date.now();
               const progressInterval = setInterval(() => {
                 const elapsed = Date.now() - startTime;
