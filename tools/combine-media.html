@@ -536,29 +536,54 @@
       let success = false;
 
       if (state.videoIsImage) {
-        showNotification("Loading files...", "info");
-        ffmpeg.FS("writeFile", "image", await window._fetchFile(state.videoFile));
+        showNotification("Preparing image...", "info");
+
+        // Step 1: use canvas + MediaRecorder to create a short 2-second video clip
+        // from the image. This is native browser API — fast and reliable.
+        const clipBlob = await new Promise((resolve, reject) => {
+          const img = new Image();
+          const imgUrl = URL.createObjectURL(state.videoFile);
+          img.onload = () => {
+            URL.revokeObjectURL(imgUrl);
+            const w = img.width  % 2 === 0 ? img.width  : img.width  - 1;
+            const h = img.height % 2 === 0 ? img.height : img.height - 1;
+            const canvas = document.createElement("canvas");
+            canvas.width = w; canvas.height = h;
+            canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+
+            const stream = canvas.captureStream(25);
+            const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+              ? "video/webm;codecs=vp9" : "video/webm";
+            const rec = new MediaRecorder(stream, { mimeType: mime });
+            const chunks = [];
+            rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+            rec.onstop = () => resolve(new Blob(chunks, { type: mime }));
+            rec.onerror = e => reject(e.error);
+            rec.start();
+            setTimeout(() => rec.stop(), 2000); // record 2 seconds
+          };
+          img.onerror = () => reject(new Error("Could not load image"));
+          img.src = imgUrl;
+        });
+
+        showNotification("Combining with audio...", "info");
+
+        // Step 2: feed that 2-second clip + audio into FFmpeg.
+        // Use -stream_loop to loop the clip to match audio duration,
+        // then -shortest to stop at audio end. This reuses the proven mux path.
+        ffmpeg.FS("writeFile", "clip.webm", await window._fetchFile(clipBlob));
         ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
 
-        showNotification("Encoding...", "info");
-
-        // Encode exactly ONE frame at a framerate of 1/duration.
-        // e.g. 6-minute audio → -r 1/368 → one frame lasting 368 seconds.
-        // FFmpeg encodes 1 frame total regardless of audio length — near-instant.
-        const dur = state.audioDur > 0 ? state.audioDur.toFixed(3) : "300";
-
         await ffmpeg.run(
-          "-loop",   "1",
-          "-i",      "image",
-          "-i",      "audio",
-          "-t",      dur,
-          "-c:v",    "libx264",
-          "-preset", "ultrafast",
-          "-tune",   "stillimage",
-          "-pix_fmt","yuv420p",
-          "-vf",     "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-          "-c:a",    "aac",
-          "-y",      "output.mp4"
+          "-stream_loop", "-1",
+          "-i",           "clip.webm",
+          "-i",           "audio",
+          "-map",         "0:v",
+          "-map",         "1:a",
+          "-c:v",         "copy",
+          "-c:a",         "aac",
+          "-shortest",
+          "-y",           "output.mp4"
         );
 
         try {
@@ -566,8 +591,8 @@
           success = check.length > 0;
         } catch(e) { success = false; }
 
-        try { ffmpeg.FS("unlink", "image"); } catch(_) {}
-        try { ffmpeg.FS("unlink", "audio"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "clip.webm"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "audio");     } catch(_) {}
 
       } else {
         // Normal video + audio path
