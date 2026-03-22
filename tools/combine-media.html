@@ -546,20 +546,18 @@
         // e.g. 6-minute audio → -r 1/368 → one frame lasting 368 seconds.
         // FFmpeg encodes 1 frame total regardless of audio length — near-instant.
         const dur = state.audioDur > 0 ? state.audioDur.toFixed(3) : "300";
-        const frameRate = "1/" + dur;
 
         await ffmpeg.run(
           "-loop",   "1",
-          "-r",      frameRate,
           "-i",      "image",
           "-i",      "audio",
-          "-vframes","1",
+          "-t",      dur,
           "-c:v",    "libx264",
           "-preset", "ultrafast",
+          "-tune",   "stillimage",
           "-pix_fmt","yuv420p",
           "-vf",     "scale=trunc(iw/2)*2:trunc(ih/2)*2",
           "-c:a",    "aac",
-          "-shortest",
           "-y",      "output.mp4"
         );
 
