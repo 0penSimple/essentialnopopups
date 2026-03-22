@@ -489,30 +489,47 @@
   }
 
   function showResult(url, filename) {
-    // Revoke any previous result URL
     if (state.resultUrl) URL.revokeObjectURL(state.resultUrl);
     state.resultUrl = url;
 
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     const dlBtn = document.getElementById("downloadBtn");
 
-    if (isIOS) {
-      // iOS Safari blocks anchor download clicks — open the file directly in the browser
-      // User can then long-press to save, or use the share sheet
+    if (isIOS && navigator.share) {
+      // Use Web Share API on iOS — gives native "Save to Files", "Save to Photos" etc.
+      dlBtn.removeAttribute("href");
+      dlBtn.removeAttribute("download");
+      dlBtn.removeAttribute("target");
+      dlBtn.textContent = "⬇ Save file";
+      dlBtn.onclick = async (e) => {
+        e.preventDefault();
+        try {
+          const response = await fetch(state.resultUrl);
+          const blob = await response.blob();
+          const file = new File([blob], filename, { type: blob.type });
+          await navigator.share({ files: [file], title: filename });
+        } catch(err) {
+          // Fallback: open in new tab if share fails
+          window.open(state.resultUrl, "_blank");
+        }
+      };
+    } else if (isIOS) {
+      // Older iOS without share API — open in new tab
       dlBtn.href = url;
       dlBtn.removeAttribute("download");
       dlBtn.target = "_blank";
       dlBtn.textContent = "⬇ Open file (tap & hold to save)";
+      dlBtn.onclick = null;
     } else {
+      // Android / desktop — standard download
       dlBtn.href = url;
       dlBtn.download = filename;
       dlBtn.removeAttribute("target");
       dlBtn.textContent = "⬇ Download";
-      // Auto-trigger download on non-iOS
+      dlBtn.onclick = null;
       dlBtn.click();
     }
 
-    // Hide combine button, show result row
     document.getElementById("combineBtn").style.display = "none";
     document.getElementById("resultRow").style.display = "flex";
     refreshAds();
