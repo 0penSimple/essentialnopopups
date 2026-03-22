@@ -536,97 +536,40 @@
       let success = false;
 
       if (state.videoIsImage) {
-        // Use native browser APIs — no FFmpeg needed for image+audio.
-        // Canvas captures the image as a 1fps video stream, MediaRecorder
-        // records it alongside the audio track. Fast, works on Android Chrome.
         showNotification("Loading files...", "info");
+        ffmpeg.FS("writeFile", "image", await window._fetchFile(state.videoFile));
+        ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
 
-        const blob = await new Promise((resolve, reject) => {
-          // 1. Load image onto canvas
-          const img = new Image();
-          const imgUrl = URL.createObjectURL(state.videoFile);
-          img.onload = async () => {
-            URL.revokeObjectURL(imgUrl);
-            try {
-              // Make dimensions even (required by some encoders)
-              const w = img.width  % 2 === 0 ? img.width  : img.width  - 1;
-              const h = img.height % 2 === 0 ? img.height : img.height - 1;
-              const canvas = document.createElement("canvas");
-              canvas.width = w; canvas.height = h;
-              canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        showNotification("Encoding...", "info");
 
-              // 2. Get video stream from canvas at 1fps
-              const videoStream = canvas.captureStream(1);
+        // Encode exactly ONE frame at a framerate of 1/duration.
+        // e.g. 6-minute audio → -r 1/368 → one frame lasting 368 seconds.
+        // FFmpeg encodes 1 frame total regardless of audio length — near-instant.
+        const dur = state.audioDur > 0 ? state.audioDur.toFixed(3) : "300";
+        const frameRate = "1/" + dur;
 
-              // 3. Get audio stream from audio file
-              const audioCtx = new AudioContext();
-              const arrayBuf = await state.audioFile.arrayBuffer();
-              const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
-              const source = audioCtx.createBufferSource();
-              source.buffer = audioBuf;
-              const dest = audioCtx.createMediaStreamDestination();
-              source.connect(dest);
-              source.start(0);
+        await ffmpeg.run(
+          "-loop",   "1",
+          "-r",      frameRate,
+          "-i",      "image",
+          "-i",      "audio",
+          "-vframes","1",
+          "-c:v",    "libx264",
+          "-preset", "ultrafast",
+          "-pix_fmt","yuv420p",
+          "-vf",     "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+          "-c:a",    "aac",
+          "-shortest",
+          "-y",      "output.mp4"
+        );
 
-              // 4. Combine streams and record
-              const combined = new MediaStream([
-                ...videoStream.getTracks(),
-                ...dest.stream.getTracks()
-              ]);
+        try {
+          const check = ffmpeg.FS("readFile", "output.mp4");
+          success = check.length > 0;
+        } catch(e) { success = false; }
 
-              const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-                ? "video/webm;codecs=vp9,opus"
-                : "video/webm";
-
-              const recorder = new MediaRecorder(combined, { mimeType });
-              const chunks = [];
-              recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-              recorder.onstop = () => {
-                audioCtx.close();
-                resolve(new Blob(chunks, { type: mimeType }));
-              };
-              recorder.onerror = e => reject(e.error);
-
-              showNotification("Encoding... this may take a moment.", "info");
-              recorder.start();
-
-              // Stop recording when audio ends
-              const duration = audioBuf.duration * 1000;
-              setTimeout(() => {
-                source.stop();
-                recorder.stop();
-              }, duration);
-
-              // Update progress bar based on elapsed time
-              const startTime = Date.now();
-              const progressInterval = setInterval(() => {
-                const elapsed = Date.now() - startTime;
-                const pct = Math.min(99, Math.round((elapsed / duration) * 100));
-                document.getElementById("progressFill").style.width = pct + "%";
-                document.getElementById("progressPct").textContent = pct + "%";
-                if (elapsed >= duration) clearInterval(progressInterval);
-              }, 500);
-
-            } catch(err) { reject(err); }
-          };
-          img.onerror = () => reject(new Error("Could not load image"));
-          img.src = imgUrl;
-        });
-
-        // Download the result directly — no FFmpeg involved
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url; a.download = "output_combined.webm";
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        document.getElementById("progressFill").style.width = "100%";
-        document.getElementById("progressPct").textContent = "100%";
-        document.getElementById("progressLabel").textContent = "Done!";
-        btnDone("combineBtn", "✓ Done!", "Combine & download");
-        refreshAds();
-        return; // skip the rest of the combine() flow
+        try { ffmpeg.FS("unlink", "image"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "audio"); } catch(_) {}
 
       } else {
         // Normal video + audio path
