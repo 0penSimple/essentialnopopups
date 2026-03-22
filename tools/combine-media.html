@@ -536,54 +536,40 @@
       let success = false;
 
       if (state.videoIsImage) {
-        showNotification("Preparing image...", "info");
-
-        // Step 1: use canvas + MediaRecorder to create a short 2-second video clip
-        // from the image. This is native browser API — fast and reliable.
-        const clipBlob = await new Promise((resolve, reject) => {
-          const img = new Image();
-          const imgUrl = URL.createObjectURL(state.videoFile);
-          img.onload = () => {
-            URL.revokeObjectURL(imgUrl);
-            const w = img.width  % 2 === 0 ? img.width  : img.width  - 1;
-            const h = img.height % 2 === 0 ? img.height : img.height - 1;
-            const canvas = document.createElement("canvas");
-            canvas.width = w; canvas.height = h;
-            canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-
-            const stream = canvas.captureStream(25);
-            const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-              ? "video/webm;codecs=vp9" : "video/webm";
-            const rec = new MediaRecorder(stream, { mimeType: mime });
-            const chunks = [];
-            rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-            rec.onstop = () => resolve(new Blob(chunks, { type: mime }));
-            rec.onerror = e => reject(e.error);
-            rec.start();
-            setTimeout(() => rec.stop(), 2000); // record 2 seconds
-          };
-          img.onerror = () => reject(new Error("Could not load image"));
-          img.src = imgUrl;
-        });
-
-        showNotification("Combining with audio...", "info");
-
-        // Step 2: feed that 2-second clip + audio into FFmpeg.
-        // Use -stream_loop to loop the clip to match audio duration,
-        // then -shortest to stop at audio end. This reuses the proven mux path.
-        ffmpeg.FS("writeFile", "clip.webm", await window._fetchFile(clipBlob));
+        showNotification("Step 1/3: Loading files...", "info");
+        ffmpeg.FS("writeFile", "image", await window._fetchFile(state.videoFile));
         ffmpeg.FS("writeFile", "audio", await window._fetchFile(state.audioFile));
 
+        showNotification("Step 2/3: Encoding image to clip...", "info");
+        const scaleFilter = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+        await ffmpeg.run(
+          "-loop",  "1",
+          "-i",     "image",
+          "-vf",    scaleFilter,
+          "-t",     "1",
+          "-c:v",   "libx264",
+          "-tune",  "stillimage",
+          "-pix_fmt", "yuv420p",
+          "-y",     "clip.mp4"
+        );
+
+        var clipOk = false;
+        try { var c = ffmpeg.FS("readFile", "clip.mp4"); clipOk = c.length > 0; } catch(_) {}
+        if (!clipOk) throw new Error("Step 2 failed: could not encode image to clip");
+
+        showNotification("Step 3/3: Muxing with audio...", "info");
+        const audioFilter = "[1:a]volume=" + audioVol + "[aout]";
         await ffmpeg.run(
           "-stream_loop", "-1",
-          "-i",           "clip.webm",
-          "-i",           "audio",
-          "-map",         "0:v",
-          "-map",         "1:a",
-          "-c:v",         "copy",
-          "-c:a",         "aac",
+          "-i",     "clip.mp4",
+          "-i",     "audio",
+          "-filter_complex", audioFilter,
+          "-map",   "0:v",
+          "-map",   "[aout]",
+          "-c:v",   "copy",
+          "-c:a",   "aac",
           "-shortest",
-          "-y",           "output.mp4"
+          "-y",     "output.mp4"
         );
 
         try {
@@ -591,8 +577,9 @@
           success = check.length > 0;
         } catch(e) { success = false; }
 
-        try { ffmpeg.FS("unlink", "clip.webm"); } catch(_) {}
-        try { ffmpeg.FS("unlink", "audio");     } catch(_) {}
+        try { ffmpeg.FS("unlink", "image"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "audio"); } catch(_) {}
+        try { ffmpeg.FS("unlink", "clip.mp4"); } catch(_) {}
 
       } else {
         // Normal video + audio path
