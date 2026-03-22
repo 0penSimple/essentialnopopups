@@ -519,6 +519,16 @@
   async function combine() {
     if (!state.videoFile || !state.audioFile) return;
 
+    // Debug: show state at the moment combine is called
+    showNotification(
+      'Debug: ffmpegReady=' + ffmpegReady +
+      ' | videoIsImage=' + state.videoIsImage +
+      ' | SharedArrayBuffer=' + (typeof SharedArrayBuffer !== "undefined") +
+      ' | videoFile=' + (state.videoFile ? state.videoFile.name : 'null') +
+      ' | audioFile=' + (state.audioFile ? state.audioFile.name : 'null'),
+      'info'
+    );
+
     if (!ffmpegReady) {
       document.getElementById("ffmpegStatus").classList.add("show");
       await loadFFmpeg();
