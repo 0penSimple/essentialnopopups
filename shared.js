@@ -170,6 +170,20 @@ function btnReset(id, label) {
   btn.disabled = false;
   btn.textContent = label;
   btn.classList.remove("btn-done");
+  // Remove any re-download handler so old clicks don't fire
+  if (btn._redownloadHandler) {
+    btn.removeEventListener("click", btn._redownloadHandler);
+    btn._redownloadHandler = null;
+  }
+}
+
+// Trigger a file download — works on desktop and Android
+// For iOS use showResult() in combine-media.html (Web Share API)
+function triggerDownload(url, filename) {
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
 }
 
 
@@ -280,11 +294,10 @@ class BatchProcessor {
       const { filename, data } = results[0];
       const blob = data instanceof Blob ? data : new Blob([data]);
       const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Store for re-download
+      if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
+      window._lastDownload = { url, filename };
+      triggerDownload(url, filename);
     } else {
       const zip = new JSZip();
       for (const { filename, data } of results) {
@@ -292,11 +305,9 @@ class BatchProcessor {
       }
       const zipBlob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(zipBlob);
-      const a   = document.createElement("a");
-      a.href = url; a.download = this.zipName;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
+      window._lastDownload = { url, filename: this.zipName };
+      triggerDownload(url, this.zipName);
     }
 
     // Show partial errors if some succeeded
@@ -304,18 +315,21 @@ class BatchProcessor {
       showNotification(`Completed with ${errors.length} error(s): ${errors.join(" | ")}`, "error");
     }
 
-    // Update button to done state
+    // Update button to done state — stays until new files are loaded
     const btn = document.getElementById(this.btnId);
     if (btn) {
       btn.disabled    = false;
-      btn.textContent = `✓ Done! ${results.length}/${total}`;
+      btn.textContent = `✓ Done! ${results.length}/${total} — click to re-download`;
       btn.classList.add("btn-done");
       btn.scrollIntoView({ behavior: "smooth", block: "center" });
       refreshAds();
-      setTimeout(() => {
-        btn.textContent = `${this.btnLabel} — 0/${total}`;
-        btn.classList.remove("btn-done");
-      }, 3000);
+      // Clicking the done button re-triggers the download
+      btn._redownloadHandler = () => {
+        if (window._lastDownload) {
+          triggerDownload(window._lastDownload.url, window._lastDownload.filename);
+        }
+      };
+      btn.addEventListener("click", btn._redownloadHandler);
     }
 
     if (this.onComplete) this.onComplete(results);
@@ -473,6 +487,7 @@ function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinit
     const files = filterFiles(e.dataTransfer.files);
     if (files.length) {
       if (upsellNote) upsellNote.style.display = "block";
+      clearLastDownload();
       onFiles(files);
     }
   });
@@ -485,11 +500,29 @@ function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinit
       const files = filterFiles(input.files);
       if (files.length) {
         if (upsellNote) upsellNote.style.display = "block";
+        clearLastDownload();
         onFiles(files);
       }
       input.value = ""; // reset so same file can be re-selected
     });
   }
+}
+
+// Clear stored download URL and reset any done button back to idle
+function clearLastDownload() {
+  if (window._lastDownload) {
+    URL.revokeObjectURL(window._lastDownload.url);
+    window._lastDownload = null;
+  }
+  // Reset all btn-done buttons on the page
+  document.querySelectorAll(".btn-done").forEach(btn => {
+    if (btn._redownloadHandler) {
+      btn.removeEventListener("click", btn._redownloadHandler);
+      btn._redownloadHandler = null;
+    }
+    btn.classList.remove("btn-done");
+    btn.disabled = false;
+  });
 }
 
 
