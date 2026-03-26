@@ -672,6 +672,20 @@ window.loadFFmpeg = async function() {
     await window.ffmpeg.load();
     window.ffmpegReady = true;
     if (status) status.classList.remove("show");
+
+    // core-st (iOS) throws "exit(0)" after each successful run — the output
+    // is already written to the FS at that point, so we just swallow it.
+    if (isIOS) {
+      const originalRun = window.ffmpeg.run.bind(window.ffmpeg);
+      window.ffmpeg.run = async (...args) => {
+        try {
+          return await originalRun(...args);
+        } catch(e) {
+          if (e && e.message && e.message.includes("exit(0)")) return;
+          throw e;
+        }
+      };
+    }
   } catch(e) {
     if (text) text.textContent = "⚠️ Failed to load FFmpeg: " + e.message + ". Please refresh and try again.";
   }
