@@ -302,14 +302,16 @@ class BatchProcessor {
     }
 
     // Download results
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (results.length === 1) {
       const { filename, data } = results[0];
       const blob = data instanceof Blob ? data : new Blob([data]);
       const url  = URL.createObjectURL(blob);
-      // Store for re-download
       if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
       window._lastDownload = { url, filename };
-      await triggerDownload(url, filename);
+      // On iOS, skip auto-trigger — Web Share API requires a direct user tap.
+      // The done button below will handle it when tapped.
+      if (!isIOS) await triggerDownload(url, filename);
     } else {
       const zip = new JSZip();
       for (const { filename, data } of results) {
@@ -319,7 +321,7 @@ class BatchProcessor {
       const url = URL.createObjectURL(zipBlob);
       if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
       window._lastDownload = { url, filename: this.zipName };
-      await triggerDownload(url, this.zipName);
+      if (!isIOS) await triggerDownload(url, this.zipName);
     }
 
     // Show partial errors if some succeeded
@@ -328,7 +330,6 @@ class BatchProcessor {
     }
 
     // Update button to done state — stays until new files are loaded
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     const btn = document.getElementById(this.btnId);
     if (btn) {
       btn.disabled    = false;
@@ -339,9 +340,9 @@ class BatchProcessor {
       btn.scrollIntoView({ behavior: "smooth", block: "center" });
       refreshAds();
       // Clicking the done button re-triggers the download
-      btn._redownloadHandler = () => {
+      btn._redownloadHandler = async () => {
         if (window._lastDownload) {
-          triggerDownload(window._lastDownload.url, window._lastDownload.filename);
+          await triggerDownload(window._lastDownload.url, window._lastDownload.filename);
         }
       };
       btn.addEventListener("click", btn._redownloadHandler);
