@@ -177,13 +177,25 @@ function btnReset(id, label) {
   }
 }
 
-// Trigger a file download — works on desktop and Android
-// For iOS use showResult() in combine-media.html (Web Share API)
-function triggerDownload(url, filename) {
-  const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
+// Trigger a file download — uses Web Share API on iOS, anchor click everywhere else
+async function triggerDownload(url, filename) {
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isIOS && navigator.share) {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const file = new File([blob], filename, { type: blob.type });
+      await navigator.share({ files: [file], title: filename });
+    } catch(e) {
+      // User cancelled share or share failed — open in new tab as fallback
+      window.open(url, "_blank");
+    }
+  } else {
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+  }
 }
 
 
@@ -297,7 +309,7 @@ class BatchProcessor {
       // Store for re-download
       if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
       window._lastDownload = { url, filename };
-      triggerDownload(url, filename);
+      await triggerDownload(url, filename);
     } else {
       const zip = new JSZip();
       for (const { filename, data } of results) {
@@ -307,7 +319,7 @@ class BatchProcessor {
       const url = URL.createObjectURL(zipBlob);
       if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
       window._lastDownload = { url, filename: this.zipName };
-      triggerDownload(url, this.zipName);
+      await triggerDownload(url, this.zipName);
     }
 
     // Show partial errors if some succeeded
@@ -316,10 +328,13 @@ class BatchProcessor {
     }
 
     // Update button to done state — stays until new files are loaded
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     const btn = document.getElementById(this.btnId);
     if (btn) {
       btn.disabled    = false;
-      btn.textContent = `✓ Done! ${results.length}/${total} — click to re-download`;
+      btn.textContent = isIOS
+        ? `✓ Done! — tap to save`
+        : `✓ Done! ${results.length}/${total} — click to re-download`;
       btn.classList.add("btn-done");
       btn.scrollIntoView({ behavior: "smooth", block: "center" });
       refreshAds();
@@ -674,14 +689,20 @@ window.loadFFmpeg = async function() {
     if (status) status.classList.remove("show");
 
     // core-st (iOS) throws "exit(0)" after each successful run — the output
-    // is already written to the FS at that point, so we just swallow it.
+    // is already written to the FS at that point, so we swallow it and
+    // reload the instance silently so it's ready for the next command.
     if (isIOS) {
       const originalRun = window.ffmpeg.run.bind(window.ffmpeg);
       window.ffmpeg.run = async (...args) => {
         try {
           return await originalRun(...args);
         } catch(e) {
-          if (e && e.message && e.message.includes("exit(0)")) return;
+          if (e && e.message && e.message.includes("exit(0)")) {
+            // Output is already written — reload instance in background for next use
+            window.ffmpegReady = false;
+            window.loadFFmpeg();
+            return;
+          }
           throw e;
         }
       };
