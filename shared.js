@@ -689,18 +689,21 @@ window.loadFFmpeg = async function() {
     if (status) status.classList.remove("show");
 
     // core-st (iOS) throws "exit(0)" after each successful run — the output
-    // is already written to the FS at that point, so we swallow it and
-    // reload the instance silently so it's ready for the next command.
+    // is already written to the FS at that point. We swallow it and mark
+    // ffmpeg as needing reload, which happens lazily on the next run() call.
     if (isIOS) {
       const originalRun = window.ffmpeg.run.bind(window.ffmpeg);
       window.ffmpeg.run = async (...args) => {
+        // If previous run caused exit(0), reload now before proceeding
+        if (!window.ffmpegReady) {
+          await window.loadFFmpeg();
+        }
         try {
           return await originalRun(...args);
         } catch(e) {
           if (e && e.message && e.message.includes("exit(0)")) {
-            // Output is already written — reload instance in background for next use
+            // Mark as needing reload for next call — don't reload yet
             window.ffmpegReady = false;
-            window.loadFFmpeg();
             return;
           }
           throw e;
