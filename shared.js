@@ -716,7 +716,14 @@ window.loadFFmpeg = async function() {
   try {
     await window.loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
     const { createFFmpeg, fetchFile } = FFmpeg;
-    window._fetchFile = fetchFile;
+    window._fetchFile = async function(fileOrUrl) {
+      // Capture the original File's extension/type before converting to Uint8Array
+      if (fileOrUrl && fileOrUrl instanceof File) {
+        var ext = fileOrUrl.name.split(".").pop().toLowerCase();
+        if (ext) window._mbNextInputExt = ext;
+      }
+      return fetchFile(fileOrUrl);
+    };
 
     const opts = {
       log: false
@@ -761,3 +768,371 @@ window.loadFFmpeg = async function() {
     if (text) text.textContent = "⚠️ Failed to load FFmpeg: " + e.message + ". Please refresh and try again.";
   }
 };
+
+
+/* ── MEDIABUNNY ROUTER ──
+   Intercepts window.ffmpeg.FS and window.ffmpeg.run after FFmpeg loads.
+   Tries to handle the operation with Mediabunny (fast, hardware-accelerated).
+   Falls back to real FFmpeg silently on any failure.
+
+   Supported operations (auto-detected from FFmpeg args):
+     - trim:          -ss X -to Y -c copy
+     - removeAudio:   -an -c:v copy
+     - extractAudio:  -vn -codec:a ...
+     - convertAudio:  -codec:a libmp3lame / pcm_s16le
+     - convertVideo:  -c:v libx264 / libvpx-vp9 (MP4, MOV, WebM, MKV output)
+
+   AVI output and video-to-gif are always handled by FFmpeg.
+
+   No tool files need to change — this hooks into the shared ffmpeg object.
+*/
+
+(function() {
+
+  // ── CONSTANTS ──
+  var MB_CDN      = "https://cdn.jsdelivr.net/npm/mediabunny@1.34.5/+esm";
+  var MB_MP3_CDN  = "https://cdn.jsdelivr.net/npm/@mediabunny/mp3-encoder@1.2.1/+esm";
+
+  // Formats Mediabunny can read as input (AVI not supported)
+  var MB_INPUT_FORMATS = ["mp4","mov","m4v","mkv","webm","mp3","wav","aac","flac","ogg","ts"];
+
+  // Output extension → Mediabunny output format constructor name
+  var MB_OUTPUT_FORMAT = {
+    "mp4":  "Mp4OutputFormat",
+    "mov":  "MovOutputFormat",
+    "mkv":  "MatroskaOutputFormat",
+    "webm": "WebMOutputFormat",
+    "mp3":  "Mp3OutputFormat",
+    "wav":  "WavOutputFormat",
+    "aac":  "AdtsOutputFormat",
+    "flac": "FlacOutputFormat",
+    "ogg":  "OggOutputFormat"
+  };
+
+  // FFmpeg codec name → Mediabunny codec string
+  var MB_CODEC_MAP = {
+    "libx264":    "avc",
+    "libvpx-vp9": "vp9",
+    "libvpx":     "vp8",
+    "libmp3lame": "mp3",
+    "pcm_s16le":  "pcm-s16",
+    "aac":        "aac",
+    "libopus":    "opus",
+    "libvorbis":  "vorbis"
+  };
+
+  // Cached Mediabunny module (loaded once)
+  var _mb = null;
+  var _mbLoading = null;
+
+  // Fake virtual filesystem: stores input blob and output result
+  // so the tools' FS("writeFile") / FS("readFile") calls still work
+  var _mbFS = {};
+
+  // ── LOAD MEDIABUNNY ──
+  async function loadMediabunny() {
+    if (_mb) return _mb;
+    if (_mbLoading) return _mbLoading;
+
+    _mbLoading = (async () => {
+      var mod = await import(MB_CDN);
+
+      // Register MP3 encoder if browser doesn't support it natively
+      if (!(await mod.canEncodeAudio("mp3"))) {
+        try {
+          var mp3mod = await import(MB_MP3_CDN);
+          mp3mod.registerMp3Encoder();
+        } catch(e) {
+          // MP3 encoder extension failed — MP3 output will fall back to FFmpeg
+        }
+      }
+
+      _mb = mod;
+      return _mb;
+    })();
+
+    return _mbLoading;
+  }
+
+  // ── PARSE FFMPEG ARGS ──
+  // Returns a structured descriptor or null if we can't/shouldn't handle it
+  function parseFFmpegArgs(args) {
+    // Flatten args to a simple object for easy lookup
+    var flags = {};
+    var positional = [];
+    for (var i = 0; i < args.length; i++) {
+      if (args[i].startsWith("-")) {
+        var key = args[i];
+        // Flags that take a value
+        var valueFlags = ["-i","-ss","-to","-t","-c","-c:v","-c:a","-codec:a",
+                         "-crf","-b:v","-b:a","-cpu-used","-preset","-q:v","-vf","-y"];
+        if (valueFlags.indexOf(key) !== -1 && i + 1 < args.length && !args[i+1].startsWith("-")) {
+          flags[key] = args[i+1];
+          i++;
+        } else {
+          flags[key] = true; // boolean flag e.g. -an, -vn
+        }
+      } else {
+        positional.push(args[i]);
+      }
+    }
+
+    var input  = flags["-i"]  || null;
+    var output = flags["-y"]  || positional[positional.length - 1] || null;
+
+    if (!input || !output) return null;
+
+    // Extract output extension
+    var outExt = output.split(".").pop().toLowerCase();
+
+    // Never handle AVI output or GIF — always FFmpeg
+    if (outExt === "avi" || outExt === "gif") return null;
+
+    // Check input format is supported by Mediabunny
+    // (input is always "input" in these tools — extension comes from the stored file)
+    // We store the original file extension in _mbFS when writeFile is called
+    var inExt = (_mbFS["_inputExt"] || "").toLowerCase();
+    if (inExt && MB_INPUT_FORMATS.indexOf(inExt) === -1) return null;
+
+    // Check output format is supported by Mediabunny
+    if (!MB_OUTPUT_FORMAT[outExt]) return null;
+
+    // ── DETECT OPERATION ──
+
+    // TRIM: has -ss and -to/-t with -c copy
+    if ((flags["-ss"] !== undefined) && (flags["-to"] || flags["-t"])) {
+      return {
+        op:     "trim",
+        input:  input,
+        output: output,
+        outExt: outExt,
+        start:  parseFloat(flags["-ss"]),
+        end:    flags["-to"] ? parseFloat(flags["-to"]) : null,
+        duration: flags["-t"] ? parseFloat(flags["-t"]) : null
+      };
+    }
+
+    // REMOVE AUDIO: -an flag
+    if (flags["-an"]) {
+      return { op: "removeAudio", input: input, output: output, outExt: outExt };
+    }
+
+    // EXTRACT AUDIO: -vn flag (drop video, keep audio)
+    if (flags["-vn"]) {
+      var audioCodec = MB_CODEC_MAP[flags["-codec:a"]] || MB_CODEC_MAP[flags["-c:a"]] || null;
+      return {
+        op:         "extractAudio",
+        input:      input,
+        output:     output,
+        outExt:     outExt,
+        audioCodec: audioCodec,
+        audioBitrate: flags["-b:a"] ? parseInt(flags["-b:a"]) * 1000 : 128000
+      };
+    }
+
+    // CONVERT AUDIO: audio codec specified, no video codec
+    if ((flags["-codec:a"] || flags["-c:a"]) && !flags["-c:v"]) {
+      var audioCodec2 = MB_CODEC_MAP[flags["-codec:a"]] || MB_CODEC_MAP[flags["-c:a"]] || null;
+      if (!audioCodec2) return null;
+      return {
+        op:          "convertAudio",
+        input:       input,
+        output:      output,
+        outExt:      outExt,
+        audioCodec:  audioCodec2,
+        audioBitrate: flags["-b:a"] ? parseInt(flags["-b:a"]) * 1000 : 128000
+      };
+    }
+
+    // CONVERT VIDEO: video codec specified
+    if (flags["-c:v"]) {
+      var videoCodec = MB_CODEC_MAP[flags["-c:v"]] || null;
+      if (!videoCodec) return null;
+      var audioCodec3 = MB_CODEC_MAP[flags["-c:a"]] || "aac";
+      return {
+        op:          "convertVideo",
+        input:       input,
+        output:      output,
+        outExt:      outExt,
+        videoCodec:  videoCodec,
+        audioCodec:  audioCodec3,
+        videoBitrate: 2000000 // 2Mbps default
+      };
+    }
+
+    return null; // Unknown operation — let FFmpeg handle it
+  }
+
+  // ── RUN WITH MEDIABUNNY ──
+  async function runWithMediabunny(descriptor) {
+    var mb = await loadMediabunny();
+    var {
+      Input, Output, Conversion, BufferTarget, BlobSource, ALL_FORMATS,
+      Mp4OutputFormat, MovOutputFormat, MatroskaOutputFormat, WebMOutputFormat,
+      Mp3OutputFormat, WavOutputFormat, AdtsOutputFormat, FlacOutputFormat, OggOutputFormat
+    } = mb;
+
+    // Get the input blob from fake FS
+    var inputBlob = _mbFS["input"];
+    if (!inputBlob) throw new Error("No input file in fake FS");
+
+    var desc = descriptor;
+    var outExt = desc.outExt;
+
+    var formatMap = {
+      "mp4":  Mp4OutputFormat,
+      "mov":  MovOutputFormat,
+      "mkv":  MatroskaOutputFormat,
+      "webm": WebMOutputFormat,
+      "mp3":  Mp3OutputFormat,
+      "wav":  WavOutputFormat,
+      "aac":  AdtsOutputFormat,
+      "flac": FlacOutputFormat,
+      "ogg":  OggOutputFormat
+    };
+
+    var OutputFormatClass = formatMap[outExt];
+    if (!OutputFormatClass) throw new Error("Unsupported output format: " + outExt);
+
+    var input  = new Input({ source: new BlobSource(inputBlob), formats: ALL_FORMATS });
+    var target = new BufferTarget();
+    var output = new Output({ format: new OutputFormatClass(), target: target });
+
+    // Build Conversion.init() options based on operation
+    var convOpts = { input: input, output: output };
+
+    if (desc.op === "trim") {
+      var trimOpts = {};
+      if (desc.start    !== null) trimOpts.start = desc.start;
+      if (desc.end      !== null) trimOpts.end   = desc.end;
+      // -t means duration: end = start + duration
+      if (desc.duration !== null && desc.start !== null) trimOpts.end = desc.start + desc.duration;
+      convOpts.trim = trimOpts;
+
+    } else if (desc.op === "removeAudio") {
+      convOpts.audio = { discard: true };
+
+    } else if (desc.op === "extractAudio") {
+      convOpts.video = { discard: true };
+      if (desc.audioCodec) {
+        convOpts.audio = { codec: desc.audioCodec, bitrate: desc.audioBitrate };
+      }
+
+    } else if (desc.op === "convertAudio") {
+      convOpts.video = { discard: true };
+      convOpts.audio = { codec: desc.audioCodec, bitrate: desc.audioBitrate };
+
+    } else if (desc.op === "convertVideo") {
+      convOpts.video = { codec: desc.videoCodec, bitrate: desc.videoBitrate };
+      convOpts.audio = { codec: desc.audioCodec, bitrate: 128000 };
+    }
+
+    var conversion = await Conversion.init(convOpts);
+
+    // If Mediabunny says this conversion is invalid, throw so we fall back to FFmpeg
+    if (!conversion.isValid) {
+      var reasons = conversion.discardedTracks.map(function(t) { return t.reason; }).join(", ");
+      throw new Error("Mediabunny: invalid conversion (" + reasons + ")");
+    }
+
+    await conversion.execute();
+
+    // Store result — will be read by FS("readFile", output)
+    var mime = {
+      "mp4": "video/mp4", "mov": "video/quicktime", "mkv": "video/x-matroska",
+      "webm": "video/webm", "mp3": "audio/mpeg", "wav": "audio/wav",
+      "aac": "audio/aac", "flac": "audio/flac", "ogg": "audio/ogg"
+    }[outExt] || "application/octet-stream";
+
+    // Pre-convert to ArrayBuffer so FS("readFile") can return {buffer} synchronously
+    var buf = target.buffer; // BufferTarget exposes .buffer as ArrayBuffer
+    var resultBlob = new Blob([buf], { type: mime });
+    resultBlob._buffer = buf;
+    _mbFS[desc.output] = resultBlob;
+  }
+
+  // ── INSTALL INTERCEPTORS ──
+  // Called after FFmpeg finishes loading so we wrap its methods
+  var _originalInstall = window.loadFFmpeg;
+  window.loadFFmpeg = async function() {
+    await _originalInstall.apply(this, arguments);
+
+    if (!window.ffmpeg) return; // FFmpeg failed to load
+
+    var realRun = window.ffmpeg.run.bind(window.ffmpeg);
+    var realFS  = window.ffmpeg.FS.bind(window.ffmpeg);
+
+    // Intercept FS to capture input writes and serve Mediabunny output on reads
+    window.ffmpeg.FS = function(method, name, data) {
+      if (method === "writeFile" && name === "input" && data) {
+        // Store the raw bytes as a Blob for Mediabunny to consume
+        var blob = data instanceof Blob ? data : new Blob([data]);
+        _mbFS["input"] = blob;
+        // Use the extension captured from _fetchFile (most reliable source)
+        if (window._mbNextInputExt) {
+          _mbFS["_inputExt"] = window._mbNextInputExt;
+          window._mbNextInputExt = null;
+        } else {
+          // Fallback: guess from blob MIME type
+          var extFromType = {
+            "video/mp4": "mp4", "video/quicktime": "mov", "video/x-msvideo": "avi",
+            "video/x-matroska": "mkv", "video/webm": "webm", "video/avi": "avi",
+            "audio/mpeg": "mp3", "audio/wav": "wav", "audio/aac": "aac",
+            "audio/flac": "flac", "audio/ogg": "ogg", "audio/mp4": "m4a"
+          };
+          _mbFS["_inputExt"] = extFromType[blob.type] || "";
+        }
+      }
+
+      if (method === "readFile" && _mbFS[name]) {
+        // Return the Mediabunny result as a Uint8Array (same format FFmpeg returns)
+        var resultBlob = _mbFS[name];
+        // Synchronous read needed — we pre-converted to ArrayBuffer in runWithMediabunny
+        // resultBlob is already a Blob; tools call new Blob([data.buffer]) on the result
+        // so we need to return something with a .buffer property
+        if (resultBlob._buffer) {
+          return { buffer: resultBlob._buffer };
+        }
+        // Fallback: let real FFmpeg FS handle it (shouldn't normally reach here)
+        return realFS(method, name, data);
+      }
+
+      if (method === "unlink") {
+        // Clean up fake FS too — no-op if not there
+        delete _mbFS[name];
+        // Also try real FS cleanup (ignore errors if file doesn't exist there)
+        try { realFS(method, name); } catch(_) {}
+        return;
+      }
+
+      return realFS(method, name, data);
+    };
+
+    // Intercept run — try Mediabunny, fall back to FFmpeg
+    window.ffmpeg.run = async function() {
+      var args = Array.prototype.slice.call(arguments);
+      var desc = parseFFmpegArgs(args);
+
+      if (desc) {
+        try {
+          await runWithMediabunny(desc);
+          // runWithMediabunny already stored result with ._buffer in _mbFS
+          // Verify it's there before returning — if missing, fall through to FFmpeg
+          if (_mbFS[desc.output] && _mbFS[desc.output]._buffer) {
+            return; // Mediabunny handled it — FS("readFile") will serve from fake FS
+          }
+          throw new Error("Mediabunny produced no output");
+        } catch(e) {
+          // Mediabunny failed at any point — log and fall through to real FFmpeg
+          console.warn("[MediabunnyRouter] Falling back to FFmpeg:", e.message || e);
+          // Clean up any partial fake FS output so FFmpeg writes fresh
+          delete _mbFS[desc.output];
+        }
+      }
+
+      // FFmpeg fallback
+      return realRun.apply(null, args);
+    };
+  };
+
+})();
