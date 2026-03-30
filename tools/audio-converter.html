@@ -314,7 +314,6 @@
     const bitrate = state.isPremium ? state.bitrate : "192";
 
     document.getElementById("progressSection").classList.add("show");
-    document.getElementById("progressFill").style.width = "0%";
 
     const batch = new BatchProcessor({
       items:    state.files,
@@ -326,11 +325,6 @@
         const baseName = item.name.replace(/\.[^.]+$/, "");
         const ext      = format;
         const outName  = `${baseName}.${ext}`;
-
-        document.getElementById("progressLabel").textContent =
-          `Converting ${index + 1}/${total}: ${item.name}`;
-        document.getElementById("progressFill").style.width = "0%";
-        document.getElementById("progressPct").textContent  = "0%";
 
         // Write input to virtual filesystem
         window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
@@ -359,9 +353,6 @@
       },
 
       onComplete: () => {
-        document.getElementById("progressLabel").textContent = "Done!";
-        document.getElementById("progressFill").style.width = "100%";
-        document.getElementById("progressPct").textContent  = "100%";
       }
     });
 

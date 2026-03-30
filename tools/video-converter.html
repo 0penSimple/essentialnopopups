@@ -298,27 +298,22 @@
       processOne: async (item, index) => {
         const outName = item.name.replace(/\.[^.]+$/, `.${codec.ext}`);
 
-        document.getElementById("progressLabel").textContent =
-          `Converting ${index + 1}/${total}: ${item.name}`;
-        document.getElementById("progressFill").style.width = "0%";
-        document.getElementById("progressPct").textContent  = "0%";
-
         window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
 
         // Build args based on format
         let args;
         if (format === "webm") {
-          // VP9 needs -b:v 0 to use CRF mode properly
+          // VP9: cpu-used=8 is the fastest setting (0=slowest, 8=fastest)
           args = [
             "-i", "input",
             "-c:v", codec.video,
             "-b:v", "0",
             "-crf", codec.crf[quality],
+            "-cpu-used", "8",
             "-c:a", codec.audio,
             "-y", `output.${codec.ext}`
           ];
         } else if (format === "avi") {
-          // XviD uses -q:v instead of -crf
           args = [
             "-i", "input",
             "-c:v", codec.video,
@@ -327,10 +322,11 @@
             "-y", `output.${codec.ext}`
           ];
         } else {
-          // MP4 / MOV — H.264 + AAC
+          // MP4 / MOV — H.264 + AAC with ultrafast preset (~3x faster than default)
           args = [
             "-i", "input",
             "-c:v", codec.video,
+            "-preset", "ultrafast",
             "-crf", codec.crf[quality],
             "-c:a", codec.audio,
             "-y", `output.${codec.ext}`
@@ -352,9 +348,6 @@
       },
 
       onComplete: () => {
-        document.getElementById("progressLabel").textContent = "Done!";
-        document.getElementById("progressFill").style.width = "100%";
-        document.getElementById("progressPct").textContent  = "100%";
       }
     });
 

@@ -303,11 +303,6 @@
       processOne: async (item, index) => {
         const outName = item.name.replace(/\.[^.]+$/, ".gif");
 
-        document.getElementById("progressLabel").textContent =
-          `Converting ${index + 1}/${total}: ${item.name}`;
-        document.getElementById("progressFill").style.width = "0%";
-        document.getElementById("progressPct").textContent  = "0%";
-
         // Validate file has actual video frames before processing
         await new Promise((resolve, reject) => {
           const vid = document.createElement("video");
@@ -359,9 +354,6 @@
       },
 
       onComplete: () => {
-        document.getElementById("progressLabel").textContent = "Done!";
-        document.getElementById("progressFill").style.width = "100%";
-        document.getElementById("progressPct").textContent  = "100%";
       }
     });
 

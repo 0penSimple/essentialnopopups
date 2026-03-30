@@ -459,11 +459,6 @@
         const ext     = item.name.split(".").pop().toLowerCase();
         const outName = item.name.replace(/\.[^.]+$/, `_trimmed.${ext}`);
 
-        document.getElementById("progressLabel").textContent =
-          `Trimming ${index + 1}/${total}: ${item.name}`;
-        document.getElementById("progressFill").style.width = "0%";
-        document.getElementById("progressPct").textContent  = "0%";
-
         window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
 
         // -c copy = stream copy, no re-encoding — instant and lossless
@@ -485,9 +480,6 @@
       },
 
       onComplete: () => {
-        document.getElementById("progressLabel").textContent = "Done!";
-        document.getElementById("progressFill").style.width = "100%";
-        document.getElementById("progressPct").textContent  = "100%";
       }
     });
 

@@ -254,11 +254,6 @@
         const ext     = item.name.split(".").pop().toLowerCase();
         const outName = item.name.replace(/\.[^.]+$/, `_muted.${ext}`);
 
-        document.getElementById("progressLabel").textContent =
-          `Processing ${index + 1}/${total}: ${item.name}`;
-        document.getElementById("progressFill").style.width = "0%";
-        document.getElementById("progressPct").textContent  = "0%";
-
         window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
 
         // -an = no audio, -c:v copy = keep video stream as-is
@@ -279,9 +274,6 @@
       },
 
       onComplete: () => {
-        document.getElementById("progressLabel").textContent = "Done!";
-        document.getElementById("progressFill").style.width = "100%";
-        document.getElementById("progressPct").textContent  = "100%";
       }
     });
 
