@@ -252,16 +252,23 @@ class BatchProcessor {
     btn.classList.remove("btn-done");
   }
 
-  _setProgress(current, total, label) {
+  _setProgress(current, total, label, done = false) {
     const fill  = document.getElementById("progressFill");
     const pct   = document.getElementById("progressPct");
     const lbl   = document.getElementById("progressLabel");
     const sec   = document.getElementById("progressSection");
-    if (sec)  sec.classList.add("show");
-    const p = Math.round((current / total) * 100);
-    if (fill) fill.style.width = p + "%";
-    if (pct)  pct.textContent  = p + "%";
-    if (lbl)  lbl.textContent  = label;
+    if (sec) sec.classList.add("show");
+    if (lbl) lbl.textContent = label;
+    if (done) {
+      // Real percentage — remove indeterminate, show actual value
+      const p = Math.round((current / total) * 100);
+      if (fill) { fill.classList.remove("indeterminate"); fill.style.width = p + "%"; }
+      if (pct)  pct.textContent = p + "%";
+    } else {
+      // Working — show sliding animation, hide percentage
+      if (fill) { fill.classList.add("indeterminate"); fill.style.width = "35%"; }
+      if (pct)  pct.textContent = "";
+    }
   }
 
   async run() {
@@ -273,7 +280,7 @@ class BatchProcessor {
 
     for (let i = 0; i < total; i++) {
       this._setBtn(`${this.btnLabel} — ${i}/${total}`);
-      this._setProgress(i, total, `Processing ${i + 1} of ${total}...`);
+      this._setProgress(i, total, `Processing ${i + 1} of ${total}...`, false);
 
       try {
         const result = await this.processOne(this.items[i], i);
@@ -286,7 +293,7 @@ class BatchProcessor {
       await new Promise(r => setTimeout(r, 0));
     }
 
-    this._setProgress(total, total, results.length > 0 ? "Done!" : "Failed");
+    this._setProgress(total, total, results.length > 0 ? "Done!" : "Failed", true);
 
     if (results.length === 0) {
       // All items failed — show clear error, never say "Done"
@@ -666,14 +673,7 @@ window.loadFFmpeg = async function() {
     window._fetchFile = fetchFile;
 
     const opts = {
-      log: false,
-      progress: ({ ratio }) => {
-        const pct = Math.round(ratio * 100);
-        const fill = document.getElementById("progressFill");
-        const pctEl = document.getElementById("progressPct");
-        if (fill)  fill.style.width  = pct + "%";
-        if (pctEl) pctEl.textContent = pct + "%";
-      }
+      log: false
     };
 
     if (isIOS) {

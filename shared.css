@@ -254,6 +254,16 @@ footer { border-top: 1px solid var(--border); background: var(--surface); paddin
 /* ── ANIMATIONS ── */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes progressSlide { 0% { left: -35%; } 100% { left: 100%; } }
+
+/* ── INDETERMINATE PROGRESS ── */
+.progress-fill.indeterminate {
+  width: 35% !important;
+  position: relative;
+  left: -35%;
+  animation: progressSlide 1.4s ease-in-out infinite;
+  transition: none;
+}
 
 /* ── RESPONSIVE ── */
 
