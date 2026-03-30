@@ -272,12 +272,13 @@
     render();
   }
 
+  /* ── FFMPEG ── */
 
   /* ── CONVERT ── */
   async function convert() {
     if (!state.files.length) return;
 
-    if (!ffmpegReady) {
+    if (!window.ffmpegReady) {
       document.getElementById("ffmpegStatus").classList.add("show");
       await loadFFmpeg();
       if (!window.ffmpegReady) return;
@@ -302,6 +303,11 @@
 
       processOne: async (item, index) => {
         const outName = item.name.replace(/\.[^.]+$/, ".gif");
+
+        document.getElementById("progressLabel").textContent =
+          `Converting ${index + 1}/${total}: ${item.name}`;
+        document.getElementById("progressFill").style.width = "0%";
+        document.getElementById("progressPct").textContent  = "0%";
 
         // Validate file has actual video frames before processing
         await new Promise((resolve, reject) => {
@@ -354,6 +360,9 @@
       },
 
       onComplete: () => {
+        document.getElementById("progressLabel").textContent = "Done!";
+        document.getElementById("progressFill").style.width = "100%";
+        document.getElementById("progressPct").textContent  = "100%";
       }
     });
 
