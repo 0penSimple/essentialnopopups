@@ -276,8 +276,8 @@ class BatchProcessor {
     if (!lbl) return;
     const msgs = [
       "Loading your file…",
-      "FFmpeg is on it…",
-      "Processing frames…",
+      "Your browser is on it…",
+      "Processing…",
       "Working hard…",
       "Crunching the data…",
       "Bear with us…",
@@ -857,6 +857,14 @@ window.loadFFmpeg = async function() {
   // ── PARSE FFMPEG ARGS ──
   // Returns a structured descriptor or null if we can't/shouldn't handle it
   function parseFFmpegArgs(args) {
+    // Mediabunny only supports single-input operations.
+    // Multi-input commands (e.g. two-pass GIF with palette) must always use FFmpeg.
+    var inputCount = 0;
+    for (var j = 0; j < args.length; j++) {
+      if (args[j] === "-i") inputCount++;
+    }
+    if (inputCount !== 1) return null;
+
     // Flatten args to a simple object for easy lookup
     var flags = {};
     var positional = [];
