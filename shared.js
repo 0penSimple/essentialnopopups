@@ -271,6 +271,41 @@ class BatchProcessor {
     }
   }
 
+  _startMessages() {
+    const lbl = document.getElementById("progressLabel");
+    if (!lbl) return;
+    const msgs = [
+      "Loading your file…",
+      "FFmpeg is on it…",
+      "Processing frames…",
+      "Working hard…",
+      "Crunching the data…",
+      "Bear with us…",
+      "Almost there…",
+    ];
+    let i = 0;
+    lbl.textContent = msgs[0];
+    this._msgInterval = setInterval(() => {
+      i++;
+      if (i < msgs.length) {
+        lbl.textContent = msgs[i];
+      } else {
+        // Reached last message — stop cycling, just leave it
+        clearInterval(this._msgInterval);
+        this._msgInterval = null;
+      }
+    }, 5000);
+  }
+
+  _stopMessages(finalLabel) {
+    if (this._msgInterval) {
+      clearInterval(this._msgInterval);
+      this._msgInterval = null;
+    }
+    const lbl = document.getElementById("progressLabel");
+    if (lbl) lbl.textContent = finalLabel;
+  }
+
   async run() {
     const total   = this.items.length;
     const errors  = [];
@@ -278,9 +313,17 @@ class BatchProcessor {
 
     this._setBtn(`${this.btnLabel} — 0/${total}`);
 
+    // Show progress section and start cycling messages
+    const sec = document.getElementById("progressSection");
+    if (sec) sec.classList.add("show");
+    const fill = document.getElementById("progressFill");
+    const pct  = document.getElementById("progressPct");
+    if (fill) { fill.classList.add("indeterminate"); fill.style.width = "35%"; }
+    if (pct)  pct.textContent = "";
+    this._startMessages();
+
     for (let i = 0; i < total; i++) {
       this._setBtn(`${this.btnLabel} — ${i}/${total}`);
-      this._setProgress(i, total, `Processing ${i + 1} of ${total}...`, false);
 
       try {
         const result = await this.processOne(this.items[i], i);
@@ -293,7 +336,10 @@ class BatchProcessor {
       await new Promise(r => setTimeout(r, 0));
     }
 
-    this._setProgress(total, total, results.length > 0 ? "Done!" : "Failed", true);
+    this._stopMessages(results.length > 0 ? "Done!" : "Failed");
+    // Snap bar to 100% (or 0% on full failure)
+    if (fill) { fill.classList.remove("indeterminate"); fill.style.width = results.length > 0 ? "100%" : "0%"; }
+    if (pct)  pct.textContent = results.length > 0 ? "100%" : "";
 
     if (results.length === 0) {
       // All items failed — show clear error, never say "Done"
