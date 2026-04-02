@@ -859,7 +859,8 @@ window.loadFFmpeg = async function() {
   function parseFFmpegArgs(args) {
     // If the tool set _mbSkip, bypass Mediabunny entirely for this call
     if (window._mbSkip) {
-      window._mbSkip = false; // clear immediately so next call isn't affected
+      window._mbSkip = false;
+      window._mbSkipFS = true; // also bypass FS interceptor for this operation
       return null;
     }
 
@@ -1079,9 +1080,19 @@ window.loadFFmpeg = async function() {
     console.log("[MB:DEBUG] Installing FS and run interceptors on window.ffmpeg");
 
     var realRun = window.ffmpeg.run.bind(window.ffmpeg);
-    var realFS  = window.ffmpeg.FS.bind(window.ffmpeg);
+    // Store the original FS function in a closure variable that is NEVER
+    // accessible via window.ffmpeg.FS — this breaks any potential recursion loop
+    var _realFSFn = window.ffmpeg.FS;
+    var _realFSCtx = window.ffmpeg;
+    var realFS = function(method, name, data) {
+      return _realFSFn.call(_realFSCtx, method, name, data);
+    };
 
     window.ffmpeg.FS = function(method, name, data) {
+      // If tool set _mbSkip, bypass our interceptor entirely — pure FFmpeg path
+      if (window._mbSkipFS) {
+        return _realFSFn.call(_realFSCtx, method, name, data);
+      }
       console.log("[MB:FS]", method, name, data !== undefined ? "(data provided)" : "(no data)");
 
       if (method === "writeFile" && name === "input" && data) {
@@ -1176,13 +1187,14 @@ window.loadFFmpeg = async function() {
         var runResult = await realRun.apply(null, args);
         // Log what files exist in FFmpeg's FS after the run
         try {
-          var fsFiles = realFS("readdir", "/");
+          var fsFiles = _realFSFn.call(_realFSCtx, "readdir", "/");
           console.log("[MB:run] FFmpeg run completed. Files in FS root:", JSON.stringify(fsFiles));
         } catch(dirErr) {
           console.log("[MB:run] FFmpeg run completed. (Could not list FS:", dirErr.message + ")");
         }
         return runResult;
       } catch(ffmpegErr) {
+        window._mbSkipFS = false;
         console.error("[MB:run] Real FFmpeg threw:", ffmpegErr.message);
         throw ffmpegErr;
       }
