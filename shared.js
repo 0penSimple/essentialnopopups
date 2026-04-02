@@ -857,6 +857,12 @@ window.loadFFmpeg = async function() {
   // ── PARSE FFMPEG ARGS ──
   // Returns a structured descriptor or null if we can't/shouldn't handle it
   function parseFFmpegArgs(args) {
+    // If the tool set _mbSkip, bypass Mediabunny entirely for this call
+    if (window._mbSkip) {
+      window._mbSkip = false; // clear immediately so next call isn't affected
+      return null;
+    }
+
     // Mediabunny only supports single-input operations.
     // Multi-input commands (e.g. two-pass GIF with palette) must always use FFmpeg.
     var inputCount = 0;
