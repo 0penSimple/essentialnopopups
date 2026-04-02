@@ -192,7 +192,17 @@
       accept:   "image/",
       multiple: true,
       maxFree:  Infinity,
-      onFiles:  (files) => { frames = []; loadFiles(files); }
+      onFiles:  (files) => {
+        frames = [];
+        // Restore button to create mode
+        const btn = document.getElementById("createBtn");
+        if (btn._redownloadHandler) {
+          btn.removeEventListener("click", btn._redownloadHandler);
+          btn._redownloadHandler = null;
+        }
+        btn.onclick = createGif;
+        loadFiles(files);
+      }
     });
 
     // Apply premium gate for speed
@@ -293,7 +303,9 @@
   async function createGif() {
     if (frames.length < 2) return;
 
-    await btnLoading("createBtn", "Building GIF...", frames.length);
+    const btn = document.getElementById("createBtn");
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> Building GIF...`;
 
     document.getElementById("progressSection").classList.add("show");
     document.getElementById("progressFill").style.width = "0%";
@@ -360,12 +372,24 @@
         `${frames.length} frames · ${formatBytes(blob.size)}`;
       document.getElementById("previewSection").classList.add("show");
 
-      // Auto-download
-      const a = document.createElement("a");
-      a.href = url; a.download = "animation.gif";
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      // Store for re-download and trigger download
+      if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
+      window._lastDownload = { url, filename: "animation.gif" };
+      triggerDownload(url, "animation.gif");
 
-      btnDone("createBtn", "✓ Done! 1/1", "Create GIF — 0/1");
+      // Keep button in done state — clicking re-downloads
+      const btn = document.getElementById("createBtn");
+      btn.disabled = false;
+      btn.textContent = "✓ Done! — click to re-download";
+      btn.classList.add("btn-done");
+      if (btn._redownloadHandler) btn.removeEventListener("click", btn._redownloadHandler);
+      btn._redownloadHandler = async () => {
+        if (window._lastDownload) {
+          await triggerDownload(window._lastDownload.url, window._lastDownload.filename);
+        }
+      };
+      btn.addEventListener("click", btn._redownloadHandler);
+      btn.onclick = null; // remove the original onclick="createGif()"
     });
 
     gif.on("error", err => {
