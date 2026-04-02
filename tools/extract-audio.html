@@ -293,6 +293,7 @@
     const bitrate = state.isPremium ? state.bitrate : "192";
 
     document.getElementById("progressSection").classList.add("show");
+    document.getElementById("progressFill").style.width = "0%";
 
     const batch = new BatchProcessor({
       items:    state.files,
@@ -305,6 +306,11 @@
         const ext      = format;
         const outName  = `${baseName}.${ext}`;
 
+        document.getElementById("progressLabel").textContent =
+          `Extracting ${index + 1}/${total}: ${item.name}`;
+        document.getElementById("progressFill").style.width = "0%";
+        document.getElementById("progressPct").textContent  = "0%";
+
         window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
 
         // -vn = no video — extracts audio track only
@@ -315,6 +321,7 @@
           args = ["-i", "input", "-vn", "-codec:a", "pcm_s16le", "-y", "output.wav"];
         }
 
+        window._mbSkip = true; // FFmpeg only — skip Mediabunny router for this tool
         await window.ffmpeg.run(...args);
 
         const data = window.ffmpeg.FS("readFile", `output.${ext}`);
@@ -329,6 +336,9 @@
       },
 
       onComplete: () => {
+        document.getElementById("progressLabel").textContent = "Done!";
+        document.getElementById("progressFill").style.width = "100%";
+        document.getElementById("progressPct").textContent  = "100%";
       }
     });
 

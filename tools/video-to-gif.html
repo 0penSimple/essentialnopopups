@@ -272,7 +272,6 @@
     render();
   }
 
-  /* ── FFMPEG ── */
 
   /* ── CONVERT ── */
   async function convert() {
@@ -332,6 +331,7 @@
 
         // Two-pass GIF: generate optimised palette first, then apply it
         // This produces much better colours than a single-pass conversion
+        window._mbSkip = true; // FFmpeg only — GIF not supported by Mediabunny
         await window.ffmpeg.run(
           "-i",       "input",
           "-ss",      "0",
@@ -340,6 +340,7 @@
           "-y",       "palette.png"
         );
 
+        window._mbSkip = true; // set again for second pass
         await window.ffmpeg.run(
           "-i",       "input",
           "-i",       "palette.png",
