@@ -281,19 +281,13 @@
   async function convert() {
     if (state.files.length === 0) return;
 
-    if (!window.ffmpegReady) {
-      document.getElementById("ffmpegStatus").classList.add("show");
-      document.getElementById("ffmpegStatusText").textContent = "Loading FFmpeg (~20MB)...";
-      await loadFFmpeg();
-      if (!window.ffmpegReady) return;
-    }
+    // window.processFile handles loading internally
 
     const total   = state.files.length;
     const format  = state.format;
     const bitrate = state.isPremium ? state.bitrate : "192";
 
     document.getElementById("progressSection").classList.add("show");
-    document.getElementById("progressFill").style.width = "0%";
 
     const batch = new BatchProcessor({
       items:    state.files,
@@ -303,44 +297,18 @@
 
       processOne: async (item, index) => {
         const baseName = item.name.replace(/\.[^.]+$/, "");
-        const ext      = format;
-        const outName  = `${baseName}.${ext}`;
+        const outName  = `${baseName}.${format}`;
 
-        document.getElementById("progressLabel").textContent =
-          `Extracting ${index + 1}/${total}: ${item.name}`;
-        document.getElementById("progressFill").style.width = "0%";
-        document.getElementById("progressPct").textContent  = "0%";
-
-        window._mbSkipFS = true; // bypass FS interceptor for this entire operation
-        window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
-
-        // -vn = no video — extracts audio track only
-        let args;
-        if (format === "mp3") {
-          args = ["-i", "input", "-vn", "-codec:a", "libmp3lame", "-b:a", `${bitrate}k`, "-y", `output.mp3`];
-        } else {
-          args = ["-i", "input", "-vn", "-codec:a", "pcm_s16le", "-y", "output.wav"];
-        }
-
-        window._mbSkip = true; // FFmpeg only — skip Mediabunny router for this tool
-        await window.ffmpeg.run(...args);
-
-        const data = window.ffmpeg.FS("readFile", `output.${ext}`);
-        const blob = new Blob([data.buffer], {
-          type: format === "mp3" ? "audio/mpeg" : "audio/wav"
+        const blob = await window.processFile(item.file, {
+          op:      "extractAudio",
+          format:  format,
+          bitrate: bitrate
         });
-
-        window.ffmpeg.FS("unlink", "input");
-        window.ffmpeg.FS("unlink", `output.${ext}`);
-        window._mbSkipFS = false; // re-enable FS interceptor
 
         return { filename: outName, data: blob };
       },
 
       onComplete: () => {
-        document.getElementById("progressLabel").textContent = "Done!";
-        document.getElementById("progressFill").style.width = "100%";
-        document.getElementById("progressPct").textContent  = "100%";
       }
     });
 
