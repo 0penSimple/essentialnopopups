@@ -272,16 +272,13 @@
     render();
   }
 
+  /* ── FFMPEG ── */
 
   /* ── CONVERT ── */
   async function convert() {
     if (!state.files.length) return;
 
-    if (!window.ffmpegReady) {
-      document.getElementById("ffmpegStatus").classList.add("show");
-      await loadFFmpeg();
-      if (!window.ffmpegReady) return;
-    }
+    // window.processFile handles loading internally
 
     const total   = state.files.length;
     const limit   = state.isPremium ? PREMIUM_LIMIT : FREE_LIMIT;
@@ -303,11 +300,6 @@
       processOne: async (item, index) => {
         const outName = item.name.replace(/\.[^.]+$/, ".gif");
 
-        document.getElementById("progressLabel").textContent =
-          `Converting ${index + 1}/${total}: ${item.name}`;
-        document.getElementById("progressFill").style.width = "0%";
-        document.getElementById("progressPct").textContent  = "0%";
-
         // Validate file has actual video frames before processing
         await new Promise((resolve, reject) => {
           const vid = document.createElement("video");
@@ -327,45 +319,17 @@
           vid.src = URL.createObjectURL(item.file);
         });
 
-        window._mbSkipFS = true; // bypass FS interceptor for this entire operation
-        window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
-
-        // Two-pass GIF: generate optimised palette first, then apply it
-        // This produces much better colours than a single-pass conversion
-        window._mbSkip = true; // FFmpeg only — GIF not supported by Mediabunny
-        await window.ffmpeg.run(
-          "-i",       "input",
-          "-ss",      "0",
-          "-t",       String(limit),
-          "-vf",      `fps=${fps},scale=${width}:-1:flags=lanczos,palettegen`,
-          "-y",       "palette.png"
-        );
-
-        window._mbSkip = true; // set again for second pass
-        await window.ffmpeg.run(
-          "-i",       "input",
-          "-i",       "palette.png",
-          "-ss",      "0",
-          "-t",       String(limit),
-          "-filter_complex", `fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse`,
-          "-y",       "output.gif"
-        );
-
-        const data = window.ffmpeg.FS("readFile", "output.gif");
-        const blob = new Blob([data.buffer], { type: "image/gif" });
-
-        window.ffmpeg.FS("unlink", "input");
-        window.ffmpeg.FS("unlink", "palette.png");
-        window.ffmpeg.FS("unlink", "output.gif");
-        window._mbSkipFS = false; // re-enable FS interceptor
+        const blob = await window.processFile(item.file, {
+          op:    "videoToGif",
+          fps:   fps,
+          width: width,
+          limit: limit
+        });
 
         return { filename: outName, data: blob };
       },
 
       onComplete: () => {
-        document.getElementById("progressLabel").textContent = "Done!";
-        document.getElementById("progressFill").style.width = "100%";
-        document.getElementById("progressPct").textContent  = "100%";
       }
     });
 
