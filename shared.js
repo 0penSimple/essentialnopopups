@@ -791,7 +791,7 @@ window.loadFFmpeg = async function() {
 
   // ── CONSTANTS ──
   var MB_CDN      = "https://cdn.jsdelivr.net/npm/mediabunny@1.34.5/+esm";
-  var MB_MP3_CDN  = "https://cdn.jsdelivr.net/npm/@mediabunny/mp3-encoder@1.2.1/+esm";
+  var MB_MP3_CDN  = "https://cdn.jsdelivr.net/npm/@mediabunny/mp3-encoder@1.35.1/+esm";
 
   // Formats Mediabunny can read as input (AVI not supported)
   var MB_INPUT_FORMATS = ["mp4","mov","m4v","mkv","webm","mp3","wav","aac","flac","ogg","ts"];
@@ -1124,6 +1124,11 @@ window.loadFFmpeg = async function() {
         return result;
       } catch(fsErr) {
         console.error("[MB:FS] realFS(" + method + ", " + name + ") threw:", fsErr.message);
+        if (method === "readFile") {
+          // FFmpeg failed to write the output file — likely ran out of memory
+          // or the operation failed silently. Give a user-friendly error.
+          throw new Error("Processing failed — the file may be too large or complex for your browser. Try a shorter clip or smaller file.");
+        }
         throw fsErr;
       }
     };
