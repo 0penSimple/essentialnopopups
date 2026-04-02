@@ -1093,16 +1093,15 @@ window.loadFFmpeg = async function() {
       }
 
       if (method === "readFile" && _mbFS[name]) {
-        // Return the Mediabunny result as a Uint8Array (same format FFmpeg returns)
         var resultBlob = _mbFS[name];
-        // Synchronous read needed — we pre-converted to ArrayBuffer in runWithMediabunny
-        // resultBlob is already a Blob; tools call new Blob([data.buffer]) on the result
-        // so we need to return something with a .buffer property
         if (resultBlob._buffer) {
           return { buffer: resultBlob._buffer };
         }
-        // Fallback: let real FFmpeg FS handle it (shouldn't normally reach here)
-        return realFS(method, name, data);
+        // _buffer missing means Mediabunny ran but produced no usable output.
+        // Throw explicitly so the caller (the tool's processOne) catches it
+        // via BatchProcessor's try/catch — do NOT silently fall to realFS,
+        // because FFmpeg never wrote this file if Mediabunny handled the run.
+        throw new Error("[MediabunnyRouter] Output file missing after conversion: " + name);
       }
 
       if (method === "unlink") {
@@ -1124,15 +1123,18 @@ window.loadFFmpeg = async function() {
       if (desc) {
         try {
           await runWithMediabunny(desc);
-          // runWithMediabunny already stored result with ._buffer in _mbFS
-          // Verify it's there before returning — if missing, fall through to FFmpeg
-          if (_mbFS[desc.output] && _mbFS[desc.output]._buffer) {
+          // Verify Mediabunny actually produced a valid ArrayBuffer
+          // Only return early if we have real data — otherwise fall through to FFmpeg
+          var mbResult = _mbFS[desc.output];
+          if (mbResult && mbResult._buffer instanceof ArrayBuffer && mbResult._buffer.byteLength > 0) {
             return; // Mediabunny handled it — FS("readFile") will serve from fake FS
           }
-          throw new Error("Mediabunny produced no output");
+          // Output missing or empty — clean up and let FFmpeg handle it
+          console.warn("[MediabunnyRouter] Output invalid, falling back to FFmpeg");
+          delete _mbFS[desc.output];
         } catch(e) {
-          // Mediabunny failed at any point — log and fall through to real FFmpeg
-          console.warn("[MediabunnyRouter] Falling back to FFmpeg:", e.message || e);
+          // Mediabunny failed at any point — log full error and fall through to real FFmpeg
+          console.warn("[MediabunnyRouter] Falling back to FFmpeg:", e.message || e, e.stack || "");
           // Clean up any partial fake FS output so FFmpeg writes fresh
           delete _mbFS[desc.output];
         }
