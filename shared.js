@@ -980,9 +980,10 @@ window.loadFFmpeg = async function() {
       Mp3OutputFormat, WavOutputFormat, AdtsOutputFormat, FlacOutputFormat, OggOutputFormat
     } = mb;
 
-    // Get the input blob from fake FS
-    var inputBlob = _mbFS["input"];
-    if (!inputBlob) throw new Error("No input file in fake FS");
+    // Get the input data from fake FS and convert to Blob lazily here
+    var inputData = _mbFS["input"];
+    if (!inputData) throw new Error("No input file in fake FS");
+    var inputBlob = inputData instanceof Blob ? inputData : new Blob([inputData]);
 
     var desc = descriptor;
     var outExt = desc.outExt;
@@ -1078,8 +1079,9 @@ window.loadFFmpeg = async function() {
       console.log("[MB:FS]", method, name, data !== undefined ? "(data provided)" : "(no data)");
 
       if (method === "writeFile" && name === "input" && data) {
-        var blob = data instanceof Blob ? data : new Blob([data]);
-        _mbFS["input"] = blob;
+        // Store raw reference — do NOT copy to Blob here (would duplicate memory).
+        // Blob conversion happens lazily in runWithMediabunny only if needed.
+        _mbFS["input"] = data;
         if (window._mbNextInputExt) {
           _mbFS["_inputExt"] = window._mbNextInputExt;
           window._mbNextInputExt = null;
@@ -1090,10 +1092,10 @@ window.loadFFmpeg = async function() {
             "audio/mpeg": "mp3", "audio/wav": "wav", "audio/aac": "aac",
             "audio/flac": "flac", "audio/ogg": "ogg", "audio/mp4": "m4a"
           };
-          _mbFS["_inputExt"] = extFromType[blob.type] || "";
+          _mbFS["_inputExt"] = extFromType[(data instanceof Blob ? data.type : "")] || "";
         }
-        console.log("[MB:FS] Stored input blob, inExt='" + _mbFS["_inputExt"] + "', size=" + blob.size);
-        // Fall through to real FS so FFmpeg also has the file for fallback
+        console.log("[MB:FS] Stored input ref, inExt='" + _mbFS["_inputExt"] + "', size=" + (data.byteLength || data.size || "?"));
+        // Fall through to real FS so FFmpeg also has the file
       }
 
       if (method === "readFile") {
