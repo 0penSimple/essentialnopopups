@@ -311,6 +311,7 @@
         document.getElementById("progressFill").style.width = "0%";
         document.getElementById("progressPct").textContent  = "0%";
 
+        window._mbSkipFS = true; // bypass FS interceptor for this entire operation
         window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
 
         // -vn = no video — extracts audio track only
@@ -331,6 +332,7 @@
 
         window.ffmpeg.FS("unlink", "input");
         window.ffmpeg.FS("unlink", `output.${ext}`);
+        window._mbSkipFS = false; // re-enable FS interceptor
 
         return { filename: outName, data: blob };
       },
