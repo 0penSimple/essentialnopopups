@@ -1173,9 +1173,17 @@ window.loadFFmpeg = async function() {
 
       console.log("[MB:run] Running real FFmpeg with args:", JSON.stringify(args));
       try {
-        return await realRun.apply(null, args);
+        var runResult = await realRun.apply(null, args);
+        // Log what files exist in FFmpeg's FS after the run
+        try {
+          var fsFiles = realFS("readdir", "/");
+          console.log("[MB:run] FFmpeg run completed. Files in FS root:", JSON.stringify(fsFiles));
+        } catch(dirErr) {
+          console.log("[MB:run] FFmpeg run completed. (Could not list FS:", dirErr.message + ")");
+        }
+        return runResult;
       } catch(ffmpegErr) {
-        console.error("[MB:run] Real FFmpeg also threw:", ffmpegErr.message);
+        console.error("[MB:run] Real FFmpeg threw:", ffmpegErr.message);
         throw ffmpegErr;
       }
     };
