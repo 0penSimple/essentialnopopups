@@ -327,6 +327,7 @@
           vid.src = URL.createObjectURL(item.file);
         });
 
+        window._mbSkipFS = true; // bypass FS interceptor for this entire operation
         window.ffmpeg.FS("writeFile", "input", await window._fetchFile(item.file));
 
         // Two-pass GIF: generate optimised palette first, then apply it
@@ -356,6 +357,7 @@
         window.ffmpeg.FS("unlink", "input");
         window.ffmpeg.FS("unlink", "palette.png");
         window.ffmpeg.FS("unlink", "output.gif");
+        window._mbSkipFS = false; // re-enable FS interceptor
 
         return { filename: outName, data: blob };
       },
