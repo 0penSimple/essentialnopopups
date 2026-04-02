@@ -1060,28 +1060,30 @@ window.loadFFmpeg = async function() {
   }
 
   // ── INSTALL INTERCEPTORS ──
-  // Called after FFmpeg finishes loading so we wrap its methods
   var _originalInstall = window.loadFFmpeg;
   window.loadFFmpeg = async function() {
+    console.log("[MB:DEBUG] loadFFmpeg wrapper called");
     await _originalInstall.apply(this, arguments);
 
-    if (!window.ffmpeg) return; // FFmpeg failed to load
+    if (!window.ffmpeg) {
+      console.error("[MB:DEBUG] window.ffmpeg is null after _originalInstall — aborting interceptor install");
+      return;
+    }
+    console.log("[MB:DEBUG] Installing FS and run interceptors on window.ffmpeg");
 
     var realRun = window.ffmpeg.run.bind(window.ffmpeg);
     var realFS  = window.ffmpeg.FS.bind(window.ffmpeg);
 
-    // Intercept FS to capture input writes and serve Mediabunny output on reads
     window.ffmpeg.FS = function(method, name, data) {
+      console.log("[MB:FS]", method, name, data !== undefined ? "(data provided)" : "(no data)");
+
       if (method === "writeFile" && name === "input" && data) {
-        // Store the raw bytes as a Blob for Mediabunny to consume
         var blob = data instanceof Blob ? data : new Blob([data]);
         _mbFS["input"] = blob;
-        // Use the extension captured from _fetchFile (most reliable source)
         if (window._mbNextInputExt) {
           _mbFS["_inputExt"] = window._mbNextInputExt;
           window._mbNextInputExt = null;
         } else {
-          // Fallback: guess from blob MIME type
           var extFromType = {
             "video/mp4": "mp4", "video/quicktime": "mov", "video/x-msvideo": "avi",
             "video/x-matroska": "mkv", "video/webm": "webm", "video/avi": "avi",
@@ -1090,59 +1092,82 @@ window.loadFFmpeg = async function() {
           };
           _mbFS["_inputExt"] = extFromType[blob.type] || "";
         }
+        console.log("[MB:FS] Stored input blob, inExt='" + _mbFS["_inputExt"] + "', size=" + blob.size);
+        // Fall through to real FS so FFmpeg also has the file for fallback
       }
 
-      if (method === "readFile" && _mbFS[name]) {
-        var resultBlob = _mbFS[name];
-        if (resultBlob._buffer) {
-          return { buffer: resultBlob._buffer };
+      if (method === "readFile") {
+        var inFakeFS = !!_mbFS[name];
+        var hasBuffer = inFakeFS && !!_mbFS[name]._buffer;
+        console.log("[MB:FS] readFile '" + name + "': inFakeFS=" + inFakeFS + ", hasBuffer=" + hasBuffer);
+        if (inFakeFS) {
+          if (hasBuffer) {
+            console.log("[MB:FS] Serving from fakeFS, byteLength=" + _mbFS[name]._buffer.byteLength);
+            return { buffer: _mbFS[name]._buffer };
+          }
+          console.error("[MB:FS] fakeFS entry exists but _buffer is missing! Blob:", _mbFS[name]);
+          throw new Error("[MB:FS] Output '" + name + "' in fakeFS but _buffer is missing — FFmpeg never wrote it");
         }
-        // _buffer missing means Mediabunny ran but produced no usable output.
-        // Throw explicitly so the caller (the tool's processOne) catches it
-        // via BatchProcessor's try/catch — do NOT silently fall to realFS,
-        // because FFmpeg never wrote this file if Mediabunny handled the run.
-        throw new Error("[MediabunnyRouter] Output file missing after conversion: " + name);
+        console.log("[MB:FS] Not in fakeFS, delegating to realFS");
       }
 
       if (method === "unlink") {
-        // Clean up fake FS too — no-op if not there
+        var wasInFake = !!_mbFS[name];
         delete _mbFS[name];
-        // Also try real FS cleanup (ignore errors if file doesn't exist there)
-        try { realFS(method, name); } catch(_) {}
+        console.log("[MB:FS] unlink '" + name + "': wasInFakeFS=" + wasInFake);
+        try { realFS(method, name); } catch(_) { console.log("[MB:FS] unlink from realFS failed (expected if MB handled it)"); }
         return;
       }
 
-      return realFS(method, name, data);
+      try {
+        var result = realFS(method, name, data);
+        return result;
+      } catch(fsErr) {
+        console.error("[MB:FS] realFS(" + method + ", " + name + ") threw:", fsErr.message);
+        throw fsErr;
+      }
     };
 
-    // Intercept run — try Mediabunny, fall back to FFmpeg
     window.ffmpeg.run = async function() {
       var args = Array.prototype.slice.call(arguments);
+      console.log("[MB:run] called with args:", JSON.stringify(args));
+      console.log("[MB:run] _mbFS keys:", Object.keys(_mbFS));
+
       var desc = parseFFmpegArgs(args);
+      console.log("[MB:run] parseFFmpegArgs result:", desc ? JSON.stringify(desc) : "null (FFmpeg handles)");
 
       if (desc) {
         try {
+          console.log("[MB:run] Attempting Mediabunny for op='" + desc.op + "' output='" + desc.output + "'");
           await runWithMediabunny(desc);
-          // Verify Mediabunny actually produced a valid ArrayBuffer
-          // Only return early if we have real data — otherwise fall through to FFmpeg
+
           var mbResult = _mbFS[desc.output];
-          if (mbResult && mbResult._buffer instanceof ArrayBuffer && mbResult._buffer.byteLength > 0) {
-            return; // Mediabunny handled it — FS("readFile") will serve from fake FS
+          var bufferOk = mbResult && mbResult._buffer instanceof ArrayBuffer && mbResult._buffer.byteLength > 0;
+          console.log("[MB:run] Mediabunny done. mbResult exists=" + !!mbResult + ", bufferOk=" + bufferOk + (mbResult && mbResult._buffer ? ", byteLength=" + mbResult._buffer.byteLength : ""));
+
+          if (bufferOk) {
+            console.log("[MB:run] SUCCESS — returning early, FS readFile will serve fakeFS");
+            return;
           }
-          // Output missing or empty — clean up and let FFmpeg handle it
-          console.warn("[MediabunnyRouter] Output invalid, falling back to FFmpeg");
+
+          console.warn("[MB:run] Buffer invalid after Mediabunny — falling back to FFmpeg");
           delete _mbFS[desc.output];
         } catch(e) {
-          // Mediabunny failed at any point — log full error and fall through to real FFmpeg
-          console.warn("[MediabunnyRouter] Falling back to FFmpeg:", e.message || e, e.stack || "");
-          // Clean up any partial fake FS output so FFmpeg writes fresh
+          console.warn("[MB:run] Mediabunny threw:", e.message, "\nStack:", e.stack);
           delete _mbFS[desc.output];
         }
       }
 
-      // FFmpeg fallback
-      return realRun.apply(null, args);
+      console.log("[MB:run] Running real FFmpeg with args:", JSON.stringify(args));
+      try {
+        return await realRun.apply(null, args);
+      } catch(ffmpegErr) {
+        console.error("[MB:run] Real FFmpeg also threw:", ffmpegErr.message);
+        throw ffmpegErr;
+      }
     };
+
+    console.log("[MB:DEBUG] Interceptors installed successfully");
   };
 
 })();
