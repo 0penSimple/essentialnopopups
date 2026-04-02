@@ -770,6 +770,207 @@ window.loadFFmpeg = async function() {
 };
 
 
+/* ── PROCESS FILE API ──
+   Clean high-level API for tools to use instead of calling ffmpeg directly.
+   Uses Mediabunny where possible, falls back to its own private FFmpeg instance.
+   No interception — completely isolated from window.ffmpeg and the Mediabunny router.
+
+   Operations:
+     extractAudio(file, { format: "mp3"|"wav", bitrate: "128"|"192"|"320" })
+     videoToGif(file, { fps: number, width: number, limit: number })
+
+   Usage in tool:
+     const blob = await window.processFile(file, { op: "extractAudio", format: "mp3", bitrate: "192" });
+     const blob = await window.processFile(file, { op: "videoToGif", fps: 10, width: 360, limit: 5 });
+*/
+(function() {
+
+  // ── PRIVATE FFMPEG INSTANCE ──
+  // Completely separate from window.ffmpeg — never intercepted by the Mediabunny router
+  var _ffmpeg      = null;
+  var _ffmpegReady = false;
+  var _ffmpegLoading = null;
+
+  async function _loadPrivateFFmpeg() {
+    if (_ffmpegReady) return;
+    if (_ffmpegLoading) return _ffmpegLoading;
+
+    _ffmpegLoading = (async () => {
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+      await window.loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
+      const { createFFmpeg } = FFmpeg;
+
+      const opts = { log: false };
+      if (isIOS) {
+        opts.corePath = "https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js";
+        opts.mainName = "main";
+      } else {
+        opts.corePath = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js";
+      }
+
+      _ffmpeg = createFFmpeg(opts);
+      await _ffmpeg.load();
+      _ffmpegReady = true;
+
+      // iOS: swallow exit(0) after each run
+      if (isIOS) {
+        const _origRun = _ffmpeg.run.bind(_ffmpeg);
+        _ffmpeg.run = async (...args) => {
+          try { return await _origRun(...args); }
+          catch(e) {
+            if (e && e.message && e.message.includes("exit(0)")) return;
+            throw e;
+          }
+        };
+      }
+    })();
+
+    return _ffmpegLoading;
+  }
+
+  // ── MEDIABUNNY AUDIO EXTRACTION ──
+  async function _extractAudioWithMediabunny(file, format, bitrate) {
+    const MB_CDN     = "https://cdn.jsdelivr.net/npm/mediabunny@1.34.5/+esm";
+    const MB_MP3_CDN = "https://cdn.jsdelivr.net/npm/@mediabunny/mp3-encoder@1.35.1/+esm";
+
+    const mb = await import(MB_CDN);
+    const {
+      Input, Output, Conversion, ALL_FORMATS, BlobSource, BufferTarget,
+      Mp3OutputFormat, WavOutputFormat, canEncodeAudio
+    } = mb;
+
+    // Register MP3 encoder if needed
+    if (format === "mp3" && !(await canEncodeAudio("mp3"))) {
+      const mp3mod = await import(MB_MP3_CDN);
+      mp3mod.registerMp3Encoder();
+    }
+
+    const input  = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+    const target = new BufferTarget();
+    const output = new Output({
+      format: format === "mp3" ? new Mp3OutputFormat() : new WavOutputFormat(),
+      target: target
+    });
+
+    const convOpts = {
+      input, output,
+      video: { discard: true }
+    };
+    if (format === "mp3") {
+      convOpts.audio = { codec: "mp3", bitrate: parseInt(bitrate) * 1000 };
+    }
+    // WAV: no audio options needed — Mediabunny will copy/transcode automatically
+
+    const conversion = await Conversion.init(convOpts);
+    if (!conversion.isValid) {
+      throw new Error("Mediabunny conversion invalid: " +
+        conversion.discardedTracks.map(t => t.reason).join(", "));
+    }
+
+    await conversion.execute();
+
+    const buf = target.buffer;
+    if (!buf || buf.byteLength === 0) throw new Error("Mediabunny produced empty output");
+
+    return new Blob([buf], { type: format === "mp3" ? "audio/mpeg" : "audio/wav" });
+  }
+
+  // ── FFMPEG AUDIO EXTRACTION ──
+  async function _extractAudioWithFFmpeg(file, format, bitrate) {
+    await _loadPrivateFFmpeg();
+
+    const { fetchFile } = FFmpeg;
+    _ffmpeg.FS("writeFile", "input", await fetchFile(file));
+
+    let args;
+    if (format === "mp3") {
+      args = ["-i", "input", "-vn", "-codec:a", "libmp3lame", "-b:a", `${bitrate}k`, "-y", "output.mp3"];
+    } else {
+      args = ["-i", "input", "-vn", "-codec:a", "pcm_s16le", "-y", "output.wav"];
+    }
+
+    await _ffmpeg.run(...args);
+
+    const data = _ffmpeg.FS("readFile", `output.${format}`);
+    const blob = new Blob([data.buffer], { type: format === "mp3" ? "audio/mpeg" : "audio/wav" });
+
+    _ffmpeg.FS("unlink", "input");
+    _ffmpeg.FS("unlink", `output.${format}`);
+
+    return blob;
+  }
+
+  // ── FFMPEG VIDEO TO GIF ──
+  async function _videoToGifWithFFmpeg(file, fps, width, limit) {
+    await _loadPrivateFFmpeg();
+
+    const { fetchFile } = FFmpeg;
+    _ffmpeg.FS("writeFile", "input", await fetchFile(file));
+
+    // Pass 1: generate optimised palette
+    await _ffmpeg.run(
+      "-i",  "input",
+      "-ss", "0",
+      "-t",  String(limit),
+      "-vf", `fps=${fps},scale=${width}:-1:flags=lanczos,palettegen`,
+      "-y",  "palette.png"
+    );
+
+    // Pass 2: encode GIF using palette
+    await _ffmpeg.run(
+      "-i", "input",
+      "-i", "palette.png",
+      "-ss", "0",
+      "-t",  String(limit),
+      "-filter_complex", `fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse`,
+      "-y",  "output.gif"
+    );
+
+    const data = _ffmpeg.FS("readFile", "output.gif");
+    const blob = new Blob([data.buffer], { type: "image/gif" });
+
+    _ffmpeg.FS("unlink", "input");
+    _ffmpeg.FS("unlink", "palette.png");
+    _ffmpeg.FS("unlink", "output.gif");
+
+    return blob;
+  }
+
+  // ── PUBLIC API ──
+  window.processFile = async function(file, options) {
+    const { op } = options;
+
+    if (op === "extractAudio") {
+      const format  = options.format  || "mp3";
+      const bitrate = options.bitrate || "192";
+
+      // Try Mediabunny first — faster, hardware-accelerated, no SharedArrayBuffer needed
+      try {
+        return await _extractAudioWithMediabunny(file, format, bitrate);
+      } catch(e) {
+        console.warn("[processFile] Mediabunny failed, falling back to FFmpeg:", e.message);
+      }
+
+      // FFmpeg fallback
+      return await _extractAudioWithFFmpeg(file, format, bitrate);
+    }
+
+    if (op === "videoToGif") {
+      const fps   = options.fps   || 10;
+      const width = options.width || 360;
+      const limit = options.limit || 5;
+      // GIF not supported by Mediabunny — always FFmpeg
+      return await _videoToGifWithFFmpeg(file, fps, width, limit);
+    }
+
+    throw new Error("[processFile] Unknown operation: " + op);
+  };
+
+})();
+
+
+
 /* ── MEDIABUNNY ROUTER ──
    Intercepts window.ffmpeg.FS and window.ffmpeg.run after FFmpeg loads.
    Tries to handle the operation with Mediabunny (fast, hardware-accelerated).
