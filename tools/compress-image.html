@@ -107,12 +107,18 @@
       <div class="file-list" id="fileList"></div>
     </div>
 
-    <div id="pngNotice" style="display:none; background:#f0f6ff; border:1px solid #b8d4f8; border-radius:8px; padding:10px 14px; font-size:0.78rem; color:#1a4a8a; margin-bottom:1.25rem; line-height:1.5;">
-      PNG compression is less effective than JPG or WebP. Consider converting to <a href="image-converter.html" style="color:var(--teal); font-weight:500;">WebP</a> for the best results.
+    <div id="pngNotice" style="display:none; background:#f0f6ff; border:1px solid #b8d4f8; border-radius:8px; padding:14px 16px; font-size:0.82rem; color:#1a4a8a; margin-bottom:1.25rem; line-height:1.6;">
+      <strong>PNG files can't be meaningfully compressed in the browser.</strong><br>
+      PNG is a lossless format — the browser has no way to make it smaller without changing the format. To reduce file size, save as JPG or WebP instead:
+      <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+        <button onclick="convertPngAs('jpg')" style="background:var(--teal-mid); color:#fff; border:none; border-radius:8px; padding:7px 14px; font-size:0.78rem; font-weight:500; cursor:pointer;">Save as JPG</button>
+        <button onclick="convertPngAs('webp')" style="background:var(--teal-mid); color:#fff; border:none; border-radius:8px; padding:7px 14px; font-size:0.78rem; font-weight:500; cursor:pointer;">Save as WebP</button>
+      </div>
+      <div style="font-size:0.72rem; color:#4a6fa5; margin-top:8px;">JPG — best for photos, no transparency · WebP — smaller files, keeps transparency, supported by all modern browsers</div>
     </div>
 
-    <label>Compression mode</label>
-    <div class="mode-tabs">
+    <label id="compressionModeLabel">Compression mode</label>
+    <div class="mode-tabs" id="modeTabs">
       <div class="mode-tab active" onclick="setMode('quality')">By quality</div>
       <div class="mode-tab" onclick="setMode('target')">By target size</div>
     </div>
@@ -254,8 +260,12 @@
 
   function loadSinglePreview(file) {
     getOutputFormat(file);
-    document.getElementById("pngNotice").style.display = file.type === "image/png" ? "block" : "none";
-    document.getElementById("sliderSection").style.display = file.type === "image/png" ? "none" : "block";
+    const isPng = file.type === "image/png";
+    document.getElementById("pngNotice").style.display = isPng ? "block" : "none";
+    document.getElementById("compressionModeLabel").style.display = isPng ? "none" : "block";
+    document.getElementById("modeTabs").style.display = isPng ? "none" : "flex";
+    document.getElementById("sliderSection").style.display = (!isPng && currentMode === "quality") ? "block" : "none";
+    document.getElementById("targetSection").classList.toggle("show", !isPng && currentMode === "target");
     const reader = new FileReader();
     reader.onload = e => {
       const img = new Image();
@@ -373,6 +383,44 @@
       };
       reader.readAsDataURL(file);
     });
+  }
+
+  function convertPngAs(format) {
+    if (!state.files.length) return;
+    const file = state.files[0].file;
+    const mime = format === "jpg" ? "image/jpeg" : "image/webp";
+    const quality = 0.85;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (format === "jpg") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob(blob => {
+          const base = file.name.replace(/\.[^.]+$/, "");
+          const url = URL.createObjectURL(blob);
+          // Update preview
+          document.getElementById("compImg").src = url;
+          document.getElementById("compDims").textContent = `${img.naturalWidth}×${img.naturalHeight}`;
+          document.getElementById("compSizeVal").textContent = formatBytes(blob.size);
+          const saved = Math.max(0, file.size - blob.size);
+          const pct = Math.round((saved / file.size) * 100);
+          document.getElementById("savingsPct").textContent = pct > 0 ? `${pct}% smaller` : "No reduction";
+          document.getElementById("savingsBarFill").style.width = Math.min(pct, 100) + "%";
+          document.getElementById("savingsSection").classList.add("show");
+          document.getElementById("previewSection").classList.add("show");
+          // Download
+          if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
+          window._lastDownload = { url, filename: `${base}.${format}` };
+          triggerDownload(url, `${base}.${format}`);
+        }, mime, quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
   }
 
   async function compressAll() {
