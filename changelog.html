@@ -198,6 +198,47 @@
 
   <div class="changelog-entry">
     <div class="entry-meta">
+      <span class="entry-version-pill">Update</span>
+      <span class="entry-date">April 2026</span>
+    </div>
+    <div class="entry-title">Faster, smarter, and finally works on your phone</div>
+    <p class="entry-intro">
+      A big under-the-hood update focused on speed and reliability. Video and audio tools are dramatically faster thanks to hardware-accelerated processing, and nearly everything now works properly on iOS and Android.
+    </p>
+    <ul class="entry-items">
+      <li>
+        <span class="entry-tag tag-new">New</span>
+        <span><strong>Color Palette &amp; Picker</strong> — extract a full color palette from any image, or pick exact pixel colors with an eyedropper. Perfect for designers and developers.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-improved">Improved</span>
+        <span><strong>Video converter is now dramatically faster</strong> — MP4, MOV, WebM, and MKV conversions now use hardware-accelerated encoding via the browser's native WebCodecs API instead of software emulation. A 30-second clip that used to take 10+ minutes now takes seconds.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-improved">Improved</span>
+        <span><strong>iPhone and iPad support across all tools</strong> — every FFmpeg-powered tool (video converter, trim video, remove audio, extract audio, audio converter, trim audio) now works on iOS Safari. Previously they'd silently fail or hang.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-improved">Improved</span>
+        <span><strong>Downloads on iPhone</strong> — tapping download now brings up the native iOS share sheet so you can save directly to Files, Photos, or share via AirDrop. No more blank white pages.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-improved">Improved</span>
+        <span><strong>Re-download without re-processing</strong> — after a tool finishes, the output button stays active so you can download the result again at any time without re-running the operation.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-fixed">Fixed</span>
+        <span><strong>Video to GIF and Extract Audio</strong> — both tools were silently failing on certain files due to a memory conflict. Fully resolved.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-improved">Improved</span>
+        <span><strong>Processing feedback</strong> — instead of a frozen progress bar stuck at 0%, tools now show a live animated bar and rotating status messages while working.</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="changelog-entry">
+    <div class="entry-meta">
       <span class="entry-version-pill">Launch</span>
       <span class="entry-date">March 2026</span>
     </div>
