@@ -222,15 +222,18 @@
         <span class="logo-filename" id="logoFilename">No image selected</span>
         <button class="logo-remove" id="logoRemoveBtn" onclick="removeLogo()" style="display:none;">✕ Remove</button>
       </div>
-      <div style="display:flex;gap:8px;margin-top:10px;margin-bottom:6px;">
-        <button id="shapeCircle" class="btn-secondary" onclick="setLogoShape('circle')"
-          style="flex:1;padding:7px;font-size:0.78rem;background:var(--teal-light);border-color:var(--teal-border);color:var(--teal-text);">
-          ● Circle
-        </button>
-        <button id="shapeSquare" class="btn-secondary" onclick="setLogoShape('square')"
-          style="flex:1;padding:7px;font-size:0.78rem;">
-          ■ Square
-        </button>
+      <div id="logoShapeRow" style="display:none;flex-direction:column;gap:6px;margin-top:10px;margin-bottom:6px;">
+        <label style="font-size:0.72rem;color:var(--faint);margin:0;">Image shape</label>
+        <div style="display:flex;gap:8px;">
+          <button id="shapeCircle" class="btn-secondary" onclick="setLogoShape('circle')"
+            style="flex:1;padding:7px;font-size:0.78rem;background:var(--teal-light);border-color:var(--teal-border);color:var(--teal-text);">
+            ● Circle
+          </button>
+          <button id="shapeSquare" class="btn-secondary" onclick="setLogoShape('square')"
+            style="flex:1;padding:7px;font-size:0.78rem;">
+            ■ Square
+          </button>
+        </div>
       </div>
       <div class="logo-note">PNG with transparent background works best. Error correction is automatically set to Maximum when a logo is used.</div>
     </div>
@@ -319,10 +322,16 @@ window.addEventListener('load', () => {
   }
   // Logo available to all users
   document.getElementById("logoSection").classList.add("show");
+  // Customize button always visible — premium locks the panel
+  document.getElementById("customizeBtn").classList.add("show");
+  if (!IS_PREMIUM) {
+    // Show locked state for customize
+    document.getElementById("customizeBtn").innerHTML =
+      "✶ Customize your QR <span style=\"font-size:0.68rem;background:var(--premium-light);color:var(--premium);border:1px solid var(--premium-border);border-radius:99px;padding:1px 7px;margin-left:6px;\">✦ Premium</span>";
+  }
   // Batch (add more) is premium only
   if (IS_PREMIUM) {
     document.getElementById("addMoreBtn").classList.add("show");
-    document.getElementById("customizeBtn").classList.add("show");
   }
 });
 
@@ -339,6 +348,7 @@ function loadLogo(file) {
       preview.classList.add("show");
       document.getElementById("logoFilename").textContent = file.name;
       document.getElementById("logoRemoveBtn").style.display = "inline-block";
+      document.getElementById("logoShapeRow").style.display = "flex";
       // Regenerate with logo
       if (hasGenerated && getEntries().length === 1) generate();
     };
@@ -354,6 +364,7 @@ function removeLogo() {
   preview.classList.remove("show");
   document.getElementById("logoFilename").textContent = "No image selected";
   document.getElementById("logoRemoveBtn").style.display = "none";
+  document.getElementById("logoShapeRow").style.display = "none";
   document.getElementById("logoInput").value = "";
   if (hasGenerated && getEntries().length === 1) generate();
 }
@@ -577,9 +588,9 @@ async function generate() {
 
     const blob = await zip.generateAsync({ type: "blob" });
     const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = "qr-codes.zip";
-    a.click(); URL.revokeObjectURL(url);
+    if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
+    window._lastDownload = { url, filename: "qr-codes.zip" };
+    await triggerDownload(url, "qr-codes.zip");
 
     btnDone(
       "generateBtn",
@@ -625,10 +636,12 @@ async function download() {
     if (logoImg) overlayLogo(out);
     out = applyOuterShape(out, bg, fg);
 
-    const a = document.createElement("a");
-    a.href = out.toDataURL("image/png");
-    a.download = "qrcode.png";
-    a.click();
+    const dataUrl = out.toDataURL("image/png");
+    const blob = await new Promise(r => out.toBlob(r, "image/png"));
+    const url = URL.createObjectURL(blob);
+    if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
+    window._lastDownload = { url, filename: "qrcode.png" };
+    await triggerDownload(url, "qrcode.png");
   } finally {
     document.body.removeChild(tmp);
   }
@@ -658,10 +671,19 @@ async function copyToClipboard() {
 
 /* ── CUSTOMIZE ── */
 function toggleCustomize() {
+  if (!IS_PREMIUM) {
+    showNotification("Custom shapes are a ✦ Premium feature. Upgrade to unlock module shapes, outer frame shapes, and more.", "info");
+    return;
+  }
   var panel = document.getElementById("customizePanel");
   var btn   = document.getElementById("customizeBtn");
   var open  = panel.classList.toggle("show");
   btn.textContent = open ? "✶ Customize your QR ▲" : "✶ Customize your QR";
+  if (open) {
+    setTimeout(() => {
+      btn.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  }
 }
 
 function setShape(shape) {
