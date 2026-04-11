@@ -118,7 +118,7 @@ function showNotification(msg, type = "info") {
   if (!el) return;
   el.textContent = msg;
   el.className = `notification show ${type}`;
-  el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function clearNotification() {
