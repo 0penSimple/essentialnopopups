@@ -36,6 +36,12 @@
   .file-remove:hover { color: var(--error); }
 
   .drag-hint { font-size: 0.72rem; color: var(--faint); margin-top: 8px; }
+
+  .progress-section { display: none; margin-bottom: 1.25rem; }
+  .progress-section.show { display: block; }
+  .progress-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .progress-track { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--teal-mid); border-radius: 99px; transition: width 0.2s; width: 0%; }
 </style>
 </head>
 <body>
@@ -103,6 +109,16 @@
       <div class="drag-hint">Drag files to reorder</div>
     </div>
 
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Merging...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
     <button class="btn-primary" id="mergeBtn" onclick="mergePDFs()" disabled>
       Merge &amp; download — 0/1
     </button>
@@ -136,7 +152,17 @@
       accept:   "application/pdf",
       multiple: true,
       maxFree:  Infinity,
-      onFiles:  (newFiles) => { files = []; loadFiles(newFiles); }
+      onFiles:  (newFiles) => {
+        files = [];
+        document.getElementById("progressSection").classList.remove("show");
+        const btn = document.getElementById("mergeBtn");
+        if (btn._redownloadHandler) {
+          btn.removeEventListener("click", btn._redownloadHandler);
+          btn._redownloadHandler = null;
+        }
+        btn.onclick = mergePDFs;
+        loadFiles(newFiles);
+      }
     });
 
     const addMoreInput = document.querySelector(".btn-add-more input");
@@ -205,30 +231,72 @@
 
   async function mergePDFs() {
     if (files.length < 2) return;
-    await btnLoading("mergeBtn", "Merging...", files.length);
+
+    const btn = document.getElementById("mergeBtn");
+    if (btn._redownloadHandler) {
+      btn.removeEventListener("click", btn._redownloadHandler);
+      btn._redownloadHandler = null;
+      btn.onclick = mergePDFs;
+    }
+
+    btnLoading("mergeBtn", "Merging...");
+
+    const progressSection = document.getElementById("progressSection");
+    const fill = document.getElementById("progressFill");
+    const pct  = document.getElementById("progressPct");
+    const lbl  = document.getElementById("progressLabel");
+    progressSection.classList.add("show");
+    fill.style.width = "0%";
+    pct.textContent  = "0%";
 
     try {
       const merged = await PDFLib.PDFDocument.create();
+      const total  = files.length;
 
-      for (const item of files) {
+      for (let i = 0; i < total; i++) {
+        const item = files[i];
+        lbl.textContent = `Merging file ${i + 1} of ${total}...`;
         const srcDoc = await PDFLib.PDFDocument.load(item.buf);
         const indices = srcDoc.getPageIndices();
-        const pages  = await merged.copyPages(srcDoc, indices);
+        const pages   = await merged.copyPages(srcDoc, indices);
         pages.forEach(p => merged.addPage(p));
+        const p = Math.round(((i + 1) / total) * 90); // save last 10% for save step
+        fill.style.width = p + "%";
+        pct.textContent  = p + "%";
+        await new Promise(r => setTimeout(r, 0));
       }
 
+      lbl.textContent  = "Saving PDF...";
+      fill.classList.add("indeterminate");
+
       const pdfBytes = await merged.save();
+
+      fill.classList.remove("indeterminate");
+      fill.style.width = "100%";
+      pct.textContent  = "100%";
+      lbl.textContent  = "Done!";
+
       const blob = new Blob([pdfBytes], { type: "application/pdf" });
       const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href = url; a.download = "merged.pdf";
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
+      window._lastDownload = { url, filename: "merged.pdf" };
+      await triggerDownload(url, "merged.pdf");
 
-      btnDone("mergeBtn", "✓ Done! 1/1", "Merge & download — 0/1");
+      // Persistent re-download button
+      btn.disabled    = false;
+      btn.textContent = "✓ Done! — click to re-download";
+      btn.classList.add("btn-done");
+      btn.onclick = null;
+      btn._redownloadHandler = async () => {
+        if (window._lastDownload) {
+          await triggerDownload(window._lastDownload.url, window._lastDownload.filename);
+        }
+      };
+      btn.addEventListener("click", btn._redownloadHandler);
+
     } catch (err) {
       showNotification(`Merge failed: ${err.message}`, "error");
+      document.getElementById("progressSection").classList.remove("show");
       btnReset("mergeBtn", "Merge & download — 0/1");
     }
   }

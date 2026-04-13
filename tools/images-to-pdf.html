@@ -258,7 +258,17 @@
       accept:   "image/",
       multiple: true,
       maxFree:  Infinity,
-      onFiles:  (files) => { state.files = []; loadImages(files); }
+      onFiles:  (files) => {
+        state.files = [];
+        document.getElementById("progressSection").classList.remove("show");
+        const btn = document.getElementById("convertBtn");
+        if (btn._redownloadHandler) {
+          btn.removeEventListener("click", btn._redownloadHandler);
+          btn._redownloadHandler = null;
+        }
+        btn.onclick = convert;
+        loadImages(files);
+      }
     });
 
     // Wire up "Add more" button
@@ -537,21 +547,38 @@
       }
 
       lbl.textContent = "Saving PDF...";
+      fill.classList.add("indeterminate");
+
       const pdfBytes = await pdfDoc.save();
+
+      fill.classList.remove("indeterminate");
+      fill.style.width = "100%";
+      pct.textContent  = "100%";
+      lbl.textContent  = "Done!";
+
       const blob = new Blob([pdfBytes], { type: "application/pdf" });
       const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href = url; a.download = "images.pdf";
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
+      window._lastDownload = { url, filename: "images.pdf" };
+      await triggerDownload(url, "images.pdf");
 
-      btnDone("convertBtn", "✓ Done! 1/1", "Convert & download — 0/1");
+      // Persistent re-download button
+      const btn = document.getElementById("convertBtn");
+      btn.disabled    = false;
+      btn.textContent = "✓ Done! — click to re-download";
+      btn.classList.add("btn-done");
+      btn.onclick = null;
+      btn._redownloadHandler = async () => {
+        if (window._lastDownload) {
+          await triggerDownload(window._lastDownload.url, window._lastDownload.filename);
+        }
+      };
+      btn.addEventListener("click", btn._redownloadHandler);
 
     } catch(err) {
       showNotification(`Failed: ${err.message}`, "error");
-      btn.disabled = false;
-      btn.textContent = "Convert & download — 0/1";
+      document.getElementById("progressSection").classList.remove("show");
+      btnReset("convertBtn", "Convert & download — 0/1");
     }
   }
 </script>
