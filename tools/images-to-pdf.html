@@ -319,14 +319,19 @@
 
   function loadImages(files) {
     let loaded = 0;
-    files.forEach(file => {
+    const slots = new Array(files.length); // pre-allocate slots to preserve order
+    files.forEach((file, index) => {
       const reader = new FileReader();
       reader.onload = e => {
         const img = new Image();
         img.onload = () => {
-          state.files.push({ id: nextId++, file, dataUrl: e.target.result, img });
+          slots[index] = { id: nextId++, file, dataUrl: e.target.result, img };
           loaded++;
-          if (loaded === files.length) render();
+          if (loaded === files.length) {
+            // Push in original order, not load-completion order
+            slots.forEach(slot => state.files.push(slot));
+            render();
+          }
         };
         img.src = e.target.result;
       };
@@ -548,9 +553,7 @@
 
       lbl.textContent = "Saving PDF...";
       fill.classList.add("indeterminate");
-
       const pdfBytes = await pdfDoc.save();
-
       fill.classList.remove("indeterminate");
       fill.style.width = "100%";
       pct.textContent  = "100%";
@@ -562,8 +565,6 @@
       window._lastDownload = { url, filename: "images.pdf" };
       await triggerDownload(url, "images.pdf");
 
-      // Persistent re-download button
-      const btn = document.getElementById("convertBtn");
       btn.disabled    = false;
       btn.textContent = "✓ Done! — click to re-download";
       btn.classList.add("btn-done");
