@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Merge Audio — EssentialBits</title>
+<link rel="stylesheet" href="../shared.css">
+<style>
+  .files-section { display: none; margin-bottom: 1.25rem; }
+  .files-section.show { display: block; }
+  .files-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .files-count { font-size: 0.78rem; color: var(--muted); }
+  .btn-add-more { font-size: 0.75rem; font-weight: 500; color: var(--teal); background: var(--teal-light); border: 1px solid var(--teal-border); border-radius: 6px; padding: 4px 10px; cursor: pointer; position: relative; overflow: hidden; transition: background 0.15s; }
+  .btn-add-more input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .btn-add-more:hover { background: #c5eddc; }
+
+  .file-list { display: flex; flex-direction: column; gap: 6px; }
+
+  .file-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--warm-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px;
+    cursor: grab; transition: box-shadow 0.15s;
+  }
+  .file-item:active { cursor: grabbing; }
+  .file-item.dragging { opacity: 0.4; }
+  .file-item.drag-over { border-color: var(--teal-mid); box-shadow: 0 0 0 2px var(--teal-light); }
+
+  .file-drag-handle { color: var(--faint); font-size: 0.9rem; flex-shrink: 0; cursor: grab; }
+  .file-icon { font-size: 1.1rem; flex-shrink: 0; }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-size: 0.82rem; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-meta { font-size: 0.72rem; color: var(--faint); margin-top: 1px; }
+  .file-remove { background: none; border: none; color: var(--faint); font-size: 1rem; cursor: pointer; padding: 0 4px; flex-shrink: 0; transition: color 0.15s; }
+  .file-remove:hover { color: var(--error); }
+
+  .drag-hint { font-size: 0.72rem; color: var(--faint); margin-top: 8px; }
+
+  .progress-section { display: none; margin-bottom: 1.25rem; }
+  .progress-section.show { display: block; }
+  .progress-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .progress-track { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--teal-mid); border-radius: 99px; transition: width 0.2s; width: 0%; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a>
+      <span>›</span>
+      <span>Audio</span>
+      <span>›</span>
+      <span>Merge Audio</span>
+    </div>
+    <h1>Merge Audio</h1>
+    <div class="info-btn-row">
+      <p>Combine multiple audio files into one. Drag to reorder, then download. Everything happens in your browser — nothing is uploaded.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;">
+      <div class="info-panel-row">
+        <div class="info-panel-icon">💡</div>
+        <div>
+          <div class="info-panel-title">Fastest when files match</div>
+          <div class="info-panel-text">Files with the same format and quality combine almost instantly with no quality loss. Mixed formats still work, but take a little longer.</div>
+        </div>
+      </div>
+      <div class="info-panel-row">
+        <div class="info-panel-icon">🙏</div>
+        <div>
+          <div class="info-panel-title">This site survives thanks to you</div>
+          <div class="info-panel-text">No pop-ups — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <label>Your audio files</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="audio/*" multiple>
+      <div class="drop-icon">🎵</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag audio files here</div>
+      <div class="drop-sub">MP3, WAV, M4A, AAC — they will be joined in order</div>
+    </div>
+
+    <div class="files-section" id="filesSection">
+      <div class="files-header">
+        <div class="files-count" id="filesCount">0 files</div>
+        <div class="btn-add-more">
+          <input type="file" accept="audio/*" multiple onchange="addMoreFiles(this.files); this.value=''">
+          + Add more
+        </div>
+      </div>
+      <div class="file-list" id="fileList"></div>
+      <div class="drag-hint">Drag files to reorder</div>
+    </div>
+
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressLabel">Combining...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="mergeBtn" onclick="mergeAudio()" disabled>
+      Add at least 2 audio files to combine
+    </button>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your files are never uploaded anywhere.</li>
+      <li>Drag the files to set the order they play in the final audio.</li>
+      <li>Files with the same format and quality combine almost instantly with no quality loss.</li>
+      <li>Files with different formats are automatically re-encoded to match — this works, but takes a little longer.</li>
+      <li>This tool joins files back to back — there are no fade or crossfade transitions between them.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="../shared.js"></script>
+<script>
+  let files = []; // array of { file, name }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    makeDropZone(document.getElementById("dropZone"), {
+      accept:   "audio/",
+      multiple: true,
+      maxFree:  Infinity,
+      onFiles:  (newFiles) => {
+        files = [];
+        resetOutput();
+        loadFiles(newFiles);
+      }
+    });
+  });
+
+  function addMoreFiles(fileList) {
+    const auds = Array.from(fileList).filter(f => f.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(f.name));
+    if (auds.length) loadFiles(auds);
+  }
+
+  function loadFiles(newFiles) {
+    const auds = newFiles.filter(f => f.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(f.name));
+    auds.forEach(file => files.push({ file, name: file.name }));
+    renderFileList();
+  }
+
+  function renderFileList() {
+    const list = document.getElementById("fileList");
+    list.innerHTML = "";
+
+    files.forEach((item, i) => {
+      const div = document.createElement("div");
+      div.className = "file-item";
+      div.innerHTML = `
+        <div class="file-drag-handle">⠿</div>
+        <div class="file-icon">🎵</div>
+        <div class="file-info">
+          <div class="file-name">${item.name}</div>
+          <div class="file-meta">${formatBytes(item.file.size)}</div>
+        </div>
+        <button class="file-remove" onclick="removeFile(${i})" title="Remove">×</button>
+      `;
+      list.appendChild(div);
+    });
+
+    makeDraggable(list, files, (reordered) => {
+      files = reordered;
+      renderFileList();
+    });
+
+    document.getElementById("filesCount").textContent = `${files.length} file${files.length !== 1 ? "s" : ""}`;
+    document.getElementById("filesSection").classList.toggle("show", files.length > 0);
+
+    const btn = document.getElementById("mergeBtn");
+    btn.disabled = files.length < 2;
+    btn.textContent = files.length < 2 ? "Add at least 2 audio files to combine" : "Combine & download";
+    btn.classList.remove("btn-done");
+  }
+
+  function removeFile(index) {
+    files.splice(index, 1);
+    renderFileList();
+  }
+
+  function resetOutput() {
+    document.getElementById("progressSection").classList.remove("show");
+    const btn = document.getElementById("mergeBtn");
+    if (btn._redownloadHandler) {
+      btn.removeEventListener("click", btn._redownloadHandler);
+      btn._redownloadHandler = null;
+    }
+    btn.onclick = mergeAudio;
+  }
+
+  async function mergeAudio() {
+    if (files.length < 2) return;
+
+    const btn = document.getElementById("mergeBtn");
+    btnLoading("mergeBtn", "Combining...");
+
+    const section = document.getElementById("progressSection");
+    const fill = document.getElementById("progressFill");
+    const pct  = document.getElementById("progressPct");
+    const lbl  = document.getElementById("progressLabel");
+    section.classList.add("show");
+    fill.style.width = "0%";
+    pct.textContent  = "0%";
+    lbl.textContent  = "Checking your files...";
+
+    try {
+      const result = await window.concatFiles({
+        files: files.map(f => f.file),
+        kind:  "audio",
+        onPhase: (phase) => {
+          if (phase === "inspecting") lbl.textContent = "Checking your files...";
+          else if (phase === "fast")  lbl.textContent = "Combining (fast, no quality loss)...";
+          else if (phase === "slow")  lbl.textContent = "Files differ — re-encoding to match...";
+        },
+        onProgress: (p) => {
+          const pctVal = Math.round(p * 100);
+          fill.style.width = pctVal + "%";
+          pct.textContent  = pctVal + "%";
+        }
+      });
+
+      fill.style.width = "100%";
+      pct.textContent  = "100%";
+      lbl.textContent  = result.method === "copy"
+        ? "Done — combined with no quality loss!"
+        : "Done — files re-encoded to match!";
+
+      const outName = "combined." + (result.blob.type.includes("mp4") ? "m4a" : "mp3");
+      const url = URL.createObjectURL(result.blob);
+      if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
+      window._lastDownload = { url, filename: outName };
+      await triggerDownload(url, outName);
+
+      btn.disabled    = false;
+      btn.textContent = "✓ Done! — click to re-download";
+      btn.classList.add("btn-done");
+      btn.onclick = null;
+      btn._redownloadHandler = async () => {
+        if (window._lastDownload) await triggerDownload(window._lastDownload.url, window._lastDownload.filename);
+      };
+      btn.addEventListener("click", btn._redownloadHandler);
+
+    } catch(err) {
+      showNotification(`Combine failed: ${err.message}`, "error");
+      section.classList.remove("show");
+      btnReset("mergeBtn", "Combine & download");
+    }
+  }
+</script>
+
+</body>
+</html>
