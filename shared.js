@@ -937,6 +937,188 @@ window.loadFFmpeg = async function() {
     return blob;
   }
 
+  // ── READ MEDIA "RECIPE" (metadata) via Mediabunny ──
+  // Returns { vcodec, width, height, fps, acodec, sampleRate, channels, hasVideo, hasAudio }
+  // Think of this as peeking at each file's recipe card without cooking anything.
+  async function _readMediaRecipe(file) {
+    const MB_CDN = "https://cdn.jsdelivr.net/npm/mediabunny@1.34.5/+esm";
+    const mb = await import(MB_CDN);
+    const { Input, ALL_FORMATS, BlobSource } = mb;
+
+    const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+    const recipe = {
+      hasVideo: false, hasAudio: false,
+      vcodec: null, width: null, height: null, fps: null,
+      acodec: null, sampleRate: null, channels: null
+    };
+
+    try {
+      const vTrack = await input.getPrimaryVideoTrack();
+      if (vTrack) {
+        recipe.hasVideo = true;
+        recipe.vcodec = vTrack.codec || null;
+        recipe.width  = await vTrack.getDisplayWidth().catch(() => null);
+        recipe.height = await vTrack.getDisplayHeight().catch(() => null);
+        // Frame rate isn't always directly available; may be null — that's OK
+        recipe.fps = (vTrack.frameRate) || null;
+      }
+    } catch(_) {}
+
+    try {
+      const aTrack = await input.getPrimaryAudioTrack();
+      if (aTrack) {
+        recipe.hasAudio = true;
+        recipe.acodec     = aTrack.codec || null;
+        recipe.sampleRate = await aTrack.getSampleRate().catch(() => null);
+        recipe.channels   = await aTrack.getNumberOfChannels().catch(() => null);
+      }
+    } catch(_) {}
+
+    return recipe;
+  }
+
+  // Compare recipes — do all files share the same "recipe" so we can instant-staple?
+  function _recipesMatch(recipes) {
+    if (recipes.length < 2) return true;
+    const first = recipes[0];
+    return recipes.every(r =>
+      r.hasVideo === first.hasVideo &&
+      r.hasAudio === first.hasAudio &&
+      r.vcodec === first.vcodec &&
+      r.width === first.width &&
+      r.height === first.height &&
+      r.acodec === first.acodec &&
+      r.sampleRate === first.sampleRate &&
+      r.channels === first.channels
+    );
+  }
+
+  // ── FAST PATH: instant staple (stream copy, no re-encoding) ──
+  async function _concatStreamCopy(files, outExt, onProgress) {
+    await _loadPrivateFFmpeg();
+    const { fetchFile } = FFmpeg;
+
+    // Write every input file into FFmpeg's virtual filesystem
+    const inputNames = [];
+    for (let i = 0; i < files.length; i++) {
+      const name = `in${i}.${outExt}`;
+      _ffmpeg.FS("writeFile", name, await fetchFile(files[i]));
+      inputNames.push(name);
+      if (onProgress) onProgress((i + 1) / files.length * 0.3); // first 30% = loading
+    }
+
+    // Build the "playlist" text file the concat demuxer reads
+    const listText = inputNames.map(n => `file '${n}'`).join("\n");
+    _ffmpeg.FS("writeFile", "list.txt", new TextEncoder().encode(listText));
+
+    const outName = `output.${outExt}`;
+    const args = ["-f", "concat", "-safe", "0", "-i", "list.txt", "-c", "copy"];
+    // For MP4, move the "table of contents" to the front so it plays everywhere
+    if (outExt === "mp4" || outExt === "mov" || outExt === "m4a") {
+      args.push("-movflags", "+faststart");
+    }
+    args.push("-y", outName);
+
+    if (onProgress) onProgress(0.4);
+    await _ffmpeg.run(...args);
+    if (onProgress) onProgress(0.95);
+
+    const data = _ffmpeg.FS("readFile", outName);
+    const mime = _mimeForExt(outExt);
+    const blob = new Blob([data.buffer], { type: mime });
+
+    // Clean up
+    inputNames.forEach(n => { try { _ffmpeg.FS("unlink", n); } catch(_){} });
+    try { _ffmpeg.FS("unlink", "list.txt"); } catch(_){}
+    try { _ffmpeg.FS("unlink", outName); } catch(_){}
+
+    if (onProgress) onProgress(1);
+    return blob;
+  }
+
+  // ── SLOW PATH: re-encode everything to match, then staple ──
+  // For video: scale/pad all clips to the first clip's dimensions.
+  // For audio: resample all to a common sample rate.
+  async function _concatReEncode(files, outExt, isVideo, target, onProgress) {
+    await _loadPrivateFFmpeg();
+    const { fetchFile } = FFmpeg;
+
+    const inputNames = [];
+    for (let i = 0; i < files.length; i++) {
+      const name = `in${i}.${outExt}`;
+      _ffmpeg.FS("writeFile", name, await fetchFile(files[i]));
+      inputNames.push(name);
+      if (onProgress) onProgress((i + 1) / files.length * 0.2);
+    }
+
+    const outName = `output.${outExt}`;
+    const n = files.length;
+    let args = [];
+    inputNames.forEach(nm => { args.push("-i", nm); });
+
+    if (isVideo) {
+      const W = target.width  || 1280;
+      const H = target.height || 720;
+      // Scale each clip to fit inside WxH, pad to fill, force common fps and SAR.
+      // Like resizing every photo to fit the same album page, adding borders if needed.
+      let filter = "";
+      for (let i = 0; i < n; i++) {
+        filter += `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,` +
+                  `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${i}];`;
+      }
+      // Chain video (and audio if present) into the concat filter
+      let concatInputs = "";
+      const anyAudio = target.anyAudio;
+      for (let i = 0; i < n; i++) {
+        concatInputs += `[v${i}]`;
+        if (anyAudio) concatInputs += `[${i}:a]`;
+      }
+      if (anyAudio) {
+        filter += `${concatInputs}concat=n=${n}:v=1:a=1[outv][outa]`;
+        args.push("-filter_complex", filter, "-map", "[outv]", "-map", "[outa]",
+                  "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                  "-c:a", "aac", "-b:a", "192k");
+      } else {
+        filter += `${concatInputs}concat=n=${n}:v=1[outv]`;
+        args.push("-filter_complex", filter, "-map", "[outv]",
+                  "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23");
+      }
+      if (outExt === "mp4" || outExt === "mov") args.push("-movflags", "+faststart");
+    } else {
+      // Audio only — concat filter resamples automatically
+      let concatInputs = "";
+      for (let i = 0; i < n; i++) concatInputs += `[${i}:a]`;
+      const filter = `${concatInputs}concat=n=${n}:v=0:a=1[outa]`;
+      args.push("-filter_complex", filter, "-map", "[outa]");
+      if (outExt === "mp3") args.push("-c:a", "libmp3lame", "-b:a", "192k");
+      else if (outExt === "m4a") args.push("-c:a", "aac", "-b:a", "192k");
+    }
+
+    args.push("-y", outName);
+
+    if (onProgress) onProgress(0.25);
+    await _ffmpeg.run(...args);
+    if (onProgress) onProgress(0.95);
+
+    const data = _ffmpeg.FS("readFile", outName);
+    const blob = new Blob([data.buffer], { type: _mimeForExt(outExt) });
+
+    inputNames.forEach(nm => { try { _ffmpeg.FS("unlink", nm); } catch(_){} });
+    try { _ffmpeg.FS("unlink", outName); } catch(_){}
+
+    if (onProgress) onProgress(1);
+    return blob;
+  }
+
+  function _mimeForExt(ext) {
+    const map = {
+      mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime",
+      mkv: "video/x-matroska", mp3: "audio/mpeg", wav: "audio/wav",
+      m4a: "audio/mp4", aac: "audio/aac", ogg: "audio/ogg"
+    };
+    return map[ext] || "application/octet-stream";
+  }
+
   // ── PUBLIC API ──
   window.processFile = async function(file, options) {
     const { op } = options;
@@ -965,6 +1147,61 @@ window.loadFFmpeg = async function() {
     }
 
     throw new Error("[processFile] Unknown operation: " + op);
+  };
+
+  // ── CONCAT PUBLIC API (multiple files → one) ──
+  // options: { files: [File...], kind: "video"|"audio", outExt: "mp4"|"mp3"...,
+  //            onProgress: fn(0..1), onPhase: fn("inspecting"|"fast"|"slow") }
+  // Returns { blob, method: "copy"|"reencode" }
+  window.concatFiles = async function(options) {
+    const files   = options.files || [];
+    const kind    = options.kind  || "video";
+    const isVideo = kind === "video";
+    const onProgress = options.onProgress || function(){};
+    const onPhase    = options.onPhase    || function(){};
+
+    if (files.length < 2) throw new Error("Need at least 2 files to combine.");
+
+    // Decide output extension from the first file (keep what the user brought in)
+    const firstName = files[0].name || "";
+    let outExt = (firstName.split(".").pop() || "").toLowerCase();
+    if (!outExt || outExt.length > 4) outExt = isVideo ? "mp4" : "mp3";
+
+    // Step 1 — peek at every file's recipe
+    onPhase("inspecting");
+    let recipes = [];
+    try {
+      recipes = await Promise.all(files.map(f => _readMediaRecipe(f)));
+    } catch(e) {
+      console.warn("[concatFiles] Could not read metadata, will try fast path anyway:", e.message);
+    }
+
+    const canStreamCopy = recipes.length === files.length && _recipesMatch(recipes);
+
+    // Step 2 — fast path if recipes match
+    if (canStreamCopy) {
+      onPhase("fast");
+      try {
+        const blob = await _concatStreamCopy(files, outExt, onProgress);
+        return { blob, method: "copy" };
+      } catch(e) {
+        console.warn("[concatFiles] Fast path failed, falling back to re-encode:", e.message);
+      }
+    }
+
+    // Step 3 — slow path: re-encode to match
+    onPhase("slow");
+    const target = {
+      width:  recipes[0] && recipes[0].width  ? recipes[0].width  : 1280,
+      height: recipes[0] && recipes[0].height ? recipes[0].height : 720,
+      anyAudio: recipes.some(r => r.hasAudio)
+    };
+    // For re-encode, normalize output extension to a safe container
+    if (isVideo && outExt !== "mp4" && outExt !== "webm") outExt = "mp4";
+    if (!isVideo && outExt !== "mp3" && outExt !== "m4a") outExt = "mp3";
+
+    const blob = await _concatReEncode(files, outExt, isVideo, target, onProgress);
+    return { blob, method: "reencode" };
   };
 
 })();
