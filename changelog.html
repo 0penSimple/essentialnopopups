@@ -199,40 +199,69 @@
   <div class="changelog-entry">
     <div class="entry-meta">
       <span class="entry-version-pill">Update</span>
-      <span class="entry-date">April 2026</span>
+      <span class="entry-date">July 2026</span>
     </div>
-    <div class="entry-title">Faster, smarter, and finally works on your phone</div>
+    <div class="entry-title">Merge your videos and audio, right in the browser</div>
     <p class="entry-intro">
-      A big under-the-hood update focused on speed and reliability. Video and audio tools are dramatically faster thanks to hardware-accelerated processing, and nearly everything now works properly on iOS and Android.
+      Two new tools for stitching media together — no uploads, no waiting on a server, all on your own device.
     </p>
     <ul class="entry-items">
       <li>
         <span class="entry-tag tag-new">New</span>
-        <span><strong>Color Palette &amp; Picker</strong> — extract a full color palette from any image, or pick exact pixel colors with an eyedropper. Perfect for designers and developers.</span>
+        <span><strong>Merge Videos</strong> and <strong>Merge Audio</strong> — drop in several clips or tracks, drag them into the order you want, and combine them into one file. Matching files join almost instantly with no quality loss; mismatched ones are automatically re-encoded to fit.</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="changelog-entry">
+    <div class="entry-meta">
+      <span class="entry-version-pill">Update</span>
+      <span class="entry-date">April 2026</span>
+    </div>
+    <div class="entry-title">Five new tools — and everything runs smoother</div>
+    <p class="entry-intro">
+      A batch of new tools comes out of the workshop, plus a big round of reliability work under the hood. Files now save properly on iPhone, and the heavier video and audio tools are faster and far more dependable.
+    </p>
+    <ul class="entry-items">
+      <li>
+        <span class="entry-tag tag-new">New</span>
+        <span><strong>Color Palette &amp; Picker</strong> — pull a full colour palette out of any image, or pick the exact colour of any pixel with an eyedropper. Great for designers and developers.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-new">New</span>
+        <span><strong>Password Generator</strong> — create strong, random passwords with adjustable length and character types. Generated entirely on your device — nothing is ever sent anywhere.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-new">New</span>
+        <span><strong>Text Analyzer</strong> — instant word count, character count, reading time and more for any text you paste in.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-new">New</span>
+        <span><strong>Number Base Converter</strong> — convert numbers between binary, decimal, hexadecimal and octal in one place.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-new">New</span>
+        <span><strong>Audio to MIDI</strong> <span class="editors-pick-inline">⚗ Experimental</span> — turn a melody in an audio file into editable MIDI notes. Still early, but fun to play with.</span>
       </li>
       <li>
         <span class="entry-tag tag-improved">Improved</span>
-        <span><strong>Video converter is now dramatically faster</strong> — MP4, MOV, WebM, and MKV conversions now use hardware-accelerated encoding via the browser's native WebCodecs API instead of software emulation. A 30-second clip that used to take 10+ minutes now takes seconds.</span>
+        <span><strong>Works on iPhone and iPad</strong> — the video and audio tools now run properly on iOS Safari instead of silently failing, and downloads open the native share sheet so you can save straight to Files or Photos.</span>
       </li>
       <li>
         <span class="entry-tag tag-improved">Improved</span>
-        <span><strong>iPhone and iPad support across all tools</strong> — every FFmpeg-powered tool (video converter, trim video, remove audio, extract audio, audio converter, trim audio) now works on iOS Safari. Previously they'd silently fail or hang.</span>
-      </li>
-      <li>
-        <span class="entry-tag tag-improved">Improved</span>
-        <span><strong>Downloads on iPhone</strong> — tapping download now brings up the native iOS share sheet so you can save directly to Files, Photos, or share via AirDrop. No more blank white pages.</span>
-      </li>
-      <li>
-        <span class="entry-tag tag-improved">Improved</span>
-        <span><strong>Re-download without re-processing</strong> — after a tool finishes, the output button stays active so you can download the result again at any time without re-running the operation.</span>
+        <span><strong>Re-download without redoing the work</strong> — once a tool finishes, the button stays ready so you can grab the file again any time without re-running everything.</span>
       </li>
       <li>
         <span class="entry-tag tag-fixed">Fixed</span>
-        <span><strong>Video to GIF and Extract Audio</strong> — both tools were silently failing on certain files due to a memory conflict. Fully resolved.</span>
+        <span><strong>Images to PDF</strong> — pages now keep the order you set (even with dozens of images), you can jump a page to any position by typing its number, and full-page fill no longer crops your images oddly.</span>
       </li>
       <li>
-        <span class="entry-tag tag-improved">Improved</span>
-        <span><strong>Processing feedback</strong> — instead of a frozen progress bar stuck at 0%, tools now show a live animated bar and rotating status messages while working.</span>
+        <span class="entry-tag tag-fixed">Fixed</span>
+        <span><strong>Compress Image</strong> — clearer handling of PNG files, with one-click options to save as JPG or WebP for real size savings.</span>
+      </li>
+      <li>
+        <span class="entry-tag tag-fixed">Fixed</span>
+        <span><strong>Video to GIF &amp; Extract Audio</strong> — resolved a memory conflict that caused these to fail on certain files.</span>
       </li>
     </ul>
   </div>

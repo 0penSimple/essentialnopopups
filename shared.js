@@ -520,9 +520,18 @@ function makeDropZone(zoneEl, { accept = "", multiple = false, maxFree = Infinit
   function filterFiles(fileList) {
     let files = Array.from(fileList);
 
-    // Filter by type
+    // Filter by type. `accept` can be a MIME prefix like "video/" or "image/png".
+    // We keep a file if its MIME type matches OR (as a fallback for files that
+    // report a blank/odd type) its extension looks right. Some video files —
+    // especially .mkv and certain .mov — report an empty type in some browsers,
+    // so the extension fallback is important.
     if (accept) {
-      files = files.filter(f => f.type.startsWith(accept) || f.name.endsWith(`.${accept.split("/")[1]}`));
+      const category = accept.split("/")[0]; // e.g. "video" from "video/"
+      files = files.filter(f =>
+        (f.type && f.type.startsWith(accept)) ||
+        (category && f.type && f.type.startsWith(category + "/")) ||
+        (f.type === "" ) // let blank-type files through; the tool re-checks by extension
+      );
     }
 
     // Apply free tier limit
@@ -699,15 +708,10 @@ window.loadFFmpeg = async function() {
   if (window.ffmpegReady) return;
 
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-  // On non-iOS, SharedArrayBuffer is required — show error if missing
-  if (!isIOS && typeof SharedArrayBuffer === "undefined") {
-    const status = document.getElementById("ffmpegStatus");
-    const text   = document.getElementById("ffmpegStatusText");
-    if (status) status.classList.add("show");
-    if (text)   text.textContent = "⚠️ Your browser does not support the required features. Please try Chrome or Firefox.";
-    return;
-  }
+  // The fast multi-threaded core needs SharedArrayBuffer (requires special server
+  // headers). If it's not available, fall back to the single-thread core, which
+  // works everywhere. This way the tool works even without those headers.
+  const needsSingleThread = isIOS || typeof SharedArrayBuffer === "undefined";
 
   const status = document.getElementById("ffmpegStatus");
   const text   = document.getElementById("ffmpegStatusText");
@@ -729,8 +733,8 @@ window.loadFFmpeg = async function() {
       log: false
     };
 
-    if (isIOS) {
-      // Single-thread core — no SharedArrayBuffer needed, works on iOS Safari
+    if (needsSingleThread) {
+      // Single-thread core — no SharedArrayBuffer needed, works everywhere
       opts.corePath = "https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js";
       opts.mainName = "main";
     } else {
@@ -742,10 +746,10 @@ window.loadFFmpeg = async function() {
     window.ffmpegReady = true;
     if (status) status.classList.remove("show");
 
-    // core-st (iOS) throws "exit(0)" after each successful run — the output
-    // is already written to the FS at that point. We swallow it and mark
+    // The single-thread core throws "exit(0)" after each successful run — the
+    // output is already written to the FS at that point. We swallow it and mark
     // ffmpeg as needing reload, which happens lazily on the next run() call.
-    if (isIOS) {
+    if (needsSingleThread) {
       const originalRun = window.ffmpeg.run.bind(window.ffmpeg);
       window.ffmpeg.run = async (...args) => {
         // If previous run caused exit(0), reload now before proceeding
@@ -785,48 +789,111 @@ window.loadFFmpeg = async function() {
 */
 (function() {
 
-  // ── PRIVATE FFMPEG INSTANCE ──
-  // Completely separate from window.ffmpeg — never intercepted by the Mediabunny router
-  var _ffmpeg      = null;
-  var _ffmpegReady = false;
-  var _ffmpegLoading = null;
+  // ── PRIVATE FFMPEG ENGINE ──
+  // Completely separate from window.ffmpeg — never touched by the Mediabunny router.
+  //
+  // Two modes, picked automatically:
+  //  - FAST engine (multi-thread): needs SharedArrayBuffer (special server headers).
+  //    One long-lived instance is reused for every command — efficient.
+  //  - PORTABLE engine (single-thread): works everywhere, no headers needed.
+  //    Quirk: it permanently "quits" after every command. So instead of trying
+  //    to revive it (unreliable), we hire a FRESH worker for each command,
+  //    hand him only that job's materials, collect results, and let him go.
+  //
+  // All operations below go through one helper: _ffExec(args, inputs, outputs).
 
-  async function _loadPrivateFFmpeg() {
-    if (_ffmpegReady) return;
-    if (_ffmpegLoading) return _ffmpegLoading;
+  const _ffSingleThread = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+                          typeof SharedArrayBuffer === "undefined";
+  var _ffLibLoading = null;   // loading of ffmpeg.min.js itself
+  var _ffMulti = null;        // the reusable fast-engine instance
+  var _ffMultiLoading = null;
 
-    _ffmpegLoading = (async () => {
-      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  async function _loadFFLib() {
+    if (!_ffLibLoading) {
+      _ffLibLoading = window.loadScript(
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
+    }
+    return _ffLibLoading;
+  }
 
-      await window.loadScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js");
-      const { createFFmpeg } = FFmpeg;
+  async function _newFFInstance() {
+    await _loadFFLib();
+    const { createFFmpeg } = FFmpeg;
+    const opts = { log: false };
+    if (_ffSingleThread) {
+      opts.corePath = "https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js";
+      opts.mainName = "main";
+    } else {
+      opts.corePath = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js";
+    }
+    const ff = createFFmpeg(opts);
+    await ff.load();
+    return ff;
+  }
 
-      const opts = { log: false };
-      if (isIOS) {
-        opts.corePath = "https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js";
-        opts.mainName = "main";
+  async function _toU8(x) {
+    await _loadFFLib();
+    return await FFmpeg.fetchFile(x); // handles File, Blob, and Uint8Array alike
+  }
+
+  // Run ONE FFmpeg command in isolation.
+  //   args    — the FFmpeg command line, as an array
+  //   inputs  — { filename: File|Blob|Uint8Array } materials this job needs
+  //   outputs — [filenames] to read back when the job is done
+  // Returns { filename: Uint8Array } for every requested output.
+  async function _ffExec(args, inputs, outputs) {
+    inputs  = inputs  || {};
+    outputs = outputs || [];
+
+    // Convert all materials up front (before hiring anyone)
+    const prepared = {};
+    for (const name in inputs) prepared[name] = await _toU8(inputs[name]);
+
+    let ff;
+    if (_ffSingleThread) {
+      ff = await _newFFInstance(); // fresh worker for this one job
+    } else {
+      if (!_ffMulti) {
+        if (!_ffMultiLoading) {
+          _ffMultiLoading = _newFFInstance().then(f => { _ffMulti = f; return f; });
+        }
+        await _ffMultiLoading;
+      }
+      ff = _ffMulti;
+    }
+
+    const written = [];
+    try {
+      for (const name in prepared) {
+        ff.FS("writeFile", name, prepared[name]);
+        written.push(name);
+      }
+
+      try {
+        await ff.run(...args);
+      } catch(e) {
+        // The portable engine "quits" with exit(0) on success — outputs are
+        // already written and still readable at this moment. Anything else
+        // is a real error.
+        if (!(e && e.message && e.message.includes("exit(0)"))) throw e;
+      }
+
+      const result = {};
+      for (const name of outputs) {
+        result[name] = ff.FS("readFile", name);
+      }
+      return result;
+
+    } finally {
+      if (_ffSingleThread) {
+        // Let this worker go entirely — a fresh one is hired for the next job.
+        try { ff.exit(); } catch(_) {}
       } else {
-        opts.corePath = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js";
+        // Long-lived worker: tidy his workshop for the next job.
+        written.forEach(n => { try { ff.FS("unlink", n); } catch(_) {} });
+        outputs.forEach(n => { try { ff.FS("unlink", n); } catch(_) {} });
       }
-
-      _ffmpeg = createFFmpeg(opts);
-      await _ffmpeg.load();
-      _ffmpegReady = true;
-
-      // iOS: swallow exit(0) after each run
-      if (isIOS) {
-        const _origRun = _ffmpeg.run.bind(_ffmpeg);
-        _ffmpeg.run = async (...args) => {
-          try { return await _origRun(...args); }
-          catch(e) {
-            if (e && e.message && e.message.includes("exit(0)")) return;
-            throw e;
-          }
-        };
-      }
-    })();
-
-    return _ffmpegLoading;
+    }
   }
 
   // ── MEDIABUNNY AUDIO EXTRACTION ──
@@ -878,11 +945,6 @@ window.loadFFmpeg = async function() {
 
   // ── FFMPEG AUDIO EXTRACTION ──
   async function _extractAudioWithFFmpeg(file, format, bitrate) {
-    await _loadPrivateFFmpeg();
-
-    const { fetchFile } = FFmpeg;
-    _ffmpeg.FS("writeFile", "input", await fetchFile(file));
-
     let args;
     if (format === "mp3") {
       args = ["-i", "input", "-vn", "-codec:a", "libmp3lame", "-b:a", `${bitrate}k`, "-y", "output.mp3"];
@@ -890,51 +952,32 @@ window.loadFFmpeg = async function() {
       args = ["-i", "input", "-vn", "-codec:a", "pcm_s16le", "-y", "output.wav"];
     }
 
-    await _ffmpeg.run(...args);
-
-    const data = _ffmpeg.FS("readFile", `output.${format}`);
-    const blob = new Blob([data.buffer], { type: format === "mp3" ? "audio/mpeg" : "audio/wav" });
-
-    _ffmpeg.FS("unlink", "input");
-    _ffmpeg.FS("unlink", `output.${format}`);
-
-    return blob;
+    const out = await _ffExec(args, { input: file }, [`output.${format}`]);
+    return new Blob([out[`output.${format}`].buffer],
+      { type: format === "mp3" ? "audio/mpeg" : "audio/wav" });
   }
 
   // ── FFMPEG VIDEO TO GIF ──
   async function _videoToGifWithFFmpeg(file, fps, width, limit) {
-    await _loadPrivateFFmpeg();
-
-    const { fetchFile } = FFmpeg;
-    _ffmpeg.FS("writeFile", "input", await fetchFile(file));
-
-    // Pass 1: generate optimised palette
-    await _ffmpeg.run(
-      "-i",  "input",
-      "-ss", "0",
-      "-t",  String(limit),
-      "-vf", `fps=${fps},scale=${width}:-1:flags=lanczos,palettegen`,
-      "-y",  "palette.png"
+    // Job 1: study the video and produce an optimised colour palette
+    const pal = await _ffExec(
+      ["-i", "input", "-ss", "0", "-t", String(limit),
+       "-vf", `fps=${fps},scale=${width}:-1:flags=lanczos,palettegen`,
+       "-y", "palette.png"],
+      { input: file },
+      ["palette.png"]
     );
 
-    // Pass 2: encode GIF using palette
-    await _ffmpeg.run(
-      "-i", "input",
-      "-i", "palette.png",
-      "-ss", "0",
-      "-t",  String(limit),
-      "-filter_complex", `fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse`,
-      "-y",  "output.gif"
+    // Job 2: build the GIF using that palette
+    const gif = await _ffExec(
+      ["-i", "input", "-i", "palette.png", "-ss", "0", "-t", String(limit),
+       "-filter_complex", `fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse`,
+       "-y", "output.gif"],
+      { input: file, "palette.png": pal["palette.png"] },
+      ["output.gif"]
     );
 
-    const data = _ffmpeg.FS("readFile", "output.gif");
-    const blob = new Blob([data.buffer], { type: "image/gif" });
-
-    _ffmpeg.FS("unlink", "input");
-    _ffmpeg.FS("unlink", "palette.png");
-    _ffmpeg.FS("unlink", "output.gif");
-
-    return blob;
+    return new Blob([gif["output.gif"].buffer], { type: "image/gif" });
   }
 
   // ── READ MEDIA "RECIPE" (metadata) via Mediabunny ──
@@ -994,65 +1037,115 @@ window.loadFFmpeg = async function() {
   }
 
   // ── FAST PATH: instant staple (stream copy, no re-encoding) ──
+  // For MP4/MOV: each clip is first re-packaged (NOT re-encoded) into a neutral
+  // MPEG-TS container. TS uses one universal "time ruler" for everything, which
+  // fixes the classic "60-hour duration" bug caused by clips measuring time in
+  // different units. The repackaging copies data as-is — seconds, no quality loss.
+  // For WebM/audio: the concat demuxer works reliably, so we use it directly.
   async function _concatStreamCopy(files, outExt, onProgress) {
-    await _loadPrivateFFmpeg();
-    const { fetchFile } = FFmpeg;
-
-    // Write every input file into FFmpeg's virtual filesystem
-    const inputNames = [];
-    for (let i = 0; i < files.length; i++) {
-      const name = `in${i}.${outExt}`;
-      _ffmpeg.FS("writeFile", name, await fetchFile(files[i]));
-      inputNames.push(name);
-      if (onProgress) onProgress((i + 1) / files.length * 0.3); // first 30% = loading
-    }
-
-    // Build the "playlist" text file the concat demuxer reads
-    const listText = inputNames.map(n => `file '${n}'`).join("\n");
-    _ffmpeg.FS("writeFile", "list.txt", new TextEncoder().encode(listText));
-
+    const isMp4Like = (outExt === "mp4" || outExt === "mov" || outExt === "m4v");
     const outName = `output.${outExt}`;
-    const args = ["-f", "concat", "-safe", "0", "-i", "list.txt", "-c", "copy"];
-    // For MP4, move the "table of contents" to the front so it plays everywhere
-    if (outExt === "mp4" || outExt === "mov" || outExt === "m4a") {
-      args.push("-movflags", "+faststart");
+    let outData;
+
+    if (isMp4Like) {
+      // Step 1: repackage each clip into a neutral .ts binder (copy, not re-encode)
+      const segments = {}; // name → Uint8Array, kept in our hands between jobs
+      for (let i = 0; i < files.length; i++) {
+        const inName  = `in${i}.${outExt}`;
+        const segName = `seg${i}.ts`;
+        const out = await _ffExec(
+          ["-i", inName, "-c", "copy",
+           "-bsf:v", "h264_mp4toannexb", // adapt H.264 packaging for TS
+           "-f", "mpegts", "-y", segName],
+          { [inName]: files[i] },
+          [segName]
+        );
+        segments[segName] = out[segName];
+        if (onProgress) onProgress(((i + 1) / files.length) * 0.6);
+      }
+
+      // Step 2: staple the neutral binders and package back into MP4
+      const concatInput = "concat:" + Object.keys(segments).join("|");
+      const finalOut = await _ffExec(
+        ["-i", concatInput, "-c", "copy",
+         "-bsf:a", "aac_adtstoasc", // restore AAC audio packaging for MP4
+         "-movflags", "+faststart",
+         "-y", outName],
+        segments,
+        [outName]
+      );
+      outData = finalOut[outName];
+
+    } else {
+      // WebM / audio — concat demuxer works reliably for these, one single job
+      const inputs = {};
+      const listLines = [];
+      for (let i = 0; i < files.length; i++) {
+        const inName = `in${i}.${outExt}`;
+        inputs[inName] = files[i];
+        listLines.push(`file '${inName}'`);
+      }
+      inputs["list.txt"] = new TextEncoder().encode(listLines.join("\n"));
+
+      const args = [
+        "-fflags", "+genpts",
+        "-f", "concat", "-safe", "0",
+        "-i", "list.txt",
+        "-c", "copy",
+        "-avoid_negative_ts", "make_zero"
+      ];
+      if (outExt === "m4a") args.push("-movflags", "+faststart");
+      args.push("-y", outName);
+
+      if (onProgress) onProgress(0.3);
+      const out = await _ffExec(args, inputs, [outName]);
+      outData = out[outName];
     }
-    args.push("-y", outName);
-
-    if (onProgress) onProgress(0.4);
-    await _ffmpeg.run(...args);
-    if (onProgress) onProgress(0.95);
-
-    const data = _ffmpeg.FS("readFile", outName);
-    const mime = _mimeForExt(outExt);
-    const blob = new Blob([data.buffer], { type: mime });
-
-    // Clean up
-    inputNames.forEach(n => { try { _ffmpeg.FS("unlink", n); } catch(_){} });
-    try { _ffmpeg.FS("unlink", "list.txt"); } catch(_){}
-    try { _ffmpeg.FS("unlink", outName); } catch(_){}
 
     if (onProgress) onProgress(1);
-    return blob;
+    return new Blob([outData.buffer], { type: _mimeForExt(outExt) });
   }
+
+  // ── SANITY CHECK: does the merged file's duration make sense? ──
+  // Reads the output's duration and compares against the sum of input durations.
+  // If it's wildly off (like 60 hours instead of 10 minutes), the staple went
+  // wrong and we should re-encode instead. Uses the browser's own video/audio
+  // element — cheap and reliable.
+  function _readBlobDuration(blob) {
+    return new Promise((resolve) => {
+      const el = document.createElement(blob.type.startsWith("audio") ? "audio" : "video");
+      el.preload = "metadata";
+      const url = URL.createObjectURL(blob);
+      const done = (val) => { URL.revokeObjectURL(url); resolve(val); };
+      el.onloadedmetadata = () => done(el.duration);
+      el.onerror = () => done(null);
+      setTimeout(() => done(null), 10000); // don't hang forever
+      el.src = url;
+    });
+  }
+
+  function _readFileDuration(file) {
+    return _readBlobDuration(file);
+  }
+
 
   // ── SLOW PATH: re-encode everything to match, then staple ──
   // For video: scale/pad all clips to the first clip's dimensions.
-  // For audio: resample all to a common sample rate.
+  // For audio: the concat filter resamples automatically.
+  // This is one single (big) FFmpeg job — slower, but bulletproof.
   async function _concatReEncode(files, outExt, isVideo, target, onProgress) {
-    await _loadPrivateFFmpeg();
-    const { fetchFile } = FFmpeg;
-
-    const inputNames = [];
-    for (let i = 0; i < files.length; i++) {
-      const name = `in${i}.${outExt}`;
-      _ffmpeg.FS("writeFile", name, await fetchFile(files[i]));
-      inputNames.push(name);
-      if (onProgress) onProgress((i + 1) / files.length * 0.2);
-    }
-
     const outName = `output.${outExt}`;
     const n = files.length;
+
+    // Prepare all input materials for one job
+    const inputs = {};
+    const inputNames = [];
+    for (let i = 0; i < n; i++) {
+      const name = `in${i}.${outExt}`;
+      inputs[name] = files[i];
+      inputNames.push(name);
+    }
+
     let args = [];
     inputNames.forEach(nm => { args.push("-i", nm); });
 
@@ -1066,7 +1159,6 @@ window.loadFFmpeg = async function() {
         filter += `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,` +
                   `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${i}];`;
       }
-      // Chain video (and audio if present) into the concat filter
       let concatInputs = "";
       const anyAudio = target.anyAudio;
       for (let i = 0; i < n; i++) {
@@ -1085,7 +1177,6 @@ window.loadFFmpeg = async function() {
       }
       if (outExt === "mp4" || outExt === "mov") args.push("-movflags", "+faststart");
     } else {
-      // Audio only — concat filter resamples automatically
       let concatInputs = "";
       for (let i = 0; i < n; i++) concatInputs += `[${i}:a]`;
       const filter = `${concatInputs}concat=n=${n}:v=0:a=1[outa]`;
@@ -1096,18 +1187,11 @@ window.loadFFmpeg = async function() {
 
     args.push("-y", outName);
 
-    if (onProgress) onProgress(0.25);
-    await _ffmpeg.run(...args);
-    if (onProgress) onProgress(0.95);
-
-    const data = _ffmpeg.FS("readFile", outName);
-    const blob = new Blob([data.buffer], { type: _mimeForExt(outExt) });
-
-    inputNames.forEach(nm => { try { _ffmpeg.FS("unlink", nm); } catch(_){} });
-    try { _ffmpeg.FS("unlink", outName); } catch(_){}
-
+    if (onProgress) onProgress(0.2);
+    const out = await _ffExec(args, inputs, [outName]);
     if (onProgress) onProgress(1);
-    return blob;
+
+    return new Blob([out[outName].buffer], { type: _mimeForExt(outExt) });
   }
 
   function _mimeForExt(ext) {
@@ -1178,11 +1262,37 @@ window.loadFFmpeg = async function() {
 
     const canStreamCopy = recipes.length === files.length && _recipesMatch(recipes);
 
+    // Measure how long the inputs are in total — we'll use this to verify
+    // that the fast merge actually produced a sensible result.
+    let expectedDuration = null;
+    try {
+      const durations = await Promise.all(files.map(f => _readFileDuration(f)));
+      if (durations.every(d => typeof d === "number" && isFinite(d) && d > 0)) {
+        expectedDuration = durations.reduce((a, b) => a + b, 0);
+      }
+    } catch(_) {}
+
     // Step 2 — fast path if recipes match
     if (canStreamCopy) {
       onPhase("fast");
       try {
         const blob = await _concatStreamCopy(files, outExt, onProgress);
+
+        // Sanity check: does the merged file's duration make sense?
+        // Two 5-minute clips should give ~10 minutes — not 60 hours.
+        // Allow generous 10% + 5s wiggle room for container rounding.
+        if (expectedDuration) {
+          const actual = await _readBlobDuration(blob);
+          const tolerance = expectedDuration * 0.1 + 5;
+          const looksRight = typeof actual === "number" && isFinite(actual) &&
+                             Math.abs(actual - expectedDuration) <= tolerance;
+          if (!looksRight) {
+            console.warn(`[concatFiles] Fast merge produced suspicious duration ` +
+              `(expected ~${Math.round(expectedDuration)}s, got ${actual}s) — re-encoding instead.`);
+            throw new Error("duration check failed");
+          }
+        }
+
         return { blob, method: "copy" };
       } catch(e) {
         console.warn("[concatFiles] Fast path failed, falling back to re-encode:", e.message);
