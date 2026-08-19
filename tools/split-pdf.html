@@ -31,14 +31,15 @@
   .mode-note a { color: var(--teal); font-weight: 500; }
   .mode-note a:hover { text-decoration: underline; }
 
-  /* PREMIUM SECTION */
-  .premium-section { background: var(--premium-light); border: 1px solid var(--premium-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 1.25rem; display: none; }
+  /* CUSTOM RANGES SECTION */
+  .premium-section { background: var(--warm-bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 1.25rem; display: none; }
   .premium-section.show { display: block; }
   .premium-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-  .premium-title { font-size: 0.82rem; font-weight: 500; color: var(--premium); }
-  .premium-desc { font-size: 0.75rem; color: var(--premium); opacity: 0.8; line-height: 1.5; margin-bottom: 10px; }
-  .ranges-input { width: 100%; background: #fff; border: 1px solid var(--premium-border); border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 0.875rem; padding: 10px 14px; outline: none; opacity: 0.5; pointer-events: none; }
-  .ranges-hint { font-size: 0.72rem; color: var(--premium); opacity: 0.7; margin-top: 5px; }
+  .premium-title { font-size: 0.82rem; font-weight: 500; color: var(--text); }
+  .premium-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
+  .ranges-input { width: 100%; background: #fff; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 0.875rem; padding: 10px 14px; outline: none; }
+  .ranges-input:focus { border-color: var(--teal-mid); }
+  .ranges-hint { font-size: 0.72rem; color: var(--faint); margin-top: 5px; }
 
   /* BATCH PREMIUM SECTION */
   .batch-section { background: var(--premium-light); border: 1px solid var(--premium-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 1.25rem; }
@@ -138,23 +139,21 @@
     <label>Split mode</label>
     <div class="mode-tabs">
       <div class="mode-tab active" onclick="setMode('all')">Split all pages</div>
-      <div class="mode-tab" onclick="setMode('ranges')">Custom ranges <span class="premium-badge">✦ Premium</span></div>
+      <div class="mode-tab" onclick="setMode('ranges')">Custom ranges</div>
     </div>
     <div class="mode-note" id="modeNote">
       Splits every page into its own PDF file, downloaded as a ZIP.
-      Need specific page ranges? Split first, then use our <a href="merge-pdf.html">Merge PDFs</a> tool to recombine the pages you want.
+      Or choose <strong>Custom ranges</strong> to keep specific page groups together.
     </div>
 
-    <!-- PREMIUM RANGES (locked) -->
-    <!-- TO UNLOCK: add .show to premium-section, remove disabled + opacity:0.5 + pointer-events:none from ranges-input -->
+    <!-- CUSTOM RANGES (free) -->
     <div class="premium-section" id="premiumSection">
       <div class="premium-header">
-        <span class="premium-badge">✦ Premium</span>
         <span class="premium-title">Custom page ranges</span>
       </div>
       <div class="premium-desc">Define exactly which pages go into each output PDF. For example: "1-4, 5-6, 7-12" creates three separate PDFs. Pages not included in any range are excluded from the output.</div>
       <input class="ranges-input" id="rangesInput" type="text" placeholder='e.g. 1-4, 5-6, 7-12 — only these pages will be kept'>
-      <div class="ranges-hint">Coming with premium — free tier splits all pages individually.</div>
+      <div class="ranges-hint">Enter ranges separated by commas. Each range becomes its own PDF.</div>
     </div>
 
     <!-- PROGRESS -->
@@ -188,7 +187,7 @@
     <ul class="info-list">
       <li>Everything happens in your browser — your file is never uploaded anywhere.</li>
       <li>Each page becomes its own PDF file, all bundled into a ZIP for easy download.</li>
-      <li>Need specific page ranges for free? Split first, then use our <a href="merge-pdf.html" style="color:var(--teal);font-weight:500;">Merge PDFs</a> tool to recombine exactly the pages you want.</li>
+      <li>Use <strong>Custom ranges</strong> to control exactly which pages go into each output PDF — for example "1-4, 5-6, 7-12" creates three separate files.</li>
       <li>Password-protected PDFs cannot be split — remove the password first.</li>
     </ul>
   </div>
@@ -203,18 +202,12 @@
   // Apply premium gates on load
   document.addEventListener("DOMContentLoaded", () => {
     if (IS_PREMIUM) {
-      // Unlock batch section
+      // Unlock batch section (splitting multiple PDFs at once stays premium)
       document.getElementById("batchSection").style.display = "block";
       document.getElementById("batchLocked").style.display = "none";
       // Allow multiple files in drop zone
       document.getElementById("fileInput").multiple = true;
       document.getElementById("dropSub").textContent = "Drop one or multiple PDFs at once";
-      // Unlock ranges input styling
-      const rangesInput = document.getElementById("rangesInput");
-      if (rangesInput) {
-        rangesInput.style.opacity = "1";
-        rangesInput.style.pointerEvents = "auto";
-      }
     }
   });
 
