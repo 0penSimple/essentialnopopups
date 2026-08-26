@@ -43,6 +43,7 @@ const IS_PREMIUM = false;
         }
       </div>
       <div class="nav-right">
+        <a href="${root}about.html" class="nav-changelog">About</a>
         <a href="${root}changelog.html" class="nav-changelog">Changelog</a>
         <a href="${root}premium.html" class="nav-premium">✦ Premium</a>
         <div class="nav-badge">Zero pop-ups, ever</div>
@@ -57,11 +58,18 @@ const IS_PREMIUM = false;
       <div>
         <div class="footer-logo">Essential<em>Bits</em></div>
         <div class="footer-tagline">Free tools. No pop-ups. Ever.</div>
-        <div style="font-size:0.7rem;color:var(--faint);margin-top:4px;">© ${new Date().getFullYear()} EssentialBits. All rights reserved.</div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:8px;max-width:320px;line-height:1.5;">
+          This site survives thanks to you. If a tool saved you time or a headache, you can support it below.
+        </div>
+        <a href="https://ko-fi.com/F2A425T678" target="_blank" rel="noopener" class="kofi-btn kofi-btn-sm kofi-btn-outline">
+          <span class="kofi-cup">☕</span> Support on Ko-fi
+        </a>
+        <div style="font-size:0.7rem;color:var(--faint);margin-top:10px;">© ${new Date().getFullYear()} EssentialBits. All rights reserved.</div>
       </div>
       <div class="footer-right">
         Questions, suggestions, or ideas? Contact us at:<br>
         <a href="mailto:hello@essentialbits.pro">hello@essentialbits.pro</a><br>
+        <a href="${root}about.html" style="font-size:0.72rem;color:var(--faint);">About</a> &nbsp;·&nbsp;
         <a href="${root}privacy-policy.html" style="font-size:0.72rem;color:var(--faint);">Privacy Policy</a> &nbsp;·&nbsp;
         <a href="${root}changelog.html" style="font-size:0.72rem;color:var(--faint);">Changelog</a>
       </div>
@@ -103,7 +111,8 @@ function buildInfoPanel() {
         <div class="info-panel-icon">🙏</div>
         <div>
           <div class="info-panel-title">This site survives thanks to you</div>
-          <div class="info-panel-text">There are no pop-ups here — just simple banner ads. If you find this useful, please consider whitelisting us in your ad blocker. It genuinely helps.</div>
+          <div class="info-panel-text">If a tool here saved you time or a headache, a small tip helps keep everything free and pop-up-free for everyone.</div>
+          <a href="https://ko-fi.com/F2A425T678" target="_blank" rel="noopener" class="kofi-btn kofi-btn-sm kofi-btn-outline"><span class="kofi-cup">☕</span> Support on Ko-fi</a>
         </div>
       </div>
     </div>

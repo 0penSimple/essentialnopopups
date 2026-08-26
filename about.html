@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About — EssentialBits</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+<link rel="stylesheet" href="shared.css">
+<style>
+
+  .about-hero {
+    padding: clamp(3rem, 8vw, 5rem) 0 clamp(1rem, 3vw, 1.75rem);
+    opacity: 0;
+    animation: fadeUp 0.5s 0.05s forwards;
+  }
+  .about-eyebrow {
+    font-size: 0.72rem; font-weight: 500; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--teal); margin-bottom: 0.75rem;
+  }
+  .about-title {
+    font-family: 'Lora', serif; font-size: clamp(2.6rem, 7vw, 4.5rem);
+    font-weight: 400; letter-spacing: -0.03em; line-height: 1;
+    color: var(--text); position: relative; display: inline-block;
+  }
+  .about-title::after {
+    content: ''; position: absolute; left: 0; bottom: -6px;
+    width: 100%; height: 3px;
+    background: linear-gradient(90deg, var(--teal), var(--teal-border), transparent);
+    border-radius: 99px;
+  }
+  .about-body { max-width: 620px; opacity: 0; animation: fadeUp 0.5s 0.2s forwards; }
+  .about-body p { font-size: 0.98rem; line-height: 1.85; color: var(--muted); margin-bottom: 1.4rem; }
+  .about-body strong { color: var(--text); font-weight: 500; }
+  .about-h2 {
+    font-family: 'Lora', serif; font-size: 1.5rem; font-weight: 400;
+    color: var(--text); margin: 3rem 0 1.1rem; letter-spacing: -0.01em;
+  }
+  .about-support {
+    max-width: 620px; margin: 3rem 0 1rem; padding-top: 1.75rem;
+    border-top: 1px solid var(--border); opacity: 0; animation: fadeUp 0.5s 0.3s forwards;
+  }
+  .about-support p { font-size: 0.92rem; line-height: 1.75; color: var(--muted); margin-bottom: 1rem; }
+  .faq { max-width: 620px; opacity: 0; animation: fadeUp 0.5s 0.4s forwards; }
+  .faq-item { border-top: 1px solid var(--border); padding: 1.2rem 0; }
+  .faq-item:last-child { border-bottom: 1px solid var(--border); }
+  .faq-q { font-size: 0.92rem; font-weight: 500; color: var(--text); margin-bottom: 0.4rem; }
+  .faq-a { font-size: 0.88rem; line-height: 1.75; color: var(--muted); }
+  .faq-a a, .about-body a { color: var(--teal); }
+
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="about-hero">
+    <div class="about-eyebrow">About</div>
+    <div class="about-title">EssentialBits</div>
+  </div>
+
+  <div class="about-body">
+    <p>Hi — I'm the person behind <strong>EssentialBits.pro</strong>.</p>
+
+    <p>Essential Bits, or <strong>EBits</strong>, was made to be a collection of free everyday tools that simplify those small annoying tasks — merging your PDFs, compressing images, extracting audio, and a lot more. Every tool is built to do one small annoying thing quickly and then get out of your way.</p>
+
+    <p>The idea behind it is simple. Everything runs <strong>inside your browser</strong>, so your files never touch a server — they stay on your device and are processed locally. This website is free; you don't need an account to use it, and you'll never hit a pop-up, a countdown timer, or an ad begging for your attention. You just open a tool and use it.</p>
+
+    <p>I built it because most "free" online tools bury you in ads, watermarks, and upsells — or quietly upload your private files to who-knows-where. I wanted the opposite: genuinely useful tools that respect you and your privacy. This website is a work in progress, and we are always open for your ideas!</p>
+  </div>
+
+  <div class="about-support">
+    <p>Keeping EssentialBits free, private, and pop-up-free costs real money — servers, domains, and a lot of late nights building and fixing things. If a tool here saved you time or a headache, a coffee helps keep the lights on.</p>
+    <a href="https://ko-fi.com/F2A425T678" target="_blank" rel="noopener" class="kofi-btn kofi-btn-sm kofi-btn-outline"><span class="kofi-cup">☕</span> Support on Ko-fi</a>
+  </div>
+
+  <div class="about-h2">Frequently asked questions</div>
+  <div class="faq">
+
+    <div class="faq-item">
+      <div class="faq-q">Is it really free?</div>
+      <div class="faq-a">Yes. Every tool here is free to use, with no account and no sign-up. Down the line there may be an optional Premium tier with extra advanced features, but the essentials will always stay free.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Are my files private? What happens to them?</div>
+      <div class="faq-a">Your files never leave your device. Almost every tool processes your files entirely inside your own browser — nothing is uploaded to, stored on, or shared with any server. When you close the tab, they're gone from memory. For the full details, see our <a href="privacy-policy.html">Privacy Policy</a>.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Do I need to install anything?</div>
+      <div class="faq-a">No — everything runs right in your web browser. No downloads, no plugins, no extensions. Just open a tool and start using it.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Does it work on my phone?</div>
+      <div class="faq-a">Yes. The tools are built to work on phones and tablets, including iPhone and iPad, as well as desktop. A few of the heavier video tools work best on a computer, but most run fine anywhere.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Why do some tools take a moment to load?</div>
+      <div class="faq-a">Because the processing happens on your device rather than a server, some tools load a bit of software into your browser the first time you use them. After that first load it's quick — and it's the trade-off that keeps your files private.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">How can I support the site or suggest a tool?</div>
+      <div class="faq-a">The best way to support EssentialBits is to <a href="https://ko-fi.com/F2A425T678" target="_blank" rel="noopener">buy me a coffee on Ko-fi</a>, or simply to share it with someone who'd find it useful. Got an idea for a tool or found a bug? Email me at <a href="mailto:hello@essentialbits.pro">hello@essentialbits.pro</a> — I read every message.</div>
+    </div>
+
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="shared.js"></script>
+
+</body>
+</html>

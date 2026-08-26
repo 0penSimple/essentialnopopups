@@ -113,6 +113,55 @@ nav {
 .info-panel-title { font-size: 0.8rem; font-weight: 500; color: var(--text); margin-bottom: 3px; }
 .info-panel-text { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
 
+/* ── KO-FI SUPPORT BUTTON ── */
+.kofi-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--teal);
+  color: #fff !important;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 9px 16px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: all 0.2s;
+  border: none;
+  line-height: 1.2;
+  margin-top: 8px;
+}
+.kofi-btn:hover { background: var(--teal-mid); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(15,110,86,0.25); }
+.kofi-btn:active { transform: translateY(0); box-shadow: none; }
+.kofi-btn .kofi-cup { font-size: 0.95rem; }
+.kofi-btn-sm { font-size: 0.74rem; padding: 6px 12px; }
+
+/* Subtle outlined variant — for calm text pages where a solid button is too loud */
+.kofi-btn-outline {
+  background: transparent;
+  color: var(--teal) !important;
+  border: 1px solid var(--teal-border);
+  box-shadow: none;
+  font-weight: 500;
+}
+.kofi-btn-outline:hover {
+  background: var(--teal-light);
+  border-color: var(--teal);
+  transform: none;
+  box-shadow: none;
+}
+
+/* Subtle inline text link — for flowing text where even an outlined button is too much */
+.kofi-link {
+  color: var(--teal);
+  font-weight: 500;
+  text-decoration: none;
+  border-bottom: 1px solid var(--teal-border);
+  transition: border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.kofi-link:hover { color: var(--teal-mid); border-bottom-color: var(--teal-mid); }
+
 /* ── CARD ── */
 .card {
   background: var(--surface); border: 1px solid var(--border);
