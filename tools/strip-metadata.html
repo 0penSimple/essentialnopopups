@@ -97,10 +97,10 @@
 
     <label>Your image</label>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*">
+      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp">
       <div class="drop-icon">🖼</div>
       <div class="drop-text"><strong>Click to choose</strong> or drag an image here</div>
-      <div class="drop-sub" id="dropSub">JPG, PNG, WebP and more</div>
+      <div class="drop-sub" id="dropSub">JPG, PNG, or WebP · up to 100 MB / 100 megapixels</div>
     </div>
 
     <!-- FILE LIST -->
@@ -108,7 +108,7 @@
       <div class="files-header">
         <div class="files-count" id="filesCount">0 files</div>
         <div class="btn-add-more" id="addMoreBtn" style="display:none;">
-          <input type="file" accept="image/*" multiple onchange="addFiles(this.files); this.value=''">
+          <input type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="addFiles(this.files); this.value=''">
           + Add more
         </div>
       </div>
@@ -124,7 +124,9 @@
         <table class="meta-table" id="metaTable"></table>
       </div>
     </div>
-    <div id="metaEmpty" class="meta-empty">✓ No metadata found — this image is already clean.</div>
+    <div id="metaEmpty" class="meta-empty">✓ No supported metadata or suspicious optional data was detected. The image will still be rebuilt and verified.</div>
+
+    <div id="scanWarning" class="meta-empty" style="background:#fff8e6;border-color:#ead7a3;color:#6c5100;"></div>
 
     <!-- PROGRESS -->
     <div class="progress-section" id="progressSection">
@@ -138,8 +140,15 @@
     </div>
 
     <button class="btn-primary" id="stripBtn" onclick="strip()" disabled>
-      Strip &amp; download — 0/1
+      Strip, verify &amp; download — 0/1
     </button>
+
+    <div id="reportSection" class="meta-section" style="margin-top:1.25rem;">
+      <div class="meta-header">
+        <div class="meta-found"><strong>Cleaning results</strong></div>
+      </div>
+      <div id="reportList" class="meta-scroll" style="max-height:320px;padding:10px 12px;font-size:.78rem;"></div>
+    </div>
 
   </div>
 
@@ -152,17 +161,21 @@
     <ul class="info-list">
       <li>Everything happens in your browser — your images are never uploaded anywhere.</li>
       <li>GPS location fields are highlighted in yellow — these are the most sensitive to remove before sharing.</li>
-      <li>Stripping metadata re-exports the image through a canvas — the visual quality is preserved but the file size may change slightly.</li>
-      <li>PNG files keep their transparency. JPG files are re-encoded at 95% quality.</li>
+      <li>The cleaner inspects EXIF, GPS, IPTC, XMP, ICC profiles, comments, thumbnails, C2PA Content Credentials, optional container blocks, and trailing data.</li>
+      <li>Images are decoded to visible pixels, re-encoded, structurally cleaned, and scanned again before download.</li>
+      <li>PNG files keep transparency. JPG and WebP files are re-encoded at 95% quality, so the file is not byte-for-byte unchanged.</li>
+      <li>This does not remove visible marks, pixel-level AI watermarks, steganography, or statistical text watermarks.</li>
     </ul>
   </div>
 
 </div>
 
 <footer id="shared-footer"></footer>
-<script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exifreader@4.44.0/dist/exif-reader.js"
+        integrity="sha384-u4t9beBC8c6TJKFq1BzhgTBXofCqLyP3KXhPABosAQcfgEqGtk9jtwOwkfLZhfip"
+        crossorigin="anonymous"></script>
 <script src="../shared.js"></script>
-<script>
+<script type="text/plain" id="legacyMetadataTool">
   const state = {
     files: [],
     isPremium: IS_PREMIUM
@@ -314,6 +327,238 @@
     });
     await batch.run();
   }
+</script>
+
+<script>
+'use strict';
+
+const MAX_FILE_BYTES = 100 * 1024 * 1024;
+const MAX_PIXELS = 100 * 1000 * 1000;
+const C2PA_VERSION = '0.14.3';
+const stateV2 = {
+  files: [], reports: [], scanToken: 0, c2paPromise: null,
+  isPremium: typeof IS_PREMIUM !== 'undefined' ? IS_PREMIUM : false
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  makeDropZone(document.getElementById('dropZone'), {
+    accept: 'image/', multiple: stateV2.isPremium, maxFree: 1,
+    onFiles: files => setFiles(files)
+  });
+  if (stateV2.isPremium) {
+    document.getElementById('addMoreBtn').style.display = 'block';
+    document.getElementById('dropSub').textContent = 'Drop JPG, PNG, or WebP images · 100 MB / 100 megapixels maximum each';
+  }
+});
+
+function newItem(file) {
+  return { id: `${Date.now()}-${Math.random()}`, file, name:file.name, size:file.size, status:'queued', inspection:null, error:null };
+}
+
+function setFiles(files) {
+  stateV2.files = Array.from(files).map(newItem);
+  resetReports(); renderV2(); inspectAll();
+}
+
+function addFiles(fileList) {
+  stateV2.files.push(...Array.from(fileList).map(newItem));
+  resetReports(); renderV2(); inspectAll();
+}
+
+function removeFile(index) {
+  stateV2.files.splice(index, 1);
+  stateV2.scanToken++;
+  resetReports(); renderV2();
+  renderInspection(stateV2.files.length === 1 ? stateV2.files[0] : null);
+}
+
+function renderV2() {
+  const list = document.getElementById('fileList');
+  list.replaceChildren();
+  stateV2.files.forEach((item, index) => {
+    const row = document.createElement('div'); row.className = 'file-item';
+    const icon = document.createElement('div'); icon.className = 'file-icon'; icon.textContent = '🖼';
+    const info = document.createElement('div'); info.className = 'file-info';
+    const name = document.createElement('div'); name.className = 'file-name'; name.textContent = item.name;
+    const meta = document.createElement('div'); meta.className = 'file-meta';
+    const status = item.status === 'scanning' ? ' · inspecting…' : item.error ? ` · ${item.error}` : item.inspection ? ` · ${item.inspection.findings.length} finding${item.inspection.findings.length === 1 ? '' : 's'}` : '';
+    meta.textContent = `${formatBytes(item.size)}${status}`;
+    info.append(name, meta);
+    const remove = document.createElement('button'); remove.className = 'file-remove'; remove.type = 'button'; remove.textContent = '×';
+    remove.title = `Remove ${item.name}`; remove.addEventListener('click', () => removeFile(index));
+    row.append(icon, info, remove); list.appendChild(row);
+  });
+  const n = stateV2.files.length;
+  document.getElementById('filesSection').classList.toggle('show', n > 0);
+  document.getElementById('filesCount').textContent = `${n} image${n === 1 ? '' : 's'}`;
+  const dropText = document.querySelector('#dropZone .drop-text'); dropText.replaceChildren();
+  const strong = document.createElement('strong'); strong.textContent = n === 0 ? 'Click to choose' : n === 1 ? stateV2.files[0].name : `${n} images loaded`; dropText.appendChild(strong);
+  if (!n) dropText.appendChild(document.createTextNode(' or drag an image here'));
+  const waiting = stateV2.files.some(x => x.status === 'queued' || x.status === 'scanning');
+  const errors = stateV2.files.some(x => x.error);
+  const btn = document.getElementById('stripBtn'); btn.disabled = !n || waiting || errors;
+  btn.textContent = !n ? 'Strip, verify & download — 0/1' : waiting ? 'Inspecting before cleaning…' : errors ? 'Remove unsupported files to continue' : `Strip, verify & download — 0/${n}`;
+  btn.classList.remove('btn-done');
+}
+
+async function inspectAll() {
+  const token = ++stateV2.scanToken;
+  for (const item of stateV2.files) {
+    if (token !== stateV2.scanToken) return;
+    item.status = 'scanning'; renderV2();
+    try {
+      if (item.size > MAX_FILE_BYTES) throw new Error('exceeds 100 MB');
+      item.inspection = await inspectBlob(item.file, true);
+      item.status = 'ready';
+    } catch (error) { item.error = messageOf(error); item.status = 'error'; }
+    renderV2();
+    if (stateV2.files.length === 1) renderInspection(stateV2.files[0]);
+  }
+  renderWarnings();
+}
+
+async function inspectBlob(blob, useOfficialC2pa) {
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  const format = detectFormat(bytes);
+  if (!format) throw new Error('not a genuine JPEG, PNG, or WebP');
+  const mime = format === 'jpeg' ? 'image/jpeg' : `image/${format}`;
+  let findings = scanContainer(bytes, format);
+  const warnings = [];
+  if (typeof ExifReader !== 'undefined') {
+    try { findings.push(...readRecognizedMetadata(buffer)); }
+    catch (error) { warnings.push(`Metadata parser warning: ${messageOf(error)}`); }
+  } else warnings.push('The recognized metadata parser did not load; structural inspection was still completed.');
+
+  let c2pa = { checked:false, found:structuralC2pa(findings), status:'structural-only', summary:null };
+  if (useOfficialC2pa) {
+    try {
+      c2pa = await inspectC2pa(blob, mime);
+      if (c2pa.found) findings.push(finding('credential','C2PA','Content Credential',c2pa.summary || 'Signed provenance manifest','Official C2PA verifier',false,true));
+    } catch (error) {
+      warnings.push('Cryptographic C2PA verification was unavailable; structural C2PA detection was used.');
+    }
+  }
+  findings = dedupe(findings);
+  return { format, mime, byteLength:bytes.length, findings, warnings, c2pa };
+}
+
+function detectFormat(b) {
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
+  if (b.length >= 8 && b[0] === 0x89 && textAt(b,1,3) === 'PNG' && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return 'png';
+  if (b.length >= 12 && textAt(b,0,4) === 'RIFF' && textAt(b,8,4) === 'WEBP') return 'webp';
+  return null;
+}
+
+function scanContainer(bytes, format) {
+  return format === 'jpeg' ? scanJpeg(bytes) : format === 'png' ? scanPng(bytes) : scanWebp(bytes);
+}
+
+function scanJpeg(b) {
+  const out = []; let p = 2;
+  while (p + 3 < b.length) {
+    if (b[p] !== 0xff) { p++; continue; }
+    while (p < b.length && b[p] === 0xff) p++;
+    const marker = b[p++];
+    if (marker === 0xda || marker === 0xd9) break;
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) continue;
+    if (p + 2 > b.length) break;
+    const len = u16be(b,p); if (len < 2 || p + len > b.length) { out.push(container('JPEG','Malformed segment','unknown',0,true)); break; }
+    const start = p + 2, size = len - 2, head = printable(b,start,Math.min(size,96)), lower = head.toLowerCase();
+    if (marker >= 0xe0 && marker <= 0xef) {
+      const app = marker - 0xe0; let key = `APP${app} optional segment`, category = 'container', sensitive = true;
+      if (app === 0 && head.startsWith('JFIF')) { key='JFIF application segment'; category='rendering'; sensitive=false; }
+      else if (app === 1 && head.startsWith('Exif')) { key='EXIF segment'; category='exif'; }
+      else if (app === 1 && lower.includes('adobe.com/xap')) { key='XMP segment'; category='xmp'; }
+      else if (app === 2 && head.startsWith('ICC_PROFILE')) { key='ICC color profile'; category='color'; sensitive=false; }
+      else if (app === 2 && head.startsWith('MPF')) { key='Embedded-image / MPF index'; category='embedded'; }
+      else if (app === 11 && (lower.includes('c2pa') || lower.includes('jumb') || head.includes('JP'))) { key='C2PA / JUMBF Content Credential'; category='credential'; sensitive=false; }
+      else if (app === 13 && (head.startsWith('Photoshop') || lower.includes('iptc'))) { key='Photoshop / IPTC segment'; category='iptc'; }
+      else if (app === 14 && head.startsWith('Adobe')) { key='Adobe application segment'; category='software'; }
+      out.push(container('JPEG',key,category,size,sensitive));
+    } else if (marker === 0xfe) out.push(finding('comment','JPEG','Comment segment',preview(b,start,size),'Container structure',true,true));
+    p += len;
+  }
+  const eoi = lastPair(b,0xff,0xd9);
+  if (eoi >= 0 && eoi + 2 < b.length) out.push(finding('trailing','JPEG','Trailing data',`${b.length-eoi-2} bytes after image end`,'Container structure',true,true));
+  return out;
+}
+
+function scanPng(b) {
+  const out = [], structural = new Set(['IHDR','PLTE','IDAT','IEND','tRNS','acTL','fcTL','fdAT']);
+  const known = {eXIf:['EXIF chunk','exif',true],tEXt:['Text metadata','text',true],zTXt:['Compressed text metadata','text',true],iTXt:['International text / XMP','xmp',true],iCCP:['ICC color profile','color',false],tIME:['Modification time','time',true],pHYs:['Pixel density','rendering',false],caBX:['C2PA Content Credential','credential',false],gAMA:['Gamma information','rendering',false],cHRM:['Chromaticity information','rendering',false],sRGB:['sRGB rendering intent','rendering',false],cICP:['Color information','rendering',false],hIST:['Histogram','rendering',false],sPLT:['Suggested palette','rendering',false]};
+  let p=8, ended=false;
+  while (p+12<=b.length) {
+    const len=u32be(b,p), type=textAt(b,p+4,4), end=p+12+len;
+    if (end>b.length) { out.push(finding('unknown','PNG','Malformed chunk',type,'Container structure',true,true)); break; }
+    if (known[type]) { const [key,cat,sens]=known[type]; out.push(finding(cat,'PNG',key,['tEXt','zTXt','iTXt'].includes(type)?preview(b,p+8,len):`${len} bytes`,'Container structure',sens,true)); }
+    else if (!structural.has(type)) out.push(finding('unknown','PNG',`Unknown ${type[0]===type[0].toLowerCase()?'ancillary':'critical'} chunk`,`${type} · ${len} bytes`,'Container structure',true,true));
+    p=end; if(type==='IEND'){ended=true;break;}
+  }
+  if(ended&&p<b.length) out.push(finding('trailing','PNG','Trailing data',`${b.length-p} bytes after IEND`,'Container structure',true,true));
+  return out;
+}
+
+function scanWebp(b) {
+  const out=[], pixel=new Set(['VP8 ','VP8L','VP8X','ALPH','ANIM','ANMF']);
+  const known={EXIF:['EXIF chunk','exif',true],'XMP ':['XMP chunk','xmp',true],ICCP:['ICC color profile','color',false],C2PA:['C2PA Content Credential','credential',false],META:['Generic metadata','container',true]};
+  const declared=Math.min(b.length,u32le(b,4)+8); let p=12;
+  while(p+8<=declared){const type=textAt(b,p,4),len=u32le(b,p+4),end=p+8+len+(len&1);if(end>declared){out.push(finding('unknown','WebP','Malformed chunk',type,'Container structure',true,true));break;}if(known[type]){const [key,cat,sens]=known[type];out.push(finding(cat,'WebP',key,`${len} bytes`,'Container structure',sens,true));}else if(!pixel.has(type))out.push(finding('unknown','WebP','Unknown RIFF chunk',`${type} · ${len} bytes`,'Container structure',true,true));p=end;}
+  if(declared<b.length)out.push(finding('trailing','WebP','Trailing data',`${b.length-declared} bytes after RIFF container`,'Container structure',true,true));
+  return out;
+}
+
+function container(group,key,category,size,sensitive){return finding(category,group,key,`${size} bytes`,'Container structure',sensitive,true);}
+function finding(category,group,key,value,source,sensitive,isContainer){return{category,group,key,value:String(value),source,sensitive:Boolean(sensitive),container:Boolean(isContainer)};}
+
+function readRecognizedMetadata(buffer) {
+  const tags=ExifReader.load(buffer,{expanded:true}),out=[];
+  const walk=(node,path)=>{if(!node||typeof node!=='object'||ArrayBuffer.isView(node)||node instanceof ArrayBuffer)return;for(const[key,val]of Object.entries(node)){if(['base64','image'].includes(key))continue;const next=[...path,key];if(val&&typeof val==='object'&&('description'in val||'value'in val)){const value=tagValue(val.description??val.value);if(!value)continue;const category=categorize(next.join(' '));if(category==='technical')continue;out.push(finding(category,path[0]||'Metadata',key,value,'Recognized metadata',isSensitive(category,key),false));}else if(val&&typeof val==='object'&&next.length<5)walk(val,next);}};
+  walk(tags,[]); return out;
+}
+
+function categorize(text){const s=text.toLowerCase();if(/gps|latitude|longitude|altitude|geotag|location/.test(s))return'location';if(/serial|owner|artist|author|creator|by-line|credit|contact|email|person/.test(s))return'identity';if(/c2pa|content credential|jumbf|provenance/.test(s))return'credential';if(/file\s*type|bit depth|bits per|color type|color components?|filter$|interlace|jfif version|resolution|thumbnail (width|height)|image (width|height)|compression|mime|encoding|subsampling|samples per pixel/.test(s))return'technical';if(/date|time|timestamp/.test(s))return'time';if(/make|model|lens|camera|device|body|firmware/.test(s))return'device';if(/thumbnail|preview|mpf|embedded/.test(s))return'embedded';if(/comment|description|caption|keyword|subject|title|headline|copyright/.test(s))return'text';if(/software|application|producer|creator tool/.test(s))return'software';if(/icc|color|gamma|chromatic/.test(s))return'color';if(/xmp/.test(s))return'xmp';if(/iptc/.test(s))return'iptc';return'metadata';}
+function isSensitive(cat,key){return['location','identity','time','device','text','embedded','unknown','trailing'].includes(cat)||/serial|owner|author|artist|comment/i.test(key);}
+function tagValue(v){if(v==null)return'';if(ArrayBuffer.isView(v)||v instanceof ArrayBuffer)return`[binary data: ${v.byteLength} bytes]`;if(Array.isArray(v))return v.slice(0,20).map(tagValue).join(', ');if(typeof v==='object'){try{return JSON.stringify(v).slice(0,500);}catch{return'[structured data]';}}const s=String(v).replace(/[\u0000-\u001f]/g,' ').trim();return s.length>500?`${s.slice(0,497)}…`:s;}
+function dedupe(items){const seen=new Set();return items.filter(x=>{const k=x.source==='Recognized metadata'?`${x.source}|${x.key}|${x.value}`:`${x.source}|${x.group}|${x.key}|${x.value}`;if(seen.has(k))return false;seen.add(k);return true;});}
+function structuralC2pa(items){return items.some(x=>x.category==='credential'||/c2pa|jumbf|content credential/i.test(`${x.key} ${x.value}`));}
+
+async function getC2pa(){if(!stateV2.c2paPromise)stateV2.c2paPromise=import(`https://cdn.jsdelivr.net/npm/@contentauth/c2pa-web@${C2PA_VERSION}/+esm`).then(m=>m.createC2pa({wasmSrc:`https://cdn.jsdelivr.net/npm/@contentauth/c2pa-web@${C2PA_VERSION}/dist/resources/c2pa_bg.wasm`}));return stateV2.c2paPromise;}
+async function inspectC2pa(blob,mime){const sdk=await getC2pa(),reader=await sdk.reader.fromBlob(mime,blob);if(!reader)return{checked:true,found:false,status:'not-found',summary:null};try{const label=await reader.activeLabel(),manifest=await reader.activeManifest(),title=manifest&&(manifest.title||manifest.claim_generator||manifest.claimGenerator);return{checked:true,found:true,status:'found',summary:[label,title].filter(Boolean).join(' · ')||'Signed provenance manifest'};}finally{await reader.free();}}
+
+function renderInspection(item){const section=document.getElementById('metaSection'),empty=document.getElementById('metaEmpty');section.classList.remove('show');empty.classList.remove('show');if(!item||!item.inspection)return;const rows=item.inspection.findings;if(!rows.length){empty.classList.add('show');return;}document.getElementById('metaCount').textContent=rows.length;const table=document.getElementById('metaTable');table.replaceChildren();for(const x of [...rows].sort((a,b)=>priority(a)-priority(b)||a.key.localeCompare(b.key))){const tr=document.createElement('tr');if(x.category==='location')tr.className='gps-row';const k=document.createElement('td');k.textContent=`${x.key}${x.category==='location'?' 📍':x.category==='credential'?' ◈':''}`;const v=document.createElement('td');v.textContent=`${x.value} · ${x.source}`;tr.append(k,v);table.appendChild(tr);}section.classList.add('show');}
+function priority(x){return x.category==='location'?0:x.category==='credential'?1:x.sensitive?2:x.container?3:4;}
+function renderWarnings(){const box=document.getElementById('scanWarning'),messages=[];for(const item of stateV2.files){if(item.error)messages.push(`${item.name}: ${item.error}.`);else if(item.inspection?.warnings)messages.push(...item.inspection.warnings.map(w=>`${item.name}: ${w}`));}box.textContent=messages.join(' ');box.classList.toggle('show',messages.length>0);}
+
+async function rebuildPixels(file,format){const bitmap=await createImageBitmap(file,{imageOrientation:'from-image',premultiplyAlpha:'default',colorSpaceConversion:'default'});try{if(!bitmap.width||!bitmap.height)throw new Error('invalid dimensions');if(bitmap.width*bitmap.height>MAX_PIXELS)throw new Error('exceeds 100 megapixels');let canvas;if(typeof OffscreenCanvas!=='undefined')canvas=new OffscreenCanvas(bitmap.width,bitmap.height);else{canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;}const ctx=canvas.getContext('2d',{alpha:format!=='jpeg',colorSpace:'srgb'});if(!ctx)throw new Error('browser could not create a canvas');if(format==='jpeg'){ctx.fillStyle='#fff';ctx.fillRect(0,0,bitmap.width,bitmap.height);}ctx.drawImage(bitmap,0,0);const mime=format==='jpeg'?'image/jpeg':`image/${format}`,quality=format==='png'?undefined:.95;const blob=canvas.convertToBlob?await canvas.convertToBlob({type:mime,quality}):await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('image export failed')),mime,quality));if(blob.type!==mime)throw new Error(`browser cannot export ${mime}`);return blob;}finally{bitmap.close();}}
+
+async function cleanEncodedBlob(blob,format){const bytes=new Uint8Array(await blob.arrayBuffer());const cleaned=format==='jpeg'?cleanJpeg(bytes):format==='png'?cleanPng(bytes):cleanWebp(bytes);return new Blob([cleaned],{type:blob.type});}
+function cleanJpeg(b){const parts=[b.slice(0,2)];let p=2;while(p+1<b.length){const start=p;if(b[p]!==0xff)throw new Error('unexpected JPEG structure');while(p<b.length&&b[p]===0xff)p++;const marker=b[p++];if(marker===0xda){const eoi=lastPair(b,0xff,0xd9);if(eoi<start)throw new Error('JPEG end marker missing');parts.push(b.slice(start,eoi+2));return joinBytes(parts);}if(marker===0xd9){parts.push(b.slice(start,p));return joinBytes(parts);}if(marker===0x01||(marker>=0xd0&&marker<=0xd8)){parts.push(b.slice(start,p));continue;}if(p+2>b.length)throw new Error('truncated JPEG');const len=u16be(b,p),end=p+len;if(len<2||end>b.length)throw new Error('invalid JPEG segment');if(!((marker>=0xe0&&marker<=0xef)||marker===0xfe))parts.push(b.slice(start,end));p=end;}throw new Error('JPEG cleaning failed');}
+function cleanPng(b){const keep=new Set(['IHDR','PLTE','IDAT','IEND','tRNS','acTL','fcTL','fdAT']),parts=[b.slice(0,8)];let p=8;while(p+12<=b.length){const len=u32be(b,p),type=textAt(b,p+4,4),end=p+12+len;if(end>b.length)throw new Error('invalid PNG chunk');if(keep.has(type))parts.push(b.slice(p,end));p=end;if(type==='IEND')return joinBytes(parts);}throw new Error('PNG end chunk missing');}
+function cleanWebp(b){const keep=new Set(['VP8 ','VP8L','VP8X','ALPH','ANIM','ANMF']),chunks=[];const declared=Math.min(b.length,u32le(b,4)+8);let p=12;while(p+8<=declared){const type=textAt(b,p,4),len=u32le(b,p+4),end=p+8+len+(len&1);if(end>declared)throw new Error('invalid WebP chunk');if(keep.has(type)){const c=b.slice(p,end);if(type==='VP8X'&&len>=10)c[8]&=~0x2c;chunks.push(c);}p=end;}const payload=4+chunks.reduce((s,c)=>s+c.length,0),out=new Uint8Array(payload+8);writeText(out,0,'RIFF');writeU32le(out,4,payload);writeText(out,8,'WEBP');let o=12;for(const c of chunks){out.set(c,o);o+=c.length;}return out;}
+function removable(x){return !['technical','rendering'].includes(x.category);}
+
+async function stripImage(item){const before=item.inspection||await inspectBlob(item.file,true);const rebuilt=await rebuildPixels(item.file,before.format);const cleaned=await cleanEncodedBlob(rebuilt,before.format);const after=await inspectBlob(cleaned,true);const residue=after.findings.filter(removable);if(residue.length)throw new Error(`verification failed: ${residue.length} metadata item${residue.length===1?'':'s'} remained`);const ext=before.format==='jpeg'?'jpg':before.format,name=`${safeBase(item.name)}_clean.${ext}`;stateV2.reports.push(buildReport(item,before,after,cleaned,name));renderReports();return{filename:name,data:cleaned};}
+
+function buildReport(item,before,after,blob,outputName){const removed=before.findings.filter(removable);const remaining=after.findings.filter(removable);return{originalName:item.name,outputName,originalBytes:item.size,outputBytes:blob.size,detectedCount:before.findings.length,removedCount:removed.length,sensitiveCount:removed.filter(x=>x.sensitive).length,c2paRemoved:(before.c2pa.found||structuralC2pa(before.findings))&&!(after.c2pa.found||structuralC2pa(after.findings)),verificationPassed:remaining.length===0,remainingCount:remaining.length};}
+
+async function strip(){if(!stateV2.files.length)return;stateV2.reports=[];resetReports();document.getElementById('progressSection').classList.add('show');document.getElementById('progressLabel').textContent='Sanitizing and verifying…';const batch=new BatchProcessor({items:stateV2.files,btnId:'stripBtn',btnLabel:'Strip & verify',zipName:'clean_images.zip',processOne:item=>stripImage(item),onComplete:()=>{document.getElementById('progressLabel').textContent='Done — cleaned files verified';renderReports();}});await batch.run();}
+
+function renderReports(){const section=document.getElementById('reportSection'),list=document.getElementById('reportList');list.replaceChildren();if(!stateV2.reports.length){section.classList.remove('show');return;}for(const r of stateV2.reports){const block=document.createElement('div');block.style.cssText='padding:9px 4px;border-bottom:1px solid var(--border);';const title=document.createElement('strong');title.textContent=r.originalName;const summary=document.createElement('div');summary.style.cssText=`margin-top:4px;color:${r.verificationPassed?'var(--teal-text)':'var(--error)'};`;summary.textContent=r.verificationPassed?(r.removedCount?`✓ ${r.removedCount} metadata item${r.removedCount===1?'':'s'} removed · cleaned image verified`: '✓ No removable metadata detected · rebuilt image verified'):`Verification failed · ${r.remainingCount} item${r.remainingCount===1?'':'s'} remained`;block.append(title,summary);if(r.c2paRemoved){const credential=document.createElement('div');credential.style.cssText='margin-top:3px;color:var(--muted);';credential.textContent='✓ C2PA Content Credential removed';block.appendChild(credential);}list.appendChild(block);}section.classList.add('show');}
+function resetReports(){document.getElementById('reportSection').classList.remove('show');document.getElementById('reportList').replaceChildren();}
+
+function safeBase(name){return(name.replace(/\.[^.]+$/,'').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').trim()||'image').slice(0,120);}
+function messageOf(e){return e instanceof Error?e.message:String(e);}
+function textAt(b,p,n){let s='';for(let i=0;i<n&&p+i<b.length;i++)s+=String.fromCharCode(b[p+i]);return s;}
+function printable(b,p,n){return textAt(b,p,n).replace(/[^\x20-\x7e]/g,'.');}
+function preview(b,p,n){const s=printable(b,p,Math.min(n,160)).replace(/\.+/g,' ').trim();return s||`${n} bytes`;}
+function u16be(b,p){return(b[p]<<8)|b[p+1];}
+function u32be(b,p){return b[p]*0x1000000+((b[p+1]<<16)|(b[p+2]<<8)|b[p+3]);}
+function u32le(b,p){return(b[p]|(b[p+1]<<8)|(b[p+2]<<16)|(b[p+3]<<24))>>>0;}
+function writeU32le(b,p,v){b[p]=v&255;b[p+1]=(v>>>8)&255;b[p+2]=(v>>>16)&255;b[p+3]=(v>>>24)&255;}
+function writeText(b,p,s){for(let i=0;i<s.length;i++)b[p+i]=s.charCodeAt(i);}
+function lastPair(b,a,c){for(let i=b.length-2;i>=0;i--)if(b[i]===a&&b[i+1]===c)return i;return-1;}
+function joinBytes(parts){const n=parts.reduce((s,x)=>s+x.length,0),out=new Uint8Array(n);let p=0;for(const x of parts){out.set(x,p);p+=x.length;}return out;}
 </script>
 
 </body>
