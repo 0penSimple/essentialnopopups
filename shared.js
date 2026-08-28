@@ -43,7 +43,7 @@ const IS_PREMIUM = false;
         }
       </div>
       <div class="nav-right">
-        <a href="${root}about.html" class="nav-changelog">About</a>
+        <a href="${root}about.html" class="nav-changelog nav-about">About</a>
         <a href="${root}changelog.html" class="nav-changelog">Changelog</a>
         <a href="${root}premium.html" class="nav-premium">✦ Premium</a>
         <div class="nav-badge">Zero pop-ups, ever</div>

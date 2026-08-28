@@ -34,6 +34,13 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Smooth scrolling when jumping to a section via the nav */
+  html { scroll-behavior: smooth; }
+
+  /* When a nav link jumps to a category, stop ~90px above it so the
+     56px sticky nav doesn't cover the title, leaving it clearly visible */
+  .category { scroll-margin-top: 90px; }
+
   body {
     font-family: 'DM Sans', sans-serif;
     background: var(--warm-bg);
