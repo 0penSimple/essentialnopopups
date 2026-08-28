@@ -162,6 +162,7 @@
       <li>Everything happens in your browser — your images are never uploaded anywhere.</li>
       <li>GPS location fields are highlighted in yellow — these are the most sensitive to remove before sharing.</li>
       <li>The cleaner inspects EXIF, GPS, IPTC, XMP, ICC profiles, comments, thumbnails, C2PA Content Credentials, optional container blocks, and trailing data.</li>
+      <li>When recorded, provenance details identify the credential-writing app, action software, declared source type, certificate subject and issuer. These are file claims—not proof of the human creator.</li>
       <li>Images are decoded to visible pixels, re-encoded, structurally cleaned, and scanned again before download.</li>
       <li>PNG files keep transparency. JPG and WebP files are re-encoded at 95% quality, so the file is not byte-for-byte unchanged.</li>
       <li>This does not remove visible marks, pixel-level AI watermarks, steganography, or statistical text watermarks.</li>
@@ -434,7 +435,11 @@ async function inspectBlob(blob, useOfficialC2pa) {
   if (useOfficialC2pa) {
     try {
       c2pa = await inspectC2pa(blob, mime);
-      if (c2pa.found) findings.push(finding('credential','C2PA','Content Credential',c2pa.summary || 'Signed provenance manifest','Official C2PA verifier',false,true));
+      if (c2pa.found) {
+        const details = c2pa.details || [];
+        if (details.length) findings.push(...details.map(x=>finding('credential','C2PA',x.key,x.value,x.source,false,false)));
+        else findings.push(finding('credential','C2PA','Content Credential',c2pa.summary || 'Signed provenance manifest','Official C2PA verifier',false,true));
+      }
     } catch (error) {
       warnings.push('Cryptographic C2PA verification was unavailable; structural C2PA detection was used.');
     }
@@ -513,18 +518,63 @@ function finding(category,group,key,value,source,sensitive,isContainer){return{c
 
 function readRecognizedMetadata(buffer) {
   const tags=ExifReader.load(buffer,{expanded:true}),out=[];
-  const walk=(node,path)=>{if(!node||typeof node!=='object'||ArrayBuffer.isView(node)||node instanceof ArrayBuffer)return;for(const[key,val]of Object.entries(node)){if(['base64','image'].includes(key))continue;const next=[...path,key];if(val&&typeof val==='object'&&('description'in val||'value'in val)){const value=tagValue(val.description??val.value);if(!value)continue;const category=categorize(next.join(' '));if(category==='technical')continue;out.push(finding(category,path[0]||'Metadata',key,value,'Recognized metadata',isSensitive(category,key),false));}else if(val&&typeof val==='object'&&next.length<5)walk(val,next);}};
+  const walk=(node,path)=>{if(!node||typeof node!=='object'||ArrayBuffer.isView(node)||node instanceof ArrayBuffer)return;for(const[key,val]of Object.entries(node)){if(['base64','image'].includes(key))continue;const next=[...path,key];if(val&&typeof val==='object'&&('description'in val||'value'in val)){const value=tagValue(val.description??val.value);if(!value)continue;const category=categorize(next.join(' '));if(category==='technical')continue;out.push(finding(category,path[0]||'Metadata',key,value,recognizedMetadataSource(category),isSensitive(category,key),false));}else if(val&&typeof val==='object'&&next.length<5)walk(val,next);}};
   walk(tags,[]); return out;
 }
 
 function categorize(text){const s=text.toLowerCase();if(/gps|latitude|longitude|altitude|geotag|location/.test(s))return'location';if(/serial|owner|artist|author|creator|by-line|credit|contact|email|person/.test(s))return'identity';if(/c2pa|content credential|jumbf|provenance/.test(s))return'credential';if(/file\s*type|bit depth|bits per|color type|color components?|filter$|interlace|jfif version|resolution|thumbnail (width|height)|image (width|height)|compression|mime|encoding|subsampling|samples per pixel/.test(s))return'technical';if(/date|time|timestamp/.test(s))return'time';if(/make|model|lens|camera|device|body|firmware/.test(s))return'device';if(/thumbnail|preview|mpf|embedded/.test(s))return'embedded';if(/comment|description|caption|keyword|subject|title|headline|copyright/.test(s))return'text';if(/software|application|producer|creator tool/.test(s))return'software';if(/icc|color|gamma|chromatic/.test(s))return'color';if(/xmp/.test(s))return'xmp';if(/iptc/.test(s))return'iptc';return'metadata';}
+function recognizedMetadataSource(category){const sources={software:'EXIF/XMP software field · application named by file',device:'EXIF device field · capture hardware named by file',identity:'EXIF/IPTC/XMP identity field · creator or owner claimed by file',location:'EXIF GPS field · location recorded by file',time:'EXIF/XMP time field · timestamp recorded by file'};return sources[category]||'Recognized metadata';}
 function isSensitive(cat,key){return['location','identity','time','device','text','embedded','unknown','trailing'].includes(cat)||/serial|owner|author|artist|comment/i.test(key);}
 function tagValue(v){if(v==null)return'';if(ArrayBuffer.isView(v)||v instanceof ArrayBuffer)return`[binary data: ${v.byteLength} bytes]`;if(Array.isArray(v))return v.slice(0,20).map(tagValue).join(', ');if(typeof v==='object'){try{return JSON.stringify(v).slice(0,500);}catch{return'[structured data]';}}const s=String(v).replace(/[\u0000-\u001f]/g,' ').trim();return s.length>500?`${s.slice(0,497)}…`:s;}
 function dedupe(items){const seen=new Set();return items.filter(x=>{const k=x.source==='Recognized metadata'?`${x.source}|${x.key}|${x.value}`:`${x.source}|${x.group}|${x.key}|${x.value}`;if(seen.has(k))return false;seen.add(k);return true;});}
 function structuralC2pa(items){return items.some(x=>x.category==='credential'||/c2pa|jumbf|content credential/i.test(`${x.key} ${x.value}`));}
 
 async function getC2pa(){if(!stateV2.c2paPromise)stateV2.c2paPromise=import(`https://cdn.jsdelivr.net/npm/@contentauth/c2pa-web@${C2PA_VERSION}/+esm`).then(m=>m.createC2pa({wasmSrc:`https://cdn.jsdelivr.net/npm/@contentauth/c2pa-web@${C2PA_VERSION}/dist/resources/c2pa_bg.wasm`}));return stateV2.c2paPromise;}
-async function inspectC2pa(blob,mime){const sdk=await getC2pa(),reader=await sdk.reader.fromBlob(mime,blob);if(!reader)return{checked:true,found:false,status:'not-found',summary:null};try{const label=await reader.activeLabel(),manifest=await reader.activeManifest(),title=manifest&&(manifest.title||manifest.claim_generator||manifest.claimGenerator);return{checked:true,found:true,status:'found',summary:[label,title].filter(Boolean).join(' · ')||'Signed provenance manifest'};}finally{await reader.free();}}
+async function inspectC2pa(blob,mime){const sdk=await getC2pa(),reader=await sdk.reader.fromBlob(mime,blob);if(!reader)return{checked:true,found:false,status:'not-found',summary:null,details:[]};try{const[label,manifest,store]=await Promise.all([reader.activeLabel(),reader.activeManifest(),reader.manifestStore()]);const details=extractC2paDetails(manifest||{},label,store||{});const generator=details.find(x=>x.key==='Credential generator');return{checked:true,found:true,status:'found',summary:generator?.value||manifest?.title||label||'Signed provenance manifest',details};}finally{await reader.free();}}
+
+function extractC2paDetails(manifest,label,store){
+  const out=[],add=(key,value,source)=>{const clean=tagValue(value);if(clean)out.push({key,value:clean,source});};
+  const infos=asArray(manifest.claim_generator_info??manifest.claimGeneratorInfo);
+  for(const info of infos){const agent=formatC2paAgent(info);if(agent)add('Credential generator',agent,'C2PA claim · software or system that wrote the credential');}
+  const legacy=manifest.claim_generator??manifest.claimGenerator;
+  if(legacy&&!out.some(x=>x.key==='Credential generator'&&x.value===String(legacy)))add('Credential generator',legacy,'C2PA claim · software or system that wrote the credential');
+  add('Credential vendor namespace',manifest.vendor,'C2PA claim · vendor identifier, not proof of authorship');
+
+  const sig=manifest.signature_info??manifest.signatureInfo??{};
+  add('Certificate subject',sig.common_name??sig.commonName,'Signing certificate · signer name claimed by certificate');
+  add('Certificate issuer',sig.issuer,'Signing certificate · certificate authority, not necessarily the creator');
+  add('Signed at',sig.time,'C2PA signature');
+
+  for(const assertion of asArray(manifest.assertions)){
+    if(!/c2pa\.actions/i.test(String(assertion?.label||'')))continue;
+    const data=assertion?.data&&typeof assertion.data==='object'?assertion.data:{};
+    const agents=asArray(data.softwareAgents??data.software_agents);
+    for(const action of asArray(data.actions??data)){
+      if(!action||typeof action!=='object')continue;
+      const indexed=Number.isInteger(action.softwareAgentIndex)?agents[action.softwareAgentIndex]:Number.isInteger(action.software_agent_index)?agents[action.software_agent_index]:null;
+      const agent=formatC2paAgent(action.softwareAgent??action.software_agent??indexed);
+      const sourceType=action.digitalSourceType??action.digital_source_type;
+      if(!action.action&&!agent&&!sourceType)continue;
+      const name=friendlyC2paAction(action.action);
+      const when=action.when?` · ${action.when}`:'';
+      add('Recorded action',`${name}${agent?` · via ${agent}`:''}${when}`,'C2PA action history · declared by credential');
+      if(sourceType)add('Declared digital source',friendlyDigitalSource(sourceType),'C2PA action · declaration, not independent proof');
+    }
+  }
+
+  const validation=store.validation_state??store.validationState;
+  if(validation)add('Credential validation',validation,'Official C2PA verifier');
+  const failures=asArray(store.validation_results?.activeManifest?.failure??store.validation_results?.active_manifest?.failure??store.validation_status).filter(x=>x&&(/fail|invalid|mismatch|missing|untrusted|expired|revoked/i.test(String(x.code??x.status??''))));
+  if(failures.length)add('Validation warnings',failures.slice(0,3).map(x=>x.code??x.status??x.explanation).filter(Boolean).join(', '),'Official C2PA verifier');
+  add('Credential title',manifest.title,'C2PA manifest · usually the source filename');
+  add('Credential ID',label??manifest.label,'C2PA manifest identifier');
+  return dedupeC2paDetails(out);
+}
+function asArray(value){return value==null?[]:Array.isArray(value)?value:[value];}
+function formatC2paAgent(agent){if(!agent)return'';if(typeof agent==='string')return agent;const name=agent.name??agent.product_name??agent.productName??agent['@id'];const version=agent.version??agent.product_version??agent.productVersion;const os=agent.operating_system??agent.operatingSystem;return[name,version&&name?`v${version}`:version,os&&`on ${os}`].filter(Boolean).join(' ');}
+function friendlyC2paAction(value){const raw=String(value||'Unspecified action'),tail=raw.split(/[\/#]/).pop().replace(/^c2pa\./i,'');return tail.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[._-]+/g,' ').replace(/^./,c=>c.toUpperCase());}
+function friendlyDigitalSource(value){const raw=String(value),key=raw.split(/[\/#]/).pop();const known={digitalCapture:'Camera or scanner capture',computationalCapture:'Computational capture',negativeFilm:'Scanned negative film',positiveFilm:'Scanned positive film',print:'Scanned physical print',minorHumanEdits:'Minor human edits',humanEdits:'Human-edited media',compositeWithTrainedAlgorithmicMedia:'Composite containing AI-generated media',algorithmicallyEnhanced:'Algorithmically enhanced media',softwareImage:'Software-created image',digitalArt:'Digital art',digitalCreation:'Digital creation',dataDrivenMedia:'Data-driven media',trainedAlgorithmicMedia:'AI-generated media (trained algorithm)',trainedAlgorithmicData:'AI-generated data (trained algorithm)',algorithmicMedia:'Algorithmically generated media',screenCapture:'Screen capture',virtualRecording:'Virtual recording',composite:'Composite media',compositeCapture:'Composite capture',compositeSynthetic:'Synthetic composite'};return known[key]||key.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[._-]+/g,' ').replace(/^./,c=>c.toUpperCase());}
+function dedupeC2paDetails(items){const seen=new Set();return items.filter(x=>{const key=`${x.key}|${x.value}`;if(seen.has(key))return false;seen.add(key);return true;});}
 
 function renderInspection(item){const section=document.getElementById('metaSection'),empty=document.getElementById('metaEmpty');section.classList.remove('show');empty.classList.remove('show');if(!item||!item.inspection)return;const rows=item.inspection.findings;if(!rows.length){empty.classList.add('show');return;}document.getElementById('metaCount').textContent=rows.length;const table=document.getElementById('metaTable');table.replaceChildren();for(const x of [...rows].sort((a,b)=>priority(a)-priority(b)||a.key.localeCompare(b.key))){const tr=document.createElement('tr');if(x.category==='location')tr.className='gps-row';const k=document.createElement('td');k.textContent=`${x.key}${x.category==='location'?' 📍':x.category==='credential'?' ◈':''}`;const v=document.createElement('td');v.textContent=`${x.value} · ${x.source}`;tr.append(k,v);table.appendChild(tr);}section.classList.add('show');}
 function priority(x){return x.category==='location'?0:x.category==='credential'?1:x.sensitive?2:x.container?3:4;}
