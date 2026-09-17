@@ -26,9 +26,9 @@ const IS_PREMIUM = false;
 
 (function () {
   // Determine the path prefix based on where the page lives.
-  // Tool pages are in /tools/ so need "../" to reach root.
+  // Tool pages may be served from /Tools/ or /tools/.
   // Index page is at root so needs no prefix.
-  const isToolPage = window.location.pathname.includes("/tools/");
+  const isToolPage = window.location.pathname.toLowerCase().includes("/tools/");
   const root = isToolPage ? "../" : "";
 
   // NAV
@@ -615,7 +615,7 @@ function clearLastDownload() {
    tool page changes needed.
 */
 (function () {
-  if (!window.location.pathname.includes("/tools/")) return;
+  if (!window.location.pathname.toLowerCase().includes("/tools/")) return;
 
   function initPill() {
     const infoCard = document.querySelector(".info-card");
