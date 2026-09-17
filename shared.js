@@ -35,18 +35,15 @@ const IS_PREMIUM = false;
   const nav = document.getElementById("shared-nav");
   if (nav) {
     nav.innerHTML = `
-      <a href="https://essentialbits.pro/" class="nav-logo">Essential<em>Bits</em></a>
+      <a href="${root}index.html" class="nav-logo">Essential<em>Bits</em></a>
       <div class="nav-center">
         ${isToolPage
-          ? `<a href="https://essentialbits.pro/" class="nav-back">← All tools</a>`
-          : `<ul class="nav-links"><li><a href="#video">Video</a></li><li><a href="#image">Images</a></li><li><a href="#audio">Audio</a></li><li><a href="#pdf">PDF</a></li><li><a href="#productivity">Productivity</a></li></ul>`
+          ? `<a href="${root}index.html" class="nav-back">All tools <span aria-hidden="true">↗</span></a>`
+          : `<ul class="nav-links"><li><a href="#video">Video <span aria-hidden="true">↓</span></a></li><li><a href="#image">Images <span aria-hidden="true">↓</span></a></li><li><a href="#audio">Audio <span aria-hidden="true">↓</span></a></li><li><a href="#pdf">PDF <span aria-hidden="true">↓</span></a></li><li><a href="#productivity">Productivity <span aria-hidden="true">↓</span></a></li></ul>`
         }
       </div>
       <div class="nav-right">
         <a href="${root}about.html" class="nav-changelog nav-about">About</a>
-        <a href="${root}changelog.html" class="nav-changelog">Changelog</a>
-        <a href="${root}premium.html" class="nav-premium">✦ Premium</a>
-        <div class="nav-badge">Zero pop-ups, ever</div>
       </div>
     `;
   }
@@ -57,7 +54,7 @@ const IS_PREMIUM = false;
     footer.innerHTML = `
       <div>
         <div class="footer-logo">Essential<em>Bits</em></div>
-        <div class="footer-tagline">Free tools. No pop-ups. Ever.</div>
+        <div class="footer-tagline">Focused tools for the details that matter.</div>
         <div style="font-size:0.75rem;color:var(--muted);margin-top:8px;max-width:320px;line-height:1.5;">
           This site survives thanks to you. If a tool saved you time or a headache, you can support it below.
         </div>
@@ -70,8 +67,7 @@ const IS_PREMIUM = false;
         Questions, suggestions, or ideas? Contact us at:<br>
         <a href="mailto:hello@essentialbits.pro">hello@essentialbits.pro</a><br>
         <a href="${root}about.html" style="font-size:0.72rem;color:var(--faint);">About</a> &nbsp;·&nbsp;
-        <a href="${root}privacy-policy.html" style="font-size:0.72rem;color:var(--faint);">Privacy Policy</a> &nbsp;·&nbsp;
-        <a href="${root}changelog.html" style="font-size:0.72rem;color:var(--faint);">Changelog</a>
+        <a href="${root}privacy-policy.html" style="font-size:0.72rem;color:var(--faint);">Privacy Policy</a>
       </div>
     `;
   }

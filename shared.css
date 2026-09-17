@@ -4,7 +4,7 @@
    Tool-specific styles stay in the page's own <style> block.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
 
 /* ── VARIABLES ── */
 :root {
@@ -364,3 +364,40 @@ footer { border-top: 1px solid var(--border); background: var(--surface); paddin
   .footer-right { text-align: left; font-size: 0.72rem; }
   .footer-right br { display: none; }
 }
+
+/* 2026 design direction: crisp surfaces with a restrained green accent. */
+:root {
+  --teal: #176750;
+  --teal-mid: #0f513f;
+  --teal-light: #e7f3ed;
+  --teal-border: #b9dccb;
+  --teal-text: #124d3c;
+  --warm-bg: #f7f9f8;
+  --surface: #fff;
+  --border: #dbe5e0;
+  --text: #172821;
+  --muted: #61716a;
+  --faint: #87978f;
+}
+body { font-family: 'DM Sans', sans-serif; background: var(--warm-bg); }
+nav { height: 64px; background: rgba(255,255,255,.96); border-bottom-color: var(--border); }
+.nav-logo,.footer-logo { font-family: 'DM Sans', sans-serif; font-weight: 700; letter-spacing: -.045em; }
+.nav-logo { font-size: 20px; }
+.nav-links { gap: 8px; font-size: 13px; font-weight: 700; }
+.nav-links a { display: inline-flex; align-items: center; gap: 4px; padding: 9px 10px; border-radius: 4px; transition: color .16s,background .16s; }
+.nav-links a span,.nav-back span { display: inline-block; font-size: 11px; opacity: 0; transform: translateY(-3px); transition: opacity .16s,transform .16s; }
+.nav-links a:hover,.nav-links a:focus-visible { color: var(--teal); background: var(--teal-light); }
+.nav-links a:hover span,.nav-links a:focus-visible span,.nav-back:hover span { opacity: 1; transform: none; }
+.nav-back { font-weight: 700; color: var(--teal); }
+.nav-right { gap: 0; }
+.nav-about { display: inline-block; font-size: 13px; font-weight: 700; border: 1px solid var(--border); border-radius: 4px; padding: 9px 14px; }
+.nav-about:hover { border-color: var(--teal); }
+.page-header h1,.info-card h3 { font-family: 'DM Sans',sans-serif; font-weight: 700; letter-spacing: -.035em; }
+.page-header h1 { font-size: clamp(28px,4vw,38px); }
+.card,.info-card { border-radius: 7px; }
+.drop-zone { border-radius: 5px; }
+.btn-primary { border-radius: 5px; }
+.footer-logo { font-size: 16px; }
+@media(max-width:1080px) { .nav-about { display: inline-block !important; } }
+@media(max-width:780px) { nav { display: flex; justify-content: space-between; } .nav-center { display: none; } }
+@media(max-width:480px) { nav { height: 58px; } }

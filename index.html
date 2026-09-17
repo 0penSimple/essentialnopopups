@@ -9,313 +9,49 @@
   <!-- Google AdSense script (static fallback — can be removed once verified) -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4782154025199543"
        crossorigin="anonymous"></script>
-<title>EssentialBits — Free tools, zero pop-ups</title>
+<title>EssentialBits — Focused tools for files and everyday work</title>
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css">
 <style>
-  :root {
-    --teal:        #0F6E56;
-    --teal-mid:    #1D9E75;
-    --teal-light:  #e1f5ee;
-    --teal-border: #9FE1CB;
-    --teal-text:   #085041;
-    --warm-bg:     #faf8f5;
-    --surface:     #ffffff;
-    --border:      #e8e4de;
-    --text:        #1a1a18;
-    --muted:       #6b6860;
-    --faint:       #a8a49e;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  /* Smooth scrolling when jumping to a section via the nav */
-  html { scroll-behavior: smooth; }
-
-  /* When a nav link jumps to a category, stop ~90px above it so the
-     56px sticky nav doesn't cover the title, leaving it clearly visible */
-  .category { scroll-margin-top: 90px; }
-
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--warm-bg);
-    color: var(--text);
-    min-height: 100vh;
-  }
-
-  a { text-decoration: none; color: inherit; }
-
-  /* NAV — handled by shared.css */
-
-  /* HERO */
-  .hero {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: clamp(3rem, 8vw, 5rem) clamp(1rem, 4vw, 2rem) clamp(2rem, 5vw, 3.5rem);
-    text-align: center;
-  }
-
-  .hero-eyebrow {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--teal);
-    background: var(--teal-light);
-    border: 1px solid var(--teal-border);
-    border-radius: 99px;
-    padding: 5px 14px;
-    margin-bottom: 1.5rem;
-    opacity: 0;
-    animation: fadeUp 0.5s 0.1s forwards;
-  }
-
-  .hero h1 {
-    font-family: 'Lora', serif;
-    font-size: clamp(1.9rem, 5vw, 3rem);
-    font-weight: 400;
-    line-height: 1.25;
-    letter-spacing: -0.02em;
-    color: var(--text);
-    margin-bottom: 1rem;
-    opacity: 0;
-    animation: fadeUp 0.5s 0.2s forwards;
-  }
-
-  .hero h1 em {
-    font-style: italic;
-    color: var(--teal);
-  }
-
-  .hero-sub {
-    font-size: 1rem;
-    color: var(--muted);
-    line-height: 1.7;
-    max-width: 480px;
-    margin: 0 auto 2rem;
-    opacity: 0;
-    animation: fadeUp 0.5s 0.3s forwards;
-  }
-
-  .trust-pills {
-    display: flex; flex-wrap: wrap; gap: 8px;
-    justify-content: center;
-    opacity: 0;
-    animation: fadeUp 0.5s 0.4s forwards;
-  }
-
-  .pill {
-    font-size: 0.78rem;
-    border: 1px solid var(--border);
-    border-radius: 99px;
-    padding: 5px 14px;
-    color: var(--muted);
-    background: var(--surface);
-  }
-  .pill.teal {
-    background: var(--teal-light);
-    border-color: var(--teal-border);
-    color: var(--teal-text);
-    font-weight: 500;
-  }
-
-  /* AD NOTICE */
-  .ad-notice {
-    max-width: 860px;
-    margin: 0 auto 1rem;
-    padding: 0 clamp(1rem, 4vw, 2rem);
-    opacity: 0;
-    animation: fadeUp 0.5s 0.5s forwards;
-  }
-
-  .ad-notice-inner {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--teal-mid);
-    border-radius: 8px;
-    padding: 10px 16px;
-    font-size: 0.78rem;
-    color: var(--muted);
-    line-height: 1.6;
-  }
-  .ad-notice-inner strong { color: var(--text); font-weight: 500; }
-
-  /* AD SLOT (placeholder — replace with real ad code) */
-  /* Hidden until AdSense approved — remove display:none !important when live */
-  .ad-slot, .ad-slot-inner { display: none !important; }
-  .ad-slot {
-    max-width: 860px;
-    margin: 0 auto 2.5rem;
-    padding: 0 clamp(1rem, 4vw, 2rem);
-  }
-  .ad-slot-inner {
-    background: var(--surface);
-    border: 1px dashed var(--border);
-    border-radius: 8px;
-    height: 90px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.72rem;
-    color: var(--faint);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  /* TOOLS */
-  .tools-section {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: 0 clamp(1rem, 4vw, 2rem) 4rem;
-  }
-
-  .category {
-    margin-bottom: 2rem;
-    opacity: 0;
-    animation: fadeUp 0.5s forwards;
-  }
-  .category:nth-child(1) { animation-delay: 0.55s; }
-  .category:nth-child(2) { animation-delay: 0.65s; }
-  .category:nth-child(3) { animation-delay: 0.75s; }
-  .category:nth-child(4) { animation-delay: 0.85s; }
-
-  .category-header {
-    display: flex; align-items: center; gap: 10px;
-    margin-bottom: 10px;
-  }
-
-  .cat-icon {
-    width: 32px; height: 32px;
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 15px;
-    flex-shrink: 0;
-  }
-  .cat-icon.video { background: #fef3ec; }
-  .cat-icon.image { background: var(--teal-light); }
-  .cat-icon.audio { background: #e6f1fb; }
-  .cat-icon.pdf   { background: #fbeaf0; }
-
-  .cat-title {
-    font-family: 'Lora', serif;
-    font-size: 1.05rem;
-    font-weight: 500;
-    color: var(--text);
-  }
-  .cat-subtitle {
-    font-size: 0.75rem;
-    color: var(--faint);
-    margin-left: auto;
-  }
-
-  .tool-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: 1px;
-    background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-  }
-
-  .tool-card {
-    background: var(--surface);
-    padding: 14px 16px;
-    display: flex; flex-direction: column; gap: 3px;
-    cursor: pointer;
-    transition: background 0.15s;
-    position: relative;
-  }
-
-  .tool-card:hover { background: var(--teal-light); }
-  .tool-card:hover .tool-arrow { opacity: 1; }
-
-  .editors-pick-badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 0.62rem; font-weight: 600; letter-spacing: 0.06em;
-    text-transform: uppercase; color: #92610a;
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
-    border: 1px solid #fbbf24; border-radius: 99px;
-    padding: 2px 8px; margin-bottom: 4px; width: fit-content;
-  }
-
-  .tool-name {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text);
-    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  }
-
-  .tool-experimental {
-    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.05em;
-    background: #fff8e6; color: #7a5c00; border: 1px solid #f0c040;
-    padding: 1px 5px; border-radius: 99px; white-space: nowrap;
-  }
-
-  .tool-desc {
-    font-size: 0.75rem;
-    color: var(--faint);
-    line-height: 1.4;
-  }
-
-  .tool-arrow {
-    position: absolute;
-    top: 14px; right: 14px;
-    font-size: 0.75rem;
-    color: var(--teal);
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-
-  /* FOOTER */
-  footer {
-    border-top: 1px solid var(--border);
-    background: var(--surface);
-    padding: 2rem clamp(1rem, 4vw, 3rem);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .footer-logo {
-    font-family: 'Lora', serif;
-    font-size: 0.95rem;
-  }
-  .footer-logo em { font-style: normal; color: var(--teal); }
-
-  .footer-tagline {
-    font-size: 0.72rem;
-    color: var(--faint);
-    margin-top: 2px;
-  }
-
-  .footer-right {
-    font-size: 0.78rem;
-    color: var(--muted);
-    text-align: right;
-    line-height: 1.8;
-  }
-  .footer-right a { color: var(--teal); font-weight: 500; }
-  .footer-right a:hover { text-decoration: underline; }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(14px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  @media (max-width: 768px) {
-    .tool-grid { grid-template-columns: 1fr 1fr; }
-  }
-  @media (max-width: 480px) {
-    .tool-grid { grid-template-columns: 1fr 1fr; }
-    .footer-right { text-align: left; }
-  }
+html { scroll-behavior: smooth; }
+.category { scroll-margin-top: 84px; }
+.hero { max-width: 1120px; margin: 38px auto 54px; padding: 0 clamp(20px,4vw,48px); }
+.hero-panel { position: relative; overflow: hidden; background: #143c36; color: #f6faf8; border: 1px solid #143c36; border-radius: 8px; padding: clamp(38px,6vw,76px) clamp(28px,6vw,76px); }
+.hero-panel::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .3; background: linear-gradient(115deg,transparent 46%,rgba(124,222,179,.16) 46%,rgba(124,222,179,.16) 47%,transparent 47%), repeating-linear-gradient(90deg,transparent 0 79px,rgba(255,255,255,.065) 80px); }
+.hero-panel::after { content: ''; position: absolute; width: 460px; height: 460px; border: 1px solid rgba(190,247,220,.25); border-radius: 50%; right: -125px; top: -215px; box-shadow: 0 0 0 75px rgba(190,247,220,.035),0 0 0 150px rgba(190,247,220,.025); pointer-events: none; }
+.hero-content { position: relative; z-index: 1; max-width: 750px; }
+.hero-eyebrow { display: inline-flex; align-items: center; gap: 9px; color: #a8e7c7; font-size: 11px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; margin-bottom: 24px; }
+.hero-eyebrow::before { content: ''; width: 20px; height: 2px; background: #a8e7c7; }
+.hero h1 { font-size: clamp(40px,6vw,72px); font-weight: 700; letter-spacing: -.055em; line-height: 1.05; max-width: 800px; margin-bottom: 24px; }
+.hero h1 em { font-style: normal; color: #a8e7c7; }
+.hero-sub { font-size: clamp(16px,1.6vw,19px); line-height: 1.6; color: #d2e5dd; max-width: 610px; }
+.hero-meta { margin-top: 38px; display: flex; flex-wrap: wrap; gap: 10px; }
+.hero-meta span { border: 1px solid rgba(210,240,225,.32); color: #e0f1e9; background: rgba(255,255,255,.055); border-radius: 4px; padding: 8px 11px; font-size: 12px; font-weight: 600; }
+.tools-section { max-width: 1120px; margin: auto; padding: 0 clamp(20px,4vw,48px) 80px; }
+.section-intro { display: flex; justify-content: space-between; align-items: end; gap: 20px; border-bottom: 1px solid var(--border); padding-bottom: 17px; margin-bottom: 34px; }
+.section-intro h2 { font-size: 23px; letter-spacing: -.035em; }
+.section-intro p { font-size: 13px; color: var(--muted); }
+.category { margin-bottom: 54px; }
+.category-header { display: flex; align-items: center; gap: 12px; padding-bottom: 15px; margin-bottom: 17px; border-bottom: 1px solid var(--border); }
+.cat-number { color: var(--teal); font-size: 11px; font-weight: 700; letter-spacing: .1em; min-width: 23px; }
+.cat-icon { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 5px; background: #eaf3ef; font-size: 16px; }
+.cat-title { font-size: 17px; font-weight: 700; letter-spacing: -.025em; }
+.cat-subtitle { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 600; }
+.tool-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+.tool-card { min-height: 113px; position: relative; display: flex; flex-direction: column; gap: 7px; padding: 20px 42px 18px 20px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); transition: border-color .16s,transform .16s,box-shadow .16s; }
+.tool-card:hover,.tool-card:focus-visible { border-color: var(--teal); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(20,53,44,.08); outline: none; }
+.tool-name { color: var(--text); font-size: 15px; font-weight: 700; line-height: 1.3; }
+.tool-desc { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.tool-arrow { position: absolute; right: 18px; top: 17px; color: var(--teal); font-size: 18px; transition: transform .16s; }
+.tool-card:hover .tool-arrow { transform: translate(2px,-2px); }
+.editors-pick-badge,.tool-experimental { width: fit-content; color: #175646; background: #e4f3ec; border: 1px solid #b9dccb; border-radius: 3px; padding: 3px 6px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+@media(max-width:800px) { .tool-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .section-intro { align-items: start; flex-direction: column; gap: 5px; } }
+@media(max-width:520px) { .hero { margin: 18px auto 40px; padding: 0 14px; } .hero-panel { padding: 34px 23px; } .hero h1 { font-size: 39px; } .hero-meta { margin-top: 28px; } .tools-section { padding: 0 14px 50px; } .tool-grid { grid-template-columns: 1fr; } .tool-card { min-height: 96px; } }
 </style>
 </head>
 <body>
@@ -347,68 +83,56 @@
 -->
 
 <section class="hero">
-  <div class="hero-eyebrow">Free online tools</div>
-  <h1>Everything you need.<br><em>Nothing you don't.</em></h1>
-  <p class="hero-sub">Convert, download, compress, and transform files — all in one place. No pop-ups, no sign-up, no surprises.</p>
-  <div class="trust-pills">
-    <div class="pill teal">No pop-ups, ever</div>
-    <div class="pill">No account needed</div>
-    <div class="pill">Completely free</div>
-    <div class="pill">Files never leave your device</div>
-  </div>
+  <div class="hero-panel"><div class="hero-content">
+  <div class="hero-eyebrow">A better set of everyday tools</div>
+  <h1>Essential tools.<br><em>Made simple.</em></h1>
+  <p class="hero-sub">Drop. Click. Done.</p>
+  <div class="hero-meta"><span>Focused controls</span><span>No account required</span><span>Works in your browser</span></div>
+  </div></div>
 </section>
 
-<div class="ad-notice">
-  <div class="ad-notice-inner">
-    <strong>This site survives thanks to you.</strong>
-    If a tool saved you time or a headache, a small tip keeps everything free and pop-up-free for everyone — <a href="https://ko-fi.com/F2A425T678" target="_blank" rel="noopener" class="kofi-link">support us on Ko-fi ☕</a>.
-  </div>
-</div>
-
-<div class="ad-slot">
-  <div class="ad-slot-inner">Banner ad — 728 × 90</div>
-</div>
-
 <section class="tools-section">
+  <div class="section-intro"><h2>Explore tools</h2><p>Start with the kind of file you have.</p></div>
 
   <div class="category" id="video">
     <div class="category-header">
+      <span class="cat-number" aria-hidden="true">01</span>
       <div class="cat-icon video">🎬</div>
       <div class="cat-title">Video</div>
       <div class="cat-subtitle">6 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/youtube-download.html" class="tool-card" style="display:none;">
+      <a href="Tools/youtube-download.html" class="tool-card" style="display:none;">
         <div class="tool-name">YouTube download</div>
         <div class="tool-desc">Save any video as MP4 or audio as MP3</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/video-to-gif.html" class="tool-card">
+      <a href="Tools/video-to-gif.html" class="tool-card">
         <div class="tool-name">Video to GIF</div>
         <div class="tool-desc">Turn any clip into an animated GIF</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/video-converter.html" class="tool-card">
+      <a href="Tools/video-converter.html" class="tool-card">
         <div class="tool-name">Video converter</div>
         <div class="tool-desc">MP4, MOV, AVI, WebM and more</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/trim-video.html" class="tool-card">
+      <a href="Tools/trim-video.html" class="tool-card">
         <div class="tool-name">Trim video</div>
         <div class="tool-desc">Cut the start and end of any video</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/remove-audio.html" class="tool-card">
+      <a href="Tools/remove-audio.html" class="tool-card">
         <div class="tool-name">Remove audio</div>
         <div class="tool-desc">Strip the sound track from a video</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/combine-media.html" class="tool-card">
+      <a href="Tools/combine-media.html" class="tool-card">
         <div class="tool-name">Combine video & audio</div>
         <div class="tool-desc">Add or mix an audio track into a video</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/merge-video.html" class="tool-card">
+      <a href="Tools/merge-video.html" class="tool-card">
         <div class="tool-name">Merge videos</div>
         <div class="tool-desc">Join several clips into one video</div>
         <div class="tool-arrow">→</div>
@@ -418,32 +142,33 @@
 
   <div class="category" id="image">
     <div class="category-header">
+      <span class="cat-number" aria-hidden="true">02</span>
       <div class="cat-icon image">🖼</div>
       <div class="cat-title">Images</div>
       <div class="cat-subtitle">6 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/photos-to-gif.html" class="tool-card">
+      <a href="Tools/photos-to-gif.html" class="tool-card">
         <div class="tool-name">Photos to GIF</div>
         <div class="tool-desc">Animate a set of images into a GIF</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/image-converter.html" class="tool-card">
+      <a href="Tools/image-converter.html" class="tool-card">
         <div class="tool-name">Image converter</div>
         <div class="tool-desc">PNG, JPG, WebP, AVIF and more</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/resize-image.html" class="tool-card">
+      <a href="Tools/resize-image.html" class="tool-card">
         <div class="tool-name">Resize image</div>
         <div class="tool-desc">Set exact pixel dimensions</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/compress-image.html" class="tool-card">
+      <a href="Tools/compress-image.html" class="tool-card">
         <div class="tool-name">Compress image</div>
         <div class="tool-desc">Shrink file size without losing quality</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/strip-metadata.html" class="tool-card">
+      <a href="Tools/strip-metadata.html" class="tool-card">
         <div class="tool-name">Strip metadata</div>
         <div class="tool-desc">Remove hidden data from photos</div>
         <div class="tool-arrow">→</div>
@@ -453,32 +178,33 @@
 
   <div class="category" id="audio">
     <div class="category-header">
+      <span class="cat-number" aria-hidden="true">03</span>
       <div class="cat-icon audio">🎵</div>
       <div class="cat-title">Audio</div>
       <div class="cat-subtitle">5 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/audio-converter.html" class="tool-card">
+      <a href="Tools/audio-converter.html" class="tool-card">
         <div class="tool-name">Audio converter</div>
         <div class="tool-desc">MP3, WAV, FLAC, AAC and more</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/extract-audio.html" class="tool-card">
+      <a href="Tools/extract-audio.html" class="tool-card">
         <div class="tool-name">Extract audio from video</div>
         <div class="tool-desc">Pull the sound out of any video file</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/trim-audio.html" class="tool-card">
+      <a href="Tools/trim-audio.html" class="tool-card">
         <div class="tool-name">Trim audio</div>
         <div class="tool-desc">Cut any audio file to the exact section you want</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/audio-to-midi.html" class="tool-card">
+      <a href="Tools/audio-to-midi.html" class="tool-card">
         <div class="tool-name">Audio to MIDI <span class="tool-experimental">⚗ Experimental</span></div>
         <div class="tool-desc">Convert recordings to MIDI using AI</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/merge-audio.html" class="tool-card">
+      <a href="Tools/merge-audio.html" class="tool-card">
         <div class="tool-name">Merge audio</div>
         <div class="tool-desc">Join several audio files into one</div>
         <div class="tool-arrow">→</div>
@@ -488,27 +214,28 @@
 
   <div class="category" id="pdf">
     <div class="category-header">
+      <span class="cat-number" aria-hidden="true">04</span>
       <div class="cat-icon pdf">📄</div>
       <div class="cat-title">PDF & Documents</div>
       <div class="cat-subtitle">4 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/merge-pdf.html" class="tool-card">
+      <a href="Tools/merge-pdf.html" class="tool-card">
         <div class="tool-name">Merge PDFs</div>
         <div class="tool-desc">Combine multiple PDFs into one</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/split-pdf.html" class="tool-card">
+      <a href="Tools/split-pdf.html" class="tool-card">
         <div class="tool-name">Split PDF</div>
         <div class="tool-desc">Extract specific pages from a PDF</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/images-to-pdf.html" class="tool-card">
+      <a href="Tools/images-to-pdf.html" class="tool-card">
         <div class="tool-name">Images to PDF</div>
         <div class="tool-desc">Combine screenshots into one PDF</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/pdf-to-images.html" class="tool-card">
+      <a href="Tools/pdf-to-images.html" class="tool-card">
         <div class="tool-name">PDF to images</div>
         <div class="tool-desc">Export each page as PNG or JPG</div>
         <div class="tool-arrow">→</div>
@@ -518,48 +245,49 @@
 
   <div class="category" id="productivity">
     <div class="category-header">
+      <span class="cat-number" aria-hidden="true">05</span>
       <div class="cat-icon productivity">⚡</div>
       <div class="cat-title">Productivity</div>
       <div class="cat-subtitle">8 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/smart-editor.html" class="tool-card">
+      <a href="Tools/smart-editor.html" class="tool-card">
         <div class="tool-name">Smart Editor</div>
         <div class="tool-desc">A clean writing editor and full code editor in one — auto-saved, no cloud</div>
         <div class="editors-pick-badge">★ Editor's Pick</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/notes-merger.html" class="tool-card">
+      <a href="Tools/notes-merger.html" class="tool-card">
         <div class="tool-name">Notes Merger</div>
         <div class="tool-desc">Merge and export text files to PDF, Word, and more</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/find-replace.html" class="tool-card">
+      <a href="Tools/find-replace.html" class="tool-card">
         <div class="tool-name">Find &amp; Replace</div>
         <div class="tool-desc">Search and replace words across multiple files at once</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/qr-generator.html" class="tool-card">
+      <a href="Tools/qr-generator.html" class="tool-card">
         <div class="tool-name">QR Code Generator</div>
         <div class="tool-desc">Turn any link or text into a scannable QR code</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/password-generator.html" class="tool-card">
+      <a href="Tools/password-generator.html" class="tool-card">
         <div class="tool-name">Password Generator</div>
         <div class="tool-desc">Generate strong passwords with a personal hint baked in</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/color-palette.html" class="tool-card">
+      <a href="Tools/color-palette.html" class="tool-card">
         <div class="tool-name">Color Palette &amp; Picker</div>
         <div class="tool-desc">Extract colors from any image and pick exact pixel colors</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/number-base-converter.html" class="tool-card">
+      <a href="Tools/number-base-converter.html" class="tool-card">
         <div class="tool-name">Number Base Converter</div>
         <div class="tool-desc">Convert between binary, octal, decimal, hex, and Base64 instantly</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/text-analyzer.html" class="tool-card">
+      <a href="Tools/text-analyzer.html" class="tool-card">
         <div class="tool-name">Text Analyzer</div>
         <div class="tool-desc">Count words, characters, sentences, paragraphs and get a readability score</div>
         <div class="tool-arrow">→</div>
@@ -581,8 +309,5 @@ document.querySelectorAll('.category').forEach(cat => {
   if (subtitle) subtitle.textContent = count + ' tool' + (count !== 1 ? 's' : '');
 });
 </script>
-</body>
-
-
 </body>
 </html>
