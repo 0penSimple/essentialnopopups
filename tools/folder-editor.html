@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Folder Manager &amp; Customizer — EssentialBits</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="../shared.css">
+<style>
+  .folder-controls { display: none; margin-top: 1.25rem; }
+  .folder-controls.show { display: block; }
+
+  .tab-row {
+    display: flex; gap: 8px; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 10px;
+    overflow-x: auto;
+  }
+  .tab-btn {
+    padding: 8px 16px; font-size: 0.82rem; font-weight: 500; white-space: nowrap;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--warm-bg);
+    color: var(--muted); cursor: pointer; transition: all 0.15s;
+  }
+  .tab-btn.active { background: var(--teal-light); border-color: var(--teal-border); color: var(--teal-text); }
+
+  .panel-section { display: none; }
+  .panel-section.active { display: block; }
+
+  .tree-view {
+    background: var(--warm-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.82rem;
+    margin-bottom: 1rem;
+  }
+  .tree-item { padding: 3px 0; display: flex; justify-content: space-between; }
+  .tree-folder { font-weight: bold; color: var(--teal-text); }
+
+  .control-row { margin-bottom: 1.1rem; }
+  .control-label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 0.82rem; color: var(--text); font-weight: 500; margin-bottom: 6px;
+  }
+
+  .styled-select {
+    width: 100%; padding: 10px 30px 10px 12px; border: 2px solid var(--border); border-radius: 6px;
+    background: #fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%20666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>') no-repeat right 10px center;
+    font-size: 0.85rem; color: var(--text); box-sizing: border-box; appearance: none; -webkit-appearance: none; cursor: pointer;
+    font-weight: 500;
+  }
+
+  .control-row input[type="text"], .control-row input[type="password"], .control-row textarea {
+    width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;
+    background: #fff; font-size: 0.85rem; color: var(--text); box-sizing: border-box;
+  }
+
+  .checkbox-row {
+    display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text); margin-bottom: 1.1rem;
+  }
+  .checkbox-row input[type="checkbox"], .checkbox-row input[type="radio"] { width: 16px; height: 16px; cursor: pointer; }
+
+  .customizer-card {
+    border: 2px solid var(--teal-border, #1D9E75);
+    background: var(--warm-bg, #fafafa);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 1.25rem;
+  }
+
+  .color-presets { display: flex; gap: 10px; margin-bottom: 1rem; }
+  .color-preset-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.1s;
+  }
+  .color-preset-btn:hover { transform: scale(1.1); }
+  .color-preset-btn.selected { border-color: var(--text); }
+
+  .preview-canvas-container {
+    display: flex; gap: 15px; align-items: center; background: #fff;
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 1rem;
+  }
+
+  .categorize-preview {
+    background: var(--warm-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; margin-bottom: 1.1rem; font-size: 0.8rem; color: var(--text);
+  }
+  .category-badge {
+    display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem;
+    font-weight: 600; background: var(--teal-light); color: var(--teal-text); margin-right: 4px;
+  }
+
+  .rule-row {
+    display: flex; gap: 8px; align-items: center; margin-bottom: 8px; background: #fff;
+    padding: 8px; border: 1px solid var(--border); border-radius: 6px;
+  }
+  .rule-row input[type="text"] { flex: 1; padding: 6px 10px; font-size: 0.8rem; }
+  .btn-icon {
+    background: none; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;
+    padding: 4px 8px; font-size: 0.85rem; color: var(--text);
+  }
+  .btn-icon:hover { background: #f3f4f6; }
+
+  .dup-group {
+    background: var(--warm-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; margin-bottom: 10px; font-size: 0.8rem;
+  }
+  .dup-header { font-weight: 600; margin-bottom: 6px; color: var(--text); }
+  .dup-file-item { display: flex; justify-content: space-between; padding: 3px 0; border-top: 1px dashed var(--border); }
+  .dup-kept { color: var(--teal-text); font-weight: 500; }
+  .dup-delete { color: #d9381e; }
+
+  .btn-remove-img {
+    background: #f3f4f6; border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 12px; font-size: 0.78rem; cursor: pointer; margin-top: 6px; display: none;
+  }
+  .btn-remove-img:hover { background: #e5e7eb; }
+
+  .btn-secondary {
+    background: #ffffff; border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 14px; font-size: 0.82rem; font-weight: 600; cursor: pointer; color: var(--text);
+    transition: background 0.15s;
+  }
+  .btn-secondary:hover { background: #f9fafb; }
+
+  kbd {
+    background-color: #eee; border-radius: 3px; border: 1px solid #b4b4b4;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.2); color: #333; display: inline-block;
+    font-size: 0.75rem; font-weight: 700; line-height: 1; padding: 2px 4px;
+  }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a><span>›</span><span>Tools</span><span>›</span><span>Folder Manager</span>
+    </div>
+    <h1>Folder Manager &amp; Customizer</h1>
+    <div class="info-btn-row">
+      <p>Organize, sort by dates/rules, clean duplicates, batch-rename, or customize native folder icons directly in your browser.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;"></div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+    <label>Select Local Folder</label>
+    <div class="drop-zone" id="dropZone" style="cursor:pointer;">
+      <div class="drop-icon">📁</div>
+      <div class="drop-text"><strong>Click to select a folder</strong></div>
+      <div class="drop-sub">Direct directory read &amp; write access</div>
+    </div>
+
+    <div class="folder-controls" id="folderControls">
+      <!-- TREE PREVIEW -->
+      <label>Folder Directory Contents</label>
+      <div class="tree-view" id="treeView"></div>
+
+      <!-- TABS -->
+      <div class="tab-row">
+        <button class="tab-btn active" onclick="switchTab('categorize')">Folder Categorizing &amp; Sorting</button>
+        <button class="tab-btn" onclick="switchTab('duplicates')">Find Duplicates (Deep)</button>
+        <button class="tab-btn" onclick="switchTab('organize')">Batch Rename</button>
+        <button class="tab-btn" onclick="switchTab('appearance')">Folder Icon &amp; Color</button>
+      </div>
+
+      <!-- TAB: FOLDER CATEGORIZING & SORTING -->
+      <div class="panel-section active" id="tab-categorize">
+        <div class="control-row">
+          <div class="control-label"><span>Select Sorting Method</span></div>
+          <select id="sortMethodSelect" class="styled-select" onchange="toggleSortMethodPanels()">
+            <option value="auto">Auto-Sorting (By File Category)</option>
+            <option value="date">Sort by Date (Creation/Modified Metadata)</option>
+            <option value="custom">Custom Sorting (Word &amp; Rule Matching)</option>
+          </select>
+        </div>
+
+        <!-- MODE 1: AUTO SORTING -->
+        <div id="sortPanelAuto" class="sort-subpanel">
+          <div class="categorize-preview">
+            <p style="margin-bottom: 8px;"><strong>Extension Categories &amp; Folders:</strong></p>
+            <p style="margin: 3px 0;"><span class="category-badge">Images</span> PNG, JPG, JPEG, GIF, SVG, WEBP, BMP, ICO</p>
+            <p style="margin: 3px 0;"><span class="category-badge">Documents</span> PDF, DOC, DOCX, TXT, RTF, XLS, XLSX, PPTX, CSV</p>
+            <p style="margin: 3px 0;"><span class="category-badge">Code</span> JS, TS, HTML, CSS, JSON, PY, CPP, C, PHP, RB, SH, SQL</p>
+            <p style="margin: 3px 0;"><span class="category-badge">Audio</span> MP3, WAV, OGG, M4A, FLAC, AAC</p>
+            <p style="margin: 3px 0;"><span class="category-badge">Video</span> MP4, MKV, MOV, AVI, WEBM</p>
+            <p style="margin: 3px 0;"><span class="category-badge">Archives</span> ZIP, RAR, 7Z, TAR, GZ</p>
+          </div>
+        </div>
+
+        <!-- MODE 2: SORT BY DATE -->
+        <div id="sortPanelDate" class="sort-subpanel" style="display:none;">
+          <div class="control-row">
+            <div class="control-label"><span>Time Frame / Granularity</span></div>
+            <select id="dateSortGranularity" class="styled-select">
+              <option value="year">Per Year (e.g., /2026/)</option>
+              <option value="month" selected>Per Month (e.g., /2026/September/)</option>
+              <option value="day">Per Day (e.g., /2026-09-18/)</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <div class="control-label"><span>Date Field Target</span></div>
+            <select id="dateSortSource" class="styled-select">
+              <option value="modified">Last Modified Date</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- MODE 3: CUSTOM SORTING (RULES) -->
+        <div id="sortPanelCustom" class="sort-subpanel" style="display:none;">
+          <div class="categorize-preview" style="margin-bottom:10px;">
+            <p style="margin:0;"><strong>Sort by Rules:</strong> Move files matching custom terms directly into designated subfolders.</p>
+          </div>
+          <div id="rulesContainer">
+            <!-- Dynamic Rule Row Template inserted here -->
+          </div>
+          <button type="button" class="btn-secondary" style="margin-bottom:1.1rem;" onclick="addRuleRow()">+ Add Rule</button>
+        </div>
+
+        <!-- TARGET SCOPE -->
+        <div class="customizer-card" style="padding:12px; margin-bottom:1.1rem;">
+          <div class="control-label" style="margin-bottom:8px;"><span style="font-weight:600;">Target Folder Scope</span></div>
+          <div class="checkbox-row" style="margin-bottom:4px;">
+            <input type="radio" id="sortScopeRoot" name="sortScope" value="root" checked>
+            <label for="sortScopeRoot">Process Root Directory Files Only (Safest)</label>
+          </div>
+          <div class="checkbox-row" style="margin-bottom:0;">
+            <input type="radio" id="sortScopeSub" name="sortScope" value="subfolders">
+            <label for="sortScopeSub">Include All Subfolders (Deep Scan &amp; Consolidate)</label>
+          </div>
+        </div>
+
+        <!-- ACTION & UNDO ROW -->
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="btn-primary" id="executeSortBtn" onclick="executeSortingAction()">Apply Sorting Action</button>
+          <button class="btn-secondary" id="undoSortBtn" onclick="undoLastSort()" style="display:none; color:#d9381e; border-color:#fca5a5;">↺ Undo Last Sort</button>
+        </div>
+      </div>
+
+      <!-- TAB: DUPLICATE FINDER -->
+      <div class="panel-section" id="tab-duplicates">
+        <p style="font-size:0.8rem; color:var(--muted); margin-bottom:12px;">
+          Recursively scans all files in this folder <strong>and all subfolders</strong> using SHA-256 hashes to detect duplicate files regardless of name or location.
+        </p>
+        <button class="btn-primary" style="margin-bottom:12px;" onclick="findDuplicates()">Scan Entire Folder for Duplicates</button>
+        <div id="dupResults"></div>
+      </div>
+
+      <!-- TAB: BATCH RENAME -->
+      <div class="panel-section" id="tab-organize">
+        <div class="control-row">
+          <div class="control-label"><span>Select Rename Action</span></div>
+          <select id="renameMode" class="styled-select" onchange="toggleRenameInputs()">
+            <option value="prefix">Add Prefix</option>
+            <option value="replace">Find &amp; Replace</option>
+            <option value="dateStamp">Date Stamping (Prefix/Suffix Date)</option>
+            <option value="sequence">Sequential Numbering (e.g., Item_1, Item_2)</option>
+            <option value="lowercase">Convert to lowercase</option>
+            <option value="uppercase">Convert to UPPERCASE</option>
+          </select>
+        </div>
+
+        <div class="control-row" id="prefixRow">
+          <div class="control-label"><span>Prefix Text</span></div>
+          <input type="text" id="prefixInput" placeholder="e.g. 2026_Project_">
+        </div>
+
+        <div class="control-row" id="replaceRow" style="display:none;">
+          <div class="control-label"><span>Find Text</span></div>
+          <input type="text" id="findInput" placeholder="text to search for" style="margin-bottom:6px;">
+          <div class="control-label"><span>Replace With</span></div>
+          <input type="text" id="replaceInput" placeholder="replacement text">
+        </div>
+
+        <div class="control-row" id="dateStampRow" style="display:none;">
+          <div class="control-label"><span>Date Stamp Placement</span></div>
+          <select id="dateStampPosition" class="styled-select">
+            <option value="prefix">Prefix (YYYY-MM-DD_Filename)</option>
+            <option value="suffix">Suffix (Filename_YYYY-MM-DD)</option>
+          </select>
+        </div>
+
+        <div class="control-row" id="sequenceRow" style="display:none;">
+          <div class="control-label"><span>Base Name Pattern</span></div>
+          <input type="text" id="sequenceBaseInput" placeholder="e.g. Photo (outputs Photo_1, Photo_2...)">
+        </div>
+
+        <div class="checkbox-row">
+          <input type="checkbox" id="renameSubfolders">
+          <label for="renameSubfolders"><strong>Include subfolders</strong> (recursively rename files inside nested directories)</label>
+        </div>
+
+        <button class="btn-primary" id="renameBtn" onclick="applyBatchRename()">Apply Rename Action</button>
+      </div>
+
+      <!-- TAB: FOLDER ICON & COLOR -->
+      <div class="panel-section" id="tab-appearance">
+        
+        <div class="customizer-card">
+          <div class="control-row" style="margin-bottom:0.8rem;">
+            <div class="control-label"><span style="font-weight:700; font-size:0.9rem;">1. Select Operating System</span></div>
+            <select id="osSelect" class="styled-select" onchange="handleOSChange()">
+              <option value="">-- Select Your Operating System --</option>
+              <option value="macOS">macOS (Finder Clipboard Bridge)</option>
+              <option value="Windows">Windows (File Explorer / desktop.ini)</option>
+              <option value="Linux">Linux (KDE / .directory)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- FOLDER COLOR PRESET SECTION -->
+        <div class="control-row" id="folderColorRow">
+          <div class="control-label"><span style="font-weight:600;">2. Folder Color Preset</span></div>
+          <div class="color-presets">
+            <button class="color-preset-btn selected" style="background:#1D9E75;" onclick="selectFolderColor('#1D9E75', this)"></button>
+            <button class="color-preset-btn" style="background:#2b7fff;" onclick="selectFolderColor('#2b7fff', this)"></button>
+            <button class="color-preset-btn" style="background:#e04848;" onclick="selectFolderColor('#e04848', this)"></button>
+            <button class="color-preset-btn" style="background:#f59e0b;" onclick="selectFolderColor('#f59e0b', this)"></button>
+            <button class="color-preset-btn" style="background:#8b5cf6;" onclick="selectFolderColor('#8b5cf6', this)"></button>
+            <input type="color" id="customFolderColor" value="#1D9E75" onchange="selectFolderColor(this.value, null)" style="height:32px; width:32px; cursor:pointer; padding:0; border:none; background:none;">
+          </div>
+        </div>
+
+        <hr style="border:0; border-top:1px solid var(--border); margin:15px 0;">
+
+        <!-- FOLDER ICON DESIGN SECTION -->
+        <label style="font-weight:600; margin-bottom:10px; display:block;">3. Folder Icon Design</label>
+        
+        <div class="checkbox-row">
+          <input type="checkbox" id="renderFolderShape" checked onchange="renderFolderCanvas()">
+          <label for="renderFolderShape">Draw background folder shape (uncheck to use standalone image as icon)</label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-label"><span>Custom Image / Logo Overlay</span></div>
+          <input type="file" id="iconOverlayInput" accept="image/*" onchange="handleOverlayImage(event)">
+          <button type="button" id="removeImgBtn" class="btn-remove-img" onclick="removeOverlayImage()">✕ Remove selected image</button>
+        </div>
+
+        <div class="control-row" id="imageScaleRow" style="display:none; margin-top:10px;">
+          <div class="control-label">
+            <span>Overlay Image Size</span>
+            <span id="scaleValText">60%</span>
+          </div>
+          <input type="range" id="overlayScale" min="20" max="100" value="60" step="5" oninput="updateImageScale(this.value)">
+        </div>
+
+        <div class="preview-canvas-container">
+          <canvas id="folderCanvas" width="256" height="256" style="width:96px; height:96px;"></canvas>
+          <div style="font-size:0.8rem; color:var(--text);">
+            <strong>Generated Icon Preview</strong><br>
+            <span style="color:var(--muted); font-size:0.75rem;">This icon will be applied natively to your desktop directory.</span>
+          </div>
+        </div>
+
+        <div id="macOSNotice" style="background:var(--warm-bg); border:1px solid var(--border); padding:10px; border-radius:6px; font-size:0.8rem; color:var(--muted); margin-bottom:12px; display:none;">
+          💡 <strong>macOS Finder Workflow:</strong> Clicking below will copy this icon image straight to your Mac clipboard.<br>
+          1. Right-click your folder in Finder → <strong>Get Info</strong> (<kbd>Cmd + I</kbd>).<br>
+          2. Click the small folder icon at the top-left of the info window.<br>
+          3. Press <kbd>Cmd + V</kbd> to paste the custom folder look.<br><br>
+          [Tip] If replacing an existing icon, macOS might take time to redraw it. Press Delete on the existing icon in Get Info before pasting the new one.
+        </div>
+
+        <div id="winLinuxInputs" style="display:none; margin-bottom:12px;">
+          <div class="control-row">
+            <div class="control-label"><span>Folder Hover Tooltip Note</span></div>
+            <input type="text" id="folderInfoInput" placeholder="e.g. Work Documents Archive">
+            <p style="font-size:0.75rem; color:var(--muted); margin-top:4px;">This note will appear when you hover your mouse over the folder on Windows/Linux.</p>
+          </div>
+        </div>
+
+        <button class="btn-primary" onclick="applySystemFolderIcon()">Apply System Folder Icon</button>
+
+      </div>
+
+    </div>
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+<div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>This tool uses advanced web technology to directly access the files and folders stored on your computer, so your files, folder names, and photos are never uploaded, copied, or sent over the internet.</li>
+      <li>Some browsers like Brave, Firefox, or Safari may restrict or block direct folder editing entirely. For the best experience, we recommend using Google Chrome or Microsoft Edge.</li><br>
+
+<div><strong>Features Overview</strong></div>
+      <li><strong>Categorizing &amp; Sorting:</strong> Automatically organizes loose files into subfolders by file type, custom timeframes (Year, Month, Day), or custom rules.</li>
+      <li><strong>Find Duplicates:</strong> Scans all subfolders using digital file signatures to detect and safely clean identical file copies.</li>
+      <li><strong>Batch Rename:</strong> Updates multiple filenames at once with custom prefixes, text replacements, date stamps, or sequential numbers.</li>
+      <li><strong>Folder Icon &amp; Color:</strong> Designs custom icons and folder colors to personalize your desktop folders on Mac, Windows, or Linux.</li>
+      <li><strong>Session Undo:</strong> Easily reverse your last sorting action with one click to restore files to their original locations.</li>
+    </ul>
+  </div>
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="../shared.js"></script>
+<script src="../tool-page.js"></script>
+<script src="../tools-api.js"></script>
+<script>
+let currentDirHandle = null;
+let foundDuplicatesList = [];
+let lastSortManifest = []; // Session Undo Log
+
+let activeColor = "#1D9E75";
+let overlayImg = null;
+
+const EXTENSION_MAP = {
+  Images: ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico"],
+  Documents: ["pdf", "doc", "docx", "txt", "rtf", "xls", "xlsx", "pptx", "csv"],
+  Code: ["js", "ts", "jsx", "tsx", "html", "css", "json", "py", "cpp", "c", "h", "php", "rb", "sh", "sql", "xml", "yml", "yaml"],
+  Audio: ["mp3", "wav", "ogg", "m4a", "flac", "aac"],
+  Video: ["mp4", "mkv", "mov", "avi", "webm"],
+  Archives: ["zip", "rar", "7z", "tar", "gz"]
+};
+
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const IGNORED_FILES = ["desktop.ini", ".directory", ".DS_Store", "icon.ico", "icon.png"];
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("dropZone").addEventListener("click", selectFolder);
+  addRuleRow(); // Initial blank rule row
+  renderFolderCanvas();
+});
+
+function handleOSChange() {
+  const selectedOS = document.getElementById("osSelect").value;
+  const macNotice = document.getElementById("macOSNotice");
+  const winLinuxInputs = document.getElementById("winLinuxInputs");
+
+  if (selectedOS === "macOS") {
+    macNotice.style.display = "block";
+    winLinuxInputs.style.display = "none";
+  } else if (selectedOS === "Windows" || selectedOS === "Linux") {
+    macNotice.style.display = "none";
+    winLinuxInputs.style.display = "block";
+  } else {
+    macNotice.style.display = "none";
+    winLinuxInputs.style.display = "none";
+  }
+  
+  renderFolderCanvas();
+}
+
+/* ── FOLDER CANVAS RENDERER ── */
+let overlayScaleFactor = 0.60;
+const svgCache = {};
+let renderToken = 0;
+
+function updateImageScale(val) {
+  overlayScaleFactor = val / 100;
+  const valText = document.getElementById("scaleValText");
+  if (valText) valText.textContent = val + "%";
+  renderFolderCanvas();
+}
+
+function selectFolderColor(color, btn) {
+  activeColor = color;
+  document.querySelectorAll(".color-preset-btn").forEach(b => b.classList.remove("selected"));
+  if (btn) btn.classList.add("selected");
+  renderFolderCanvas();
+}
+
+function handleOverlayImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    const img = new Image();
+    img.onload = () => {
+      overlayImg = img;
+      const removeBtn = document.getElementById("removeImgBtn");
+      const scaleRow = document.getElementById("imageScaleRow");
+      if (removeBtn) removeBtn.style.display = "inline-block";
+      if (scaleRow) scaleRow.style.display = "block";
+      renderFolderCanvas();
+    };
+    img.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeOverlayImage() {
+  overlayImg = null;
+  const input = document.getElementById("iconOverlayInput");
+  const removeBtn = document.getElementById("removeImgBtn");
+  const scaleRow = document.getElementById("imageScaleRow");
+  
+  if (input) input.value = "";
+  if (removeBtn) removeBtn.style.display = "none";
+  if (scaleRow) scaleRow.style.display = "none";
+  
+  renderFolderCanvas();
+}
+
+async function renderFolderCanvas() {
+  const currentToken = ++renderToken;
+  const canvas = document.getElementById("folderCanvas");
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, 256, 256);
+
+  const drawFolderShape = document.getElementById("renderFolderShape")?.checked ?? true;
+  const colorRow = document.getElementById("folderColorRow");
+  const selectedOS = document.getElementById("osSelect")?.value || "macOS";
+  
+  if (colorRow) colorRow.style.opacity = drawFolderShape ? "1" : "0.4";
+
+  if (drawFolderShape) {
+    let svgFileName = "macos-folder.svg";
+    if (selectedOS === "Windows") svgFileName = "windows11-folder.svg";
+    if (selectedOS === "Linux") svgFileName = "linux-folder.svg";
+
+    const svgPath = `../../SVGs/${svgFileName}`;
+
+    try {
+      if (!svgCache[svgPath]) {
+        const resp = await fetch(svgPath);
+        if (!resp.ok) throw new Error(`SVG not found at ${svgPath}`);
+        svgCache[svgPath] = await resp.text();
+      }
+
+      let tintedSvg = svgCache[svgPath].replaceAll('currentColor', activeColor);
+      const encodedSvg = encodeURIComponent(tintedSvg).replace(/'/g, "%27").replace(/"/g, "%22");
+      const dataUrl = `data:image/svg+xml;charset=utf-8,${encodedSvg}`;
+
+      const svgImg = new Image();
+      await new Promise((resolve, reject) => {
+        svgImg.onload = resolve;
+        svgImg.onerror = () => reject(new Error("SVG render error"));
+        svgImg.src = dataUrl;
+      });
+
+      if (currentToken !== renderToken) return;
+      ctx.drawImage(svgImg, 0, 0, 256, 256);
+
+    } catch (e) {
+      console.warn("SVG rendering fallback activated:", e);
+      ctx.fillStyle = activeColor;
+      ctx.beginPath();
+      ctx.roundRect(20, 60, 216, 140, 10);
+      ctx.fill();
+    }
+
+    if (overlayImg && currentToken === renderToken) {
+      const maxOverlaySize = 120;
+      const currentSize = maxOverlaySize * overlayScaleFactor;
+      const xPos = (256 - currentSize) / 2;
+      const yPos = (256 - currentSize) / 2 + 8;
+      ctx.drawImage(overlayImg, xPos, yPos, currentSize, currentSize);
+    }
+
+  } else {
+    if (overlayImg) {
+      const currentSize = 224 * overlayScaleFactor;
+      const xPos = (256 - currentSize) / 2;
+      const yPos = (256 - currentSize) / 2;
+      ctx.drawImage(overlayImg, xPos, yPos, currentSize, currentSize);
+    } else {
+      ctx.fillStyle = activeColor;
+      ctx.font = "bold 18px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Upload Image", 128, 130);
+    }
+  }
+}
+
+/* ── APPLY SYSTEM FOLDER ICON ── */
+async function applySystemFolderIcon() {
+  const targetOS = document.getElementById("osSelect").value;
+  if (!targetOS) {
+    showNotification("Please select an Operating System first!", "error");
+    document.getElementById("osSelect").focus();
+    return;
+  }
+
+  const canvas = document.getElementById("folderCanvas");
+
+  if (targetOS === "macOS") {
+    canvas.toBlob(async (blob) => {
+      try {
+        const item = new ClipboardItem({ "image/png": blob });
+        await navigator.clipboard.write([item]);
+        showNotification("Folder icon copied to clipboard! Press Cmd+I on folder in Finder & Cmd+V on icon.", "info");
+      } catch (err) {
+        showNotification("Clipboard access failed: " + err.message, "error");
+      }
+    });
+    return;
+  }
+
+  if (!currentDirHandle) {
+    showNotification("Please select a local folder first.", "error");
+    return;
+  }
+
+  try {
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const sourceFile = new File([blob], "folder_icon.png", { type: "image/png" });
+
+    if (targetOS === "Windows") {
+      const icoFile = await Tools.convertImage({
+        file: sourceFile,
+        outputMime: "image/x-icon",
+        extension: "ico",
+        icoSizes: [16, 32, 48, 256]
+      });
+
+      const iconHandle = await currentDirHandle.getFileHandle("icon.ico", { create: true });
+      const writableIcon = await iconHandle.createWritable();
+      await writableIcon.write(await icoFile.arrayBuffer());
+      await writableIcon.close();
+
+      const infoText = document.getElementById("folderInfoInput").value;
+      const iniContent = `[.ShellClassInfo]\r\nIconResource=icon.ico,0\r\nInfoTip=${infoText}\r\n[ViewState]\r\nMode=\r\nVid=\r\nFolderType=Generic\r\n`;
+      const iniHandle = await currentDirHandle.getFileHandle("desktop.ini", { create: true });
+      const writableIni = await iniHandle.createWritable();
+      await writableIni.write(iniContent);
+      await writableIni.close();
+
+      showNotification("Saved icon.ico and desktop.ini directly to Windows folder!", "info");
+
+    } else if (targetOS === "Linux") {
+      const iconHandle = await currentDirHandle.getFileHandle("icon.png", { create: true });
+      const writableIcon = await iconHandle.createWritable();
+      await writableIcon.write(await sourceFile.arrayBuffer());
+      await writableIcon.close();
+
+      const infoText = document.getElementById("folderInfoInput").value;
+      const dirContent = `[Desktop Entry]\r\nIcon=./icon.png\r\nComment=${infoText}\r\nType=Directory\r\n`;
+      const dirHandle = await currentDirHandle.getFileHandle(".directory", { create: true });
+      const writableDir = await dirHandle.createWritable();
+      await writableDir.write(dirContent);
+      await writableDir.close();
+
+      showNotification("Saved icon.png and .directory directly to Linux folder!", "info");
+    }
+
+    await refreshFolderTree();
+  } catch (e) {
+    showNotification("Failed to write system icon files: " + e.message, "error");
+  }
+}
+
+/* ── SELECT FOLDER & TREE VIEW ── */
+async function selectFolder() {
+  try {
+    if (!('showDirectoryPicker' in window)) {
+      showNotification("Brave/Unsupported browser detected. Please use Chrome or Edge for full folder access.", "error");
+      return;
+    }
+    currentDirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+    showNotification("Folder attached successfully!", "info");
+    document.getElementById("folderControls").classList.add("show");
+    await refreshFolderTree();
+  } catch (err) {
+    if (err.name !== "AbortError") {
+      showNotification("Folder selection failed: " + err.message, "error");
+    }
+  }
+}
+
+async function refreshFolderTree() {
+  const treeView = document.getElementById("treeView");
+  treeView.innerHTML = "";
+  for await (const entry of currentDirHandle.values()) {
+    const div = document.createElement("div");
+    div.className = "tree-item";
+    if (entry.kind === "directory") {
+      div.innerHTML = `<span class="tree-folder">📁 ${entry.name}/</span><span>[Folder]</span>`;
+    } else {
+      div.innerHTML = `<span>📄 ${entry.name}</span><span>[File]</span>`;
+    }
+    treeView.appendChild(div);
+  }
+}
+
+/* ── TAB SWITCHING ── */
+function switchTab(tabId) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".panel-section").forEach(p => p.classList.remove("active"));
+  
+  event.target.classList.add("active");
+  document.getElementById("tab-" + tabId).classList.add("active");
+}
+
+/* ── SORTING METHOD UI SWITCHER ── */
+function toggleSortMethodPanels() {
+  const method = document.getElementById("sortMethodSelect").value;
+  document.getElementById("sortPanelAuto").style.display = method === "auto" ? "block" : "none";
+  document.getElementById("sortPanelDate").style.display = method === "date" ? "block" : "none";
+  document.getElementById("sortPanelCustom").style.display = method === "custom" ? "block" : "none";
+}
+
+/* ── DYNAMIC RULE BUILDER ── */
+function addRuleRow() {
+  const container = document.getElementById("rulesContainer");
+  const div = document.createElement("div");
+  div.className = "rule-row";
+  div.innerHTML = `
+    <span style="font-size:0.8rem; font-weight:600; color:var(--muted);">If contains:</span>
+    <input type="text" class="rule-keyword" placeholder="e.g. Invoice">
+    <span style="font-size:0.8rem; font-weight:600; color:var(--muted);">Move to:</span>
+    <input type="text" class="rule-target" placeholder="e.g. Financials">
+    <button type="button" class="btn-icon" onclick="this.parentElement.remove()" title="Remove rule">✕</button>
+  `;
+  container.appendChild(div);
+}
+
+/* ── RECURSIVE FILE ENGINE ── */
+async function* getFilesRecursively(dirHandle) {
+  for await (const entry of dirHandle.values()) {
+    if (IGNORED_FILES.includes(entry.name)) continue;
+    if (entry.kind === "file") {
+      const file = await entry.getFile();
+      yield { entry, file, parentHandle: dirHandle };
+    } else if (entry.kind === "directory") {
+      yield* getFilesRecursively(entry);
+    }
+  }
+}
+
+/* ── UNIFIED FOLDER SORTING EXECUTION & UNDO ENGINE ── */
+async function executeSortingAction() {
+  if (!currentDirHandle) return showNotification("Please select a folder first.", "error");
+  
+  const method = document.getElementById("sortMethodSelect").value;
+  const includeSubfolders = document.getElementById("sortScopeSub").checked;
+  
+  let targetFiles = [];
+  if (includeSubfolders) {
+    for await (const fileObj of getFilesRecursively(currentDirHandle)) targetFiles.push(fileObj);
+  } else {
+    for await (const entry of currentDirHandle.values()) {
+      if (entry.kind === "file" && !IGNORED_FILES.includes(entry.name)) {
+        const file = await entry.getFile();
+        targetFiles.push({ entry, file, parentHandle: currentDirHandle });
+      }
+    }
+  }
+
+  if (targetFiles.length === 0) return showNotification("No files found to sort.", "info");
+
+  lastSortManifest = []; // Reset Undo Log
+  let movedCount = 0;
+
+  try {
+    for (const item of targetFiles) {
+      let destFolderRelPath = "";
+
+      if (method === "auto") {
+        const ext = item.entry.name.split(".").pop().toLowerCase();
+        let cat = "Others";
+        for (const [category, exts] of Object.entries(EXTENSION_MAP)) {
+          if (exts.includes(ext)) { cat = category; break; }
+        }
+        destFolderRelPath = cat;
+
+      } else if (method === "date") {
+        const granularity = document.getElementById("dateSortGranularity").value;
+        const fileDate = new Date(item.file.lastModified);
+
+        if (!isNaN(fileDate.getTime())) {
+          const year = fileDate.getFullYear().toString();
+          const month = MONTH_NAMES[fileDate.getMonth()];
+          const day = String(fileDate.getDate()).padStart(2, '0');
+          const monthNum = String(fileDate.getMonth() + 1).padStart(2, '0');
+
+          if (granularity === "year") {
+            destFolderRelPath = year;
+          } else if (granularity === "month") {
+            destFolderRelPath = `${year}/${month}`;
+          } else if (granularity === "day") {
+            destFolderRelPath = `${year}-${monthNum}-${day}`;
+          }
+        } else {
+          destFolderRelPath = "Unknown Date";
+        }
+
+      } else if (method === "custom") {
+        const ruleRows = document.querySelectorAll(".rule-row");
+        for (const row of ruleRows) {
+          const kw = row.querySelector(".rule-keyword").value.trim().toLowerCase();
+          const target = row.querySelector(".rule-target").value.trim();
+          if (kw && target && item.entry.name.toLowerCase().includes(kw)) {
+            destFolderRelPath = target;
+            break;
+          }
+        }
+      }
+
+      if (!destFolderRelPath) continue; // Skip if no rule matched in custom mode
+
+      // Resolve destination nested directory handle
+      const pathParts = destFolderRelPath.split("/").filter(Boolean);
+      let targetDirHandle = currentDirHandle;
+      for (const part of pathParts) {
+        targetDirHandle = await targetDirHandle.getDirectoryHandle(part, { create: true });
+      }
+
+      // Execute file move
+      const newFileHandle = await targetDirHandle.getFileHandle(item.entry.name, { create: true });
+      const writable = await newFileHandle.createWritable();
+      await writable.write(await item.file.arrayBuffer());
+      await writable.close();
+      await item.parentHandle.removeEntry(item.entry.name);
+
+      // Log action for Undo feature
+      lastSortManifest.push({
+        fileName: item.entry.name,
+        originalParentHandle: item.parentHandle,
+        destDirHandle: targetDirHandle
+      });
+
+      movedCount++;
+    }
+
+    if (movedCount > 0) {
+      showNotification(`Successfully organized ${movedCount} file(s)!`, "info");
+      document.getElementById("undoSortBtn").style.display = "inline-block";
+      await refreshFolderTree();
+    } else {
+      showNotification("No matching files were moved.", "info");
+    }
+
+  } catch (e) {
+    showNotification("Sorting failed: " + e.message, "error");
+  }
+}
+
+async function undoLastSort() {
+  if (!lastSortManifest || lastSortManifest.length === 0) return;
+
+  try {
+    let restoredCount = 0;
+    for (const record of lastSortManifest) {
+      const fileHandle = await record.destDirHandle.getFileHandle(record.fileName);
+      const file = await fileHandle.getFile();
+
+      const restoredHandle = await record.originalParentHandle.getFileHandle(record.fileName, { create: true });
+      const writable = await restoredHandle.createWritable();
+      await writable.write(await file.arrayBuffer());
+      await writable.close();
+
+      await record.destDirHandle.removeEntry(record.fileName);
+      restoredCount++;
+    }
+
+    lastSortManifest = [];
+    document.getElementById("undoSortBtn").style.display = "none";
+    showNotification(`Restored ${restoredCount} file(s) to original locations!`, "info");
+    await refreshFolderTree();
+
+  } catch (e) {
+    showNotification("Undo failed: " + e.message, "error");
+  }
+}
+
+/* ── DEEP DUPLICATE FINDER ── */
+async function computeSHA256(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function findDuplicates() {
+  if (!currentDirHandle) return showNotification("Please select a folder first.", "error");
+  const container = document.getElementById("dupResults");
+  container.innerHTML = "<p style='font-size:0.8rem;'>Deep-scanning files and computing SHA-256 hashes across all subfolders…</p>";
+  
+  const hashMap = {};
+  foundDuplicatesList = [];
+
+  try {
+    for await (const fileObj of getFilesRecursively(currentDirHandle)) {
+      const hash = await computeSHA256(fileObj.file);
+      if (!hashMap[hash]) hashMap[hash] = [];
+      hashMap[hash].push(fileObj);
+    }
+
+    container.innerHTML = "";
+    let duplicateGroups = 0;
+
+    for (const [hash, files] of Object.entries(hashMap)) {
+      if (files.length > 1) {
+        duplicateGroups++;
+        const groupDiv = document.createElement("div");
+        groupDiv.className = "dup-group";
+        
+        let html = `<div class="dup-header">Group ${duplicateGroups} (${files.length} copies) — Hash: ${hash.slice(0, 8)}…</div>`;
+        files.forEach((item, index) => {
+          if (index === 0) {
+            html += `<div class="dup-file-item"><div>📄 <strong>${item.entry.name}</strong></div><span class="dup-kept">Original (Keep)</span></div>`;
+          } else {
+            foundDuplicatesList.push(item);
+            html += `<div class="dup-file-item"><div>📄 ${item.entry.name}</div><span class="dup-delete">Duplicate (Will remove)</span></div>`;
+          }
+        });
+        groupDiv.innerHTML = html;
+        container.appendChild(groupDiv);
+      }
+    }
+
+    if (duplicateGroups > 0) {
+      const cleanBtn = document.createElement("button");
+      cleanBtn.className = "btn-primary";
+      cleanBtn.style.marginTop = "10px";
+      cleanBtn.textContent = `Clean ${foundDuplicatesList.length} Deep Duplicate File(s)`;
+      cleanBtn.onclick = cleanDuplicates;
+      container.appendChild(cleanBtn);
+    } else {
+      container.innerHTML = "<p style='font-size:0.8rem; color:var(--teal-text);'>✓ No duplicate files detected anywhere in this folder or its subdirectories.</p>";
+    }
+
+  } catch (e) {
+    showNotification("Error scanning duplicates: " + e.message, "error");
+    container.innerHTML = "";
+  }
+}
+
+async function cleanDuplicates() {
+  if (!currentDirHandle || foundDuplicatesList.length === 0) return;
+  try {
+    let removedCount = 0;
+    for (const item of foundDuplicatesList) {
+      await item.parentHandle.removeEntry(item.entry.name);
+      removedCount++;
+    }
+    showNotification(`Removed ${removedCount} duplicate file(s) across subfolders!`, "info");
+    document.getElementById("dupResults").innerHTML = "<p style='font-size:0.8rem; color:var(--teal-text);'>✓ Folder cleaned successfully.</p>";
+    await refreshFolderTree();
+  } catch (e) {
+    showNotification("Failed to remove duplicates: " + e.message, "error");
+  }
+}
+
+/* ── BATCH RENAME OPTIONS ── */
+function toggleRenameInputs() {
+  const mode = document.getElementById("renameMode").value;
+  document.getElementById("prefixRow").style.display = mode === "prefix" ? "block" : "none";
+  document.getElementById("replaceRow").style.display = mode === "replace" ? "block" : "none";
+  document.getElementById("dateStampRow").style.display = mode === "dateStamp" ? "block" : "none";
+  document.getElementById("sequenceRow").style.display = mode === "sequence" ? "block" : "none";
+}
+
+async function applyBatchRename() {
+  if (!currentDirHandle) return showNotification("Please select a folder first.", "error");
+  const mode = document.getElementById("renameMode").value;
+  const includeSubfolders = document.getElementById("renameSubfolders").checked;
+  
+  try {
+    let targetFiles = [];
+    if (includeSubfolders) {
+      for await (const fileObj of getFilesRecursively(currentDirHandle)) targetFiles.push(fileObj);
+    } else {
+      for await (const entry of currentDirHandle.values()) {
+        if (entry.kind === "file" && !IGNORED_FILES.includes(entry.name)) {
+          const file = await entry.getFile();
+          targetFiles.push({ entry, file, parentHandle: currentDirHandle });
+        }
+      }
+    }
+
+    let renamedCount = 0;
+    let sequenceCounter = 1;
+
+    for (const item of targetFiles) {
+      let newName = item.entry.name;
+      const ext = item.entry.name.includes(".") ? "." + item.entry.name.split(".").pop() : "";
+      const baseNameWithoutExt = item.entry.name.replace(ext, "");
+
+      if (mode === "prefix") {
+        const prefix = document.getElementById("prefixInput").value.trim();
+        if (prefix && !item.entry.name.startsWith(prefix)) newName = prefix + item.entry.name;
+
+      } else if (mode === "replace") {
+        const findVal = document.getElementById("findInput").value;
+        const replaceVal = document.getElementById("replaceInput").value;
+        if (findVal) newName = item.entry.name.replaceAll(findVal, replaceVal);
+
+      } else if (mode === "dateStamp") {
+        const pos = document.getElementById("dateStampPosition").value;
+        const d = new Date(item.file.lastModified);
+        const dateStr = !isNaN(d.getTime()) ? d.toISOString().split("T")[0] : "0000-00-00";
+        newName = pos === "prefix" ? `${dateStr}_${item.entry.name}` : `${baseNameWithoutExt}_${dateStr}${ext}`;
+
+      } else if (mode === "sequence") {
+        const base = document.getElementById("sequenceBaseInput").value.trim() || "File";
+        newName = `${base}_${sequenceCounter}${ext}`;
+        sequenceCounter++;
+
+      } else if (mode === "lowercase") {
+        newName = item.entry.name.toLowerCase();
+      } else if (mode === "uppercase") {
+        newName = item.entry.name.toUpperCase();
+      }
+
+      if (newName !== item.entry.name) {
+        const newFileHandle = await item.parentHandle.getFileHandle(newName, { create: true });
+        const writable = await newFileHandle.createWritable();
+        await writable.write(await item.file.arrayBuffer());
+        await writable.close();
+        await item.parentHandle.removeEntry(item.entry.name);
+        renamedCount++;
+      }
+    }
+
+    showNotification(`Renamed ${renamedCount} file(s)!`, "info");
+    await refreshFolderTree();
+  } catch (e) {
+    showNotification("Error renaming files: " + e.message, "error");
+  }
+}
+</script>
+</body>
+</html>

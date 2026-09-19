@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio Mixer — EssentialBits</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="../shared.css">
+<style>
+  /* WAVEFORM */
+  .wave-wrap {
+    position: relative;
+    background: var(--warm-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 1.25rem;
+    display: none;
+  }
+  .wave-wrap.show { display: block; }
+  #waveCanvas { display: block; width: 100%; height: 120px; border-radius: 8px; }
+
+  /* CONTROLS */
+  .mixer-controls { display: none; margin-bottom: 1.25rem; }
+  .mixer-controls.show { display: block; }
+  .control-row { margin-bottom: 1.1rem; transition: background 0.2s, padding 0.2s; }
+  .control-row.hq-active {
+    background: var(--teal-light);
+    border-radius: 8px;
+    padding: 8px;
+  }
+  .control-label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 0.82rem; color: var(--text); font-weight: 500; margin-bottom: 6px;
+  }
+  .control-value { font-size: 0.8rem; color: var(--teal); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .control-row input[type="range"] { width: 100%; accent-color: var(--teal-mid); cursor: pointer; }
+  .control-sub { font-size: 0.72rem; color: var(--faint); margin-top: 4px; }
+  .reset-link { font-size: 0.72rem; color: var(--teal); cursor: pointer; background: none; border: none; padding: 0; }
+  .reset-link:hover { text-decoration: underline; }
+
+  /* PITCH MODE TOGGLE */
+  .pitch-note {
+    font-size: 0.72rem; color: var(--faint); line-height: 1.5; margin-top: 4px;
+  }
+
+  /* EXPORT ROW */
+  .export-format {
+    display: flex; gap: 8px; margin-bottom: 10px;
+  }
+  .fmt-tab {
+    flex: 1; text-align: center; padding: 9px; font-size: 0.82rem; font-weight: 500;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--warm-bg);
+    color: var(--muted); cursor: pointer; transition: all 0.15s;
+  }
+  .fmt-tab.active { background: var(--teal-light); border-color: var(--teal-border); color: var(--teal-text); }
+
+  .progress-section { display: none; margin-bottom: 1rem; }
+  .progress-section.show { display: block; }
+  .progress-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .progress-track { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--teal-mid); border-radius: 99px; transition: width 0.2s; width: 0%; }
+</style>
+</head>
+<body>
+
+<nav id="shared-nav"></nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="../index.html">Home</a><span>›</span><span>Audio</span><span>›</span><span>Audio Mixer</span>
+    </div>
+    <h1>Audio Mixer</h1>
+    <div class="info-btn-row">
+      <p>Adjust the volume, speed, and pitch of an audio file — preview it live, then download. Everything happens in your browser; your file is never uploaded.</p>
+      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
+    </div>
+    <div id="infoPanel" class="info-panel" style="display:none;"></div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <div class="ad-slot" style="margin-bottom:1.25rem;">
+    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
+  </div>
+
+  <div class="card">
+
+    <label>Your audio file</label>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="audio/*">
+      <div class="drop-icon">🎚️</div>
+      <div class="drop-text"><strong>Click to choose</strong> or drag an audio file here</div>
+      <div class="drop-sub">MP3, WAV, M4A, OGG and more</div>
+    </div>
+
+    <!-- WAVEFORM CONTAINER -->
+    <div class="wave-wrap" id="waveWrap">
+      <canvas id="waveCanvas"></canvas>
+      
+      <!-- SINGLE MASTER WAVEFORM PLAY CONTROL -->
+      <div style="display: flex; align-items: center; gap: 12px; margin-top: 10px;">
+        <button id="wavePlayBtn" class="btn-round-play" title="Play / Pause" style="width: 42px; height: 42px; border-radius: 50%; border: none; background: #0F6E56; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; padding: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.15); flex-shrink: 0;">
+          ▶
+        </button>
+        <span id="timeReadout" style="font-family: monospace; font-size: 0.9rem; color: #555;">0:00 / 0:00</span>
+        <span id="renderErrorNotice" style="display: none; color: #d93025; font-size: 0.8rem; font-weight: 500; background: #fce8e6; padding: 4px 8px; border-radius: 4px;">
+          ⚠️ Please render HQ audio first
+        </span>
+      </div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="mixer-controls" id="mixerControls">
+
+      <!-- SINGLE DYNAMIC RENDER BUTTON (HQ Mode Only) -->
+      <div id="renderBtnRow" style="display: none; margin-bottom: 20px;">
+        <button id="mainActionBtn" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 600; font-size: 0.95rem; background: #0F6E56;">
+          ⚡ Render Audio
+        </button>
+      </div>
+
+      <!-- VOLUME -->
+      <div class="control-row">
+        <div class="control-label">
+          <span>Volume</span>
+          <span class="control-value" id="volValue">100%</span>
+        </div>
+        <input type="range" id="volSlider" min="0" max="200" step="1" value="100">
+        <div class="control-sub">0% is silent, 100% is original, 200% is double.</div>
+      </div>
+
+      <!-- SPEED -->
+      <div class="control-row">
+        <div class="control-label">
+          <span>Speed</span>
+          <span class="control-value" id="speedValue">1.00×</span>
+        </div>
+        <input type="range" id="speedSlider" min="0.25" max="4" step="0.05" value="1">
+        <div class="control-sub" id="speedSub">Changes how fast it plays.</div>
+      </div>
+
+      <!-- PITCH -->
+      <div class="control-row" id="pitchRow">
+        <div class="control-label">
+          <span>Pitch</span>
+          <span class="control-value" id="pitchValue">0 semitones</span>
+        </div>
+        <input type="range" id="pitchSlider" min="-12" max="12" step="1" value="0">
+        <div class="control-sub" id="pitchSub">Shifts pitch up or down.</div>
+        <button class="reset-link" id="resetAllBtn" type="button" style="margin-top:8px;">Reset all to default</button>
+      </div>
+
+      <!-- HIGH QUALITY TOGGLE -->
+      <div class="control-row" style="border-top:1px solid var(--border); padding-top:14px; margin-top: 14px;">
+        <label style="display:flex; align-items:flex-start; gap:9px; cursor:pointer; font-size:0.82rem; color:var(--text);">
+          <input type="checkbox" id="hqToggle" style="margin-top:2px; accent-color:var(--teal-mid); cursor:pointer;">
+          <span>
+            <strong style="font-weight:600;">🎚️ High-Quality Mode: Keep speed &amp; pitch independent</strong>
+            <span class="pitch-note" style="display:block; margin-top:3px; color: #666;">
+              Independent pitch &amp; tempo stretching. Click Render Audio below to process before listening.
+            </span>
+          </span>
+        </label>
+      </div>
+
+      <!-- ADVANCED FINE-TUNING PANEL -->
+      <div id="advancedPanel" style="display:none; margin-top:14px; padding:14px; background:var(--bg-sub, #f9f8f6); border:1px dashed var(--border, #ccc); border-radius:6px;">
+        <div style="font-weight:600; font-size:0.85rem; margin-bottom:12px; color:var(--teal-mid, #0F6E56);">
+          ⚙️ Advanced Granular Settings
+        </div>
+        
+        <div class="control-row" style="margin-bottom:14px;">
+          <div class="control-label">
+            <span style="font-size:0.8rem; font-weight:500;">Grain Size</span>
+            <span class="control-value" id="grainValue" style="font-size:0.8rem;">40 ms</span>
+          </div>
+          <input type="range" id="grainSlider" min="20" max="120" step="5" value="40">
+          <div class="control-sub" style="font-size:0.75rem; margin-top:4px; color:#555;">
+            Lower (20–40ms) for vocals/speech. Higher (60–100ms) for smooth instrumentals.
+          </div>
+        </div>
+
+        <div class="control-row" style="margin-bottom:14px;">
+          <div class="control-label">
+            <span style="font-size:0.8rem; font-weight:500;">Crossfade Overlap</span>
+            <span class="control-value" id="overlapValue" style="font-size:0.8rem;">4×</span>
+          </div>
+          <input type="range" id="overlapSlider" min="2" max="8" step="1" value="4">
+          <div class="control-sub" style="font-size:0.75rem; margin-top:4px; color:#555;">
+            Increase if you hear metallic clicking or phase buzzing.
+          </div>
+        </div>
+
+        <div class="control-row">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.78rem;">
+            <input type="checkbox" id="transientToggle" checked style="accent-color:var(--teal-mid);">
+            <span>Align zero-crossings (preserves drum hits and guitar plucks)</span>
+          </label>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- EXPORT -->
+    <div class="mixer-controls" id="exportSection">
+      <label style="display:block;margin-bottom:8px;">Download as</label>
+      <div class="export-format">
+        <div class="fmt-tab active" id="fmtMp3" onclick="setFormat('mp3')">MP3</div>
+        <div class="fmt-tab" id="fmtWav" onclick="setFormat('wav')">WAV</div>
+      </div>
+
+      <div class="progress-section" id="progressSection">
+        <div class="progress-label"><span id="progressLabel">Processing…</span><span id="progressPct">0%</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+
+      <button class="btn-primary" id="exportBtn" disabled>Upload a file to start</button>
+    </div>
+
+  </div>
+
+  <div class="ad-slot">
+    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
+  </div>
+
+  <div class="info-card">
+    <h3>Good to know</h3>
+    <ul class="info-list">
+      <li>Everything happens in your browser — your audio is never uploaded anywhere.</li>
+      <li>Use the play button to hear your changes live before downloading.</li>
+      <li>Speed and pitch are linked in the live preview (like a record player). Turn on <strong>high-quality mode</strong> before downloading to change one without the other — it takes a little longer to process.</li>
+      <li>MP3 is best for sharing and general use; WAV is lossless and larger, best for editing software.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer id="shared-footer"></footer>
+<script src="../shared.js"></script>
+<script src="../tool-page.js"></script>
+<script src="../tools-api.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════
+   AUDIO MIXER — Streamlined Engine
+   ══════════════════════════════════════════════════════════ */
+
+let audioCtx        = null;   
+let decodedBuffer   = null;   
+let processedBuffer = null; 
+let sourceNode      = null;   
+let gainNode        = null;   
+let isPlaying       = false;
+let isRendering     = false;
+let startedAt       = 0;      
+let offsetAt        = 0;      
+let rafId           = null;
+let fileName        = "audio";
+let outFormat       = "mp3";
+
+const ARTIFICIAL_DELAY_FACTOR = 0.005;
+
+const els = {};
+document.addEventListener("DOMContentLoaded", () => {
+  ["waveWrap","waveCanvas","wavePlayBtn","mainActionBtn","renderBtnRow","renderErrorNotice","timeReadout",
+   "mixerControls","exportSection","volSlider","volValue","speedSlider","speedValue",
+   "speedSub","pitchSlider","pitchValue","pitchSub","pitchRow","exportBtn",
+   "progressSection","progressFill","progressPct","progressLabel","resetAllBtn","hqToggle",
+   "advancedPanel","grainSlider","grainValue","overlapSlider","overlapValue","transientToggle"]
+   .forEach(id => els[id] = document.getElementById(id));
+
+  makeDropZone(document.getElementById("dropZone"), {
+    accept: "audio/*",
+    multiple: false,
+    maxFree: Infinity,
+    onFiles: (files) => { if (files[0]) loadFile(files[0]); }
+  });
+
+  // Controls
+  els.volSlider.addEventListener("input", () => {
+    els.volValue.textContent = els.volSlider.value + "%";
+    if (gainNode) gainNode.gain.value = els.volSlider.value / 100;
+  });
+
+  els.speedSlider.addEventListener("input", () => {
+    updateSpeedText();
+    markDirty();
+  });
+
+  els.pitchSlider.addEventListener("input", () => {
+    const st = parseInt(els.pitchSlider.value, 10);
+    els.pitchValue.textContent = (st > 0 ? "+" : "") + st + " semitone" + (Math.abs(st) !== 1 ? "s" : "");
+    markDirty();
+  });
+
+  els.grainSlider.addEventListener("input", () => {
+    els.grainValue.textContent = els.grainSlider.value + " ms";
+    markDirty();
+  });
+
+  els.overlapSlider.addEventListener("input", () => {
+    els.overlapValue.textContent = els.overlapSlider.value + "×";
+    markDirty();
+  });
+
+  if (els.transientToggle) els.transientToggle.addEventListener("change", markDirty);
+
+  // HQ Mode Toggle
+  els.hqToggle.addEventListener("change", () => {
+    const isHq = els.hqToggle.checked;
+    els.advancedPanel.style.display = isHq ? "block" : "none";
+    els.renderBtnRow.style.display = isHq ? "block" : "none"; 
+
+    if (isHq) {
+      els.pitchSub.textContent = "Independent Mode: Pitch shifts without affecting speed.";
+      els.speedSub.textContent = "Independent Mode: Speed changes without affecting pitch.";
+    } else {
+      els.pitchSub.textContent = "Linked Mode: Pitch and speed change together.";
+      els.speedSub.textContent = "Linked Mode: Speed and pitch change together.";
+    }
+    updateSpeedText();
+    markDirty();
+  });
+
+  // Master Play Button
+  els.wavePlayBtn.addEventListener("click", handleMasterPlayClick);
+  
+  // Render Action Button
+  els.mainActionBtn.addEventListener("click", executeRender);
+
+  els.resetAllBtn.addEventListener("click", resetAll);
+
+  // Canvas Seeking
+  els.waveCanvas.addEventListener("click", (e) => {
+    const buf = processedBuffer || decodedBuffer;
+    if (!buf) return;
+    const rect = els.waveCanvas.getBoundingClientRect();
+    let frac = (e.clientX - rect.left) / rect.width;
+    frac = Math.max(0, Math.min(1, frac));
+    seekTo(frac * buf.duration);
+  });
+  els.waveCanvas.style.cursor = "pointer";
+});
+
+/* ── STATE MANAGEMENT ── */
+function markDirty() {
+  if (isPlaying) stopPlayback();
+  processedBuffer = null;
+  hideRenderError();
+
+  const isHq = els.hqToggle.checked;
+
+  if (isHq) {
+    els.mainActionBtn.disabled = false;
+    els.mainActionBtn.textContent = "⚡ Render Audio";
+    els.mainActionBtn.style.background = "#0F6E56";
+  }
+  refreshReadout();
+}
+
+function showRenderError() {
+  els.renderErrorNotice.style.display = "inline-block";
+  setTimeout(() => hideRenderError(), 3500);
+}
+
+function hideRenderError() {
+  els.renderErrorNotice.style.display = "none";
+}
+
+/* ── MASTER PLAY BUTTON LOGIC ── */
+function handleMasterPlayClick() {
+  const isHq = els.hqToggle.checked;
+
+  if (isPlaying) {
+    stopPlayback();
+    return;
+  }
+
+  if (isHq && !processedBuffer) {
+    showRenderError();
+    return;
+  }
+
+  hideRenderError();
+  startPlayback();
+}
+
+/* ── RENDER ENGINE (HQ MODE) ── */
+async function executeRender() {
+  if (!decodedBuffer || isRendering) return;
+  stopPlayback();
+  isRendering = true;
+  hideRenderError();
+
+  els.mainActionBtn.disabled = true;
+  els.mainActionBtn.textContent = "⚙️ Rendering...";
+
+  try {
+    const tempo = parseFloat(els.speedSlider.value);
+    const semis = parseInt(els.pitchSlider.value, 10);
+    const vol = els.volSlider.value / 100;
+    const grainMs = parseInt(els.grainSlider.value, 10);
+    const overlap = parseInt(els.overlapSlider.value, 10);
+    const useTransient = els.transientToggle ? els.transientToggle.checked : true;
+
+    processedBuffer = await processIndependentPitchTempo(
+      decodedBuffer, tempo, semis, vol, grainMs, overlap, useTransient
+    );
+
+    const extraWaitMs = Math.floor(decodedBuffer.duration * 1000 * ARTIFICIAL_DELAY_FACTOR);
+    if (extraWaitMs > 50) {
+      await new Promise(resolve => setTimeout(resolve, extraWaitMs));
+    }
+
+    drawWaveform(processedBuffer);
+    offsetAt = 0;
+    isRendering = false;
+
+    els.mainActionBtn.disabled = true;
+    els.mainActionBtn.textContent = "✓ Audio Rendered";
+    els.mainActionBtn.style.background = "#737373";
+  } catch (e) {
+    showNotification("Render failed: " + e.message, "error");
+    isRendering = false;
+    els.mainActionBtn.disabled = false;
+    els.mainActionBtn.textContent = "⚡ Render Audio";
+  }
+}
+
+/* ── AUDIO PLAYBACK ── */
+function startPlayback() {
+  if (audioCtx.state === "suspended") audioCtx.resume();
+
+  const activeBuf = processedBuffer || decodedBuffer;
+  const isHq = els.hqToggle.checked;
+  const semis = parseInt(els.pitchSlider.value, 10);
+  const speed = parseFloat(els.speedSlider.value);
+
+  sourceNode = audioCtx.createBufferSource();
+  sourceNode.buffer = activeBuf;
+
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = els.volSlider.value / 100;
+
+  if (processedBuffer) {
+    sourceNode.playbackRate.value = 1.0;
+  } else if (!isHq) {
+    sourceNode.playbackRate.value = speed * Math.pow(2, semis / 12);
+  }
+
+  sourceNode.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+
+  sourceNode.onended = () => {
+    if (isPlaying) { 
+      isPlaying = false; 
+      els.wavePlayBtn.textContent = "▶";
+      offsetAt = 0; 
+      cancelAnimationFrame(rafId); 
+      updateTimeReadout(0); 
+    }
+  };
+
+  offsetAt = offsetAt % activeBuf.duration;
+  sourceNode.start(0, offsetAt);
+  startedAt = audioCtx.currentTime;
+  isPlaying = true;
+  
+  els.wavePlayBtn.textContent = "❚❚";
+  tickTime();
+}
+
+function stopPlayback() {
+  if (sourceNode) {
+    offsetAt = getCurrentPosition();
+    const buf = processedBuffer || decodedBuffer;
+    if (buf && offsetAt >= buf.duration) offsetAt = 0;
+    try { sourceNode.onended = null; sourceNode.stop(); } catch(_){}
+    sourceNode.disconnect();
+    sourceNode = null;
+  }
+  isPlaying = false;
+  els.wavePlayBtn.textContent = "▶";
+  cancelAnimationFrame(rafId);
+}
+
+function getCurrentPosition() {
+  const buf = processedBuffer || decodedBuffer;
+  if (!isPlaying || !buf) return offsetAt;
+  
+  let rate = 1.0;
+  if (!processedBuffer) {
+    const speed = parseFloat(els.speedSlider.value);
+    const semis = parseInt(els.pitchSlider.value, 10);
+    rate = speed * Math.pow(2, semis / 12);
+  }
+  
+  const elapsed = (audioCtx.currentTime - startedAt) * rate;
+  return Math.min(buf.duration, offsetAt + elapsed);
+}
+
+function seekTo(seconds) {
+  const buf = processedBuffer || decodedBuffer;
+  const wasPlaying = isPlaying;
+  if (isPlaying) stopPlayback();
+  offsetAt = Math.max(0, Math.min(seconds, buf.duration - 0.001));
+  updateTimeReadout(offsetAt);
+  drawPlayhead(offsetAt / buf.duration);
+  if (wasPlaying) startPlayback();
+}
+
+function tickTime() {
+  if (!isPlaying) return;
+  const buf = processedBuffer || decodedBuffer;
+  const pos = getCurrentPosition();
+  updateTimeReadout(pos);
+  drawPlayhead(pos / buf.duration);
+  rafId = requestAnimationFrame(tickTime);
+}
+
+function updateTimeReadout(pos) {
+  const buf = processedBuffer || decodedBuffer;
+  const dur = buf ? buf.duration : 0;
+  
+  let rate = 1.0;
+  if (!processedBuffer) {
+    const speed = parseFloat(els.speedSlider.value);
+    const semis = parseInt(els.pitchSlider.value, 10);
+    rate = speed * Math.pow(2, semis / 12);
+  }
+
+  els.timeReadout.textContent = fmtTime(pos / rate) + " / " + fmtTime(dur / rate);
+}
+
+function refreshReadout() {
+  if (isPlaying) return;
+  updateTimeReadout(offsetAt);
+}
+
+function updateSpeedText() {
+  const spd = parseFloat(els.speedSlider.value).toFixed(2);
+  const isHq = els.hqToggle.checked;
+  els.speedValue.textContent = spd + "×" + (isHq ? " (Independent)" : "");
+}
+
+function fmtTime(s) {
+  s = Math.max(0, s);
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return m + ":" + String(sec).padStart(2, "0");
+}
+
+function resetAll() {
+  els.volSlider.value = 100; els.volValue.textContent = "100%";
+  els.speedSlider.value = 1; updateSpeedText();
+  els.pitchSlider.value = 0; els.pitchValue.textContent = "0 semitones";
+  els.grainSlider.value = 40; els.grainValue.textContent = "40 ms";
+  els.overlapSlider.value = 4; els.overlapValue.textContent = "4×";
+  if (els.transientToggle) els.transientToggle.checked = true;
+  els.hqToggle.checked = false;
+  els.hqToggle.dispatchEvent(new Event('change'));
+  if (gainNode) gainNode.gain.value = 1;
+  markDirty();
+}
+
+/* ── WAVEFORM DRAWING ── */
+let wavePeaks = null;
+function drawWaveform(buffer) {
+  const canvas = els.waveCanvas;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 600;
+  const cssH = 120;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  const data = buffer.getChannelData(0);
+  const step = Math.floor(data.length / cssW) || 1;
+  wavePeaks = [];
+  for (let x = 0; x < cssW; x++) {
+    let min = 1, max = -1;
+    for (let i = 0; i < step; i++) {
+      const v = data[x * step + i] || 0;
+      if (v < min) min = v; if (v > max) max = v;
+    }
+    wavePeaks.push([min, max]);
+  }
+  renderWave(0);
+}
+
+function renderWave(playheadFrac) {
+  const canvas = els.waveCanvas;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.width / dpr, cssH = canvas.height / dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, cssW, cssH);
+  const mid = cssH / 2;
+
+  const playedX = playheadFrac * cssW;
+  for (let x = 0; x < wavePeaks.length; x++) {
+    const [min, max] = wavePeaks[x];
+    ctx.strokeStyle = x <= playedX ? "#1D9E75" : "#c9c4bc";
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, mid + min * mid * 0.9);
+    ctx.lineTo(x + 0.5, mid + max * mid * 0.9);
+    ctx.stroke();
+  }
+  if (playheadFrac > 0) {
+    ctx.strokeStyle = "#0F6E56";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(playedX, 0); ctx.lineTo(playedX, cssH); ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+}
+function drawPlayhead(frac) { if (wavePeaks) renderWave(frac); }
+
+/* ── FILE LOADING ── */
+async function loadFile(file) {
+  fileName = file.name.replace(/\.[^.]+$/, "");
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    stopPlayback();
+    const arrayBuf = await file.arrayBuffer();
+    decodedBuffer = await audioCtx.decodeAudioData(arrayBuf);
+    processedBuffer = null;
+
+    drawWaveform(decodedBuffer);
+    els.waveWrap.classList.add("show");
+    els.mixerControls.classList.add("show");
+    els.exportSection.classList.add("show");
+    els.exportBtn.disabled = false;
+    els.exportBtn.textContent = "Download";
+    offsetAt = 0;
+    updateTimeReadout(0);
+    markDirty();
+  } catch (e) {
+    if (typeof showNotification === "function") {
+      showNotification("Could not read audio file: " + e.message, "error");
+    } else {
+      alert("Could not read audio file: " + e.message);
+    }
+  }
+}
+
+async function processIndependentPitchTempo(buffer, tempo, semitones, vol, grainMs = 40, overlap = 4, useTransient = true) {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const pitchRatio = Math.pow(2, semitones / 12);
+
+  let effectiveGrainMs = grainMs;
+  if (semitones < -4) effectiveGrainMs *= 1.3; 
+  if (semitones > 4) effectiveGrainMs *= 0.8;  
+
+  const targetLength = Math.max(1, Math.floor(buffer.length / tempo));
+  const outCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  const outBuf = outCtx.createBuffer(numChannels, targetLength, sampleRate);
+
+  const grainSize = Math.floor((sampleRate * effectiveGrainMs) / 1000);
+  const hopSize = Math.floor(grainSize / overlap);
+
+  const window = new Float32Array(grainSize);
+  for (let i = 0; i < grainSize; i++) {
+    window[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (grainSize - 1)));
+  }
+
+  for (let c = 0; c < numChannels; c++) {
+    const input = buffer.getChannelData(c);
+    const output = outBuf.getChannelData(c);
+
+    let outPos = 0;
+    let inPos = 0;
+
+    while (outPos + grainSize < targetLength) {
+      let offset = 0;
+
+      if (useTransient) {
+        const searchRange = Math.min(Math.floor(sampleRate * 0.005), 256);
+        let minDiff = Infinity;
+        for (let s = -searchRange; s <= searchRange; s++) {
+          const idx = Math.floor(inPos) + s;
+          if (idx > 0 && idx < input.length - 1) {
+            const diff = Math.abs(input[idx] - input[idx - 1]);
+            if (diff < minDiff) {
+              minDiff = diff;
+              offset = s;
+            }
+          }
+        }
+      }
+
+      for (let i = 0; i < grainSize; i++) {
+        const readIdx = Math.floor((inPos + offset) + i * pitchRatio);
+        if (readIdx >= 0 && readIdx < input.length) {
+          output[outPos + i] += input[readIdx] * window[i] * vol;
+        }
+      }
+
+      outPos += hopSize;
+      inPos += hopSize * tempo;
+    }
+  }
+
+  return outBuf;
+}
+
+function setFormat(fmt) {
+  outFormat = fmt;
+  document.getElementById("fmtMp3").classList.toggle("active", fmt === "mp3");
+  document.getElementById("fmtWav").classList.toggle("active", fmt === "wav");
+}
+</script>
+
+</body>
+</html>
