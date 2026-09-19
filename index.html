@@ -71,6 +71,10 @@ html { scroll-behavior: smooth; }
   ║    Add style="display:none;" to the <a> tag.                 ║
   ║    The tool count automatically excludes hidden tools.       ║
   ║                                                              ║
+  ║  TAGGING A TOOL                                              ║
+  ║    Add data-tags="section tier" to the <a> tag, using a      ║
+  ║    section such as images and a tier of basics or advanced.  ║
+  ║                                                              ║
   ║  ADDING A BADGE                                              ║
   ║    Place <div class="editors-pick-badge">★ Editor's Pick     ║
   ║    </div> after the tool-desc div, before tool-arrow.        ║
@@ -102,37 +106,37 @@ html { scroll-behavior: smooth; }
       <div class="cat-subtitle">6 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/youtube-download.html" class="tool-card" style="display:none;">
+      <a href="tools/youtube-download.html" class="tool-card" data-tags="video basics" style="display:none;">
         <div class="tool-name">YouTube download</div>
         <div class="tool-desc">Save any video as MP4 or audio as MP3</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/video-to-gif.html" class="tool-card">
+      <a href="tools/video-to-gif.html" class="tool-card" data-tags="video basics">
         <div class="tool-name">Video to GIF</div>
         <div class="tool-desc">Turn any clip into an animated GIF</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/video-converter.html" class="tool-card">
+      <a href="tools/video-converter.html" class="tool-card" data-tags="video basics">
         <div class="tool-name">Video converter</div>
         <div class="tool-desc">MP4, MOV, AVI, WebM and more</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/trim-video.html" class="tool-card">
+      <a href="tools/trim-video.html" class="tool-card" data-tags="video basics">
         <div class="tool-name">Trim video</div>
         <div class="tool-desc">Cut the start and end of any video</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/remove-audio.html" class="tool-card">
+      <a href="tools/remove-audio.html" class="tool-card" data-tags="video basics">
         <div class="tool-name">Remove audio</div>
         <div class="tool-desc">Strip the sound track from a video</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/combine-media.html" class="tool-card">
+      <a href="tools/combine-media.html" class="tool-card" data-tags="video basics">
         <div class="tool-name">Combine video & audio</div>
         <div class="tool-desc">Add or mix an audio track into a video</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/merge-video.html" class="tool-card">
+      <a href="tools/merge-video.html" class="tool-card" data-tags="video basics">
         <div class="tool-name">Merge videos</div>
         <div class="tool-desc">Join several clips into one video</div>
         <div class="tool-arrow">→</div>
@@ -145,30 +149,30 @@ html { scroll-behavior: smooth; }
       <span class="cat-number" aria-hidden="true">02</span>
       <div class="cat-icon image">🖼</div>
       <div class="cat-title">Images</div>
-      <div class="cat-subtitle">6 tools</div>
+      <div class="cat-subtitle">5 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/photos-to-gif.html" class="tool-card">
+      <a href="tools/photos-to-gif.html" class="tool-card" data-tags="images basics">
         <div class="tool-name">Photos to GIF or WebP</div>
         <div class="tool-desc">Animate a set of images into a GIF or WebP</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/image-converter.html" class="tool-card">
+      <a href="tools/image-converter.html" class="tool-card" data-tags="images basics">
         <div class="tool-name">Image converter</div>
         <div class="tool-desc">PNG, JPG, WebP, AVIF and more</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/resize-image.html" class="tool-card">
+      <a href="tools/resize-image.html" class="tool-card" data-tags="images basics">
         <div class="tool-name">Resize image</div>
         <div class="tool-desc">Set exact pixel dimensions</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/compress-image.html" class="tool-card">
+      <a href="tools/compress-image.html" class="tool-card" data-tags="images basics">
         <div class="tool-name">Compress image</div>
         <div class="tool-desc">Shrink file size without losing quality</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/strip-metadata.html" class="tool-card">
+      <a href="tools/strip-metadata.html" class="tool-card" data-tags="images basics">
         <div class="tool-name">Strip metadata</div>
         <div class="tool-desc">Remove hidden data from photos</div>
         <div class="tool-arrow">→</div>
@@ -181,35 +185,35 @@ html { scroll-behavior: smooth; }
       <span class="cat-number" aria-hidden="true">03</span>
       <div class="cat-icon audio">🎵</div>
       <div class="cat-title">Audio</div>
-      <div class="cat-subtitle">5 tools</div>
+      <div class="cat-subtitle">6 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/audio-converter.html" class="tool-card">
+      <a href="tools/audio-converter.html" class="tool-card" data-tags="audio basics">
         <div class="tool-name">Audio converter</div>
         <div class="tool-desc">MP3, WAV, FLAC, AAC and more</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/audio-mixer.html" class="tool-card">
+      <a href="tools/audio-mixer.html" class="tool-card" data-tags="audio advanced">
         <div class="tool-name">Audio Mixer</div>
         <div class="tool-desc">Quickly adjust volume, speed, and pitch</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/extract-audio.html" class="tool-card">
+      <a href="tools/extract-audio.html" class="tool-card" data-tags="audio basics">
         <div class="tool-name">Extract audio from video</div>
         <div class="tool-desc">Pull the sound out of any video file</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/trim-audio.html" class="tool-card">
+      <a href="tools/trim-audio.html" class="tool-card" data-tags="audio basics">
         <div class="tool-name">Trim audio</div>
         <div class="tool-desc">Cut any audio file to the exact section you want</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/audio-to-midi.html" class="tool-card">
+      <a href="tools/audio-to-midi.html" class="tool-card" data-tags="audio basics">
         <div class="tool-name">Audio to MIDI <span class="tool-experimental">⚗ Experimental</span></div>
         <div class="tool-desc">Convert recordings to MIDI using AI</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/merge-audio.html" class="tool-card">
+      <a href="tools/merge-audio.html" class="tool-card" data-tags="audio basics">
         <div class="tool-name">Merge audio</div>
         <div class="tool-desc">Join several audio files into one</div>
         <div class="tool-arrow">→</div>
@@ -225,22 +229,22 @@ html { scroll-behavior: smooth; }
       <div class="cat-subtitle">4 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/merge-pdf.html" class="tool-card">
+      <a href="tools/merge-pdf.html" class="tool-card" data-tags="pdf basics">
         <div class="tool-name">Merge PDFs</div>
         <div class="tool-desc">Combine multiple PDFs into one</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/split-pdf.html" class="tool-card">
+      <a href="tools/split-pdf.html" class="tool-card" data-tags="pdf basics">
         <div class="tool-name">Split PDF</div>
         <div class="tool-desc">Extract specific pages from a PDF</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/images-to-pdf.html" class="tool-card">
+      <a href="tools/images-to-pdf.html" class="tool-card" data-tags="pdf basics">
         <div class="tool-name">Images to PDF</div>
         <div class="tool-desc">Combine screenshots into one PDF</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/pdf-to-images.html" class="tool-card">
+      <a href="tools/pdf-to-images.html" class="tool-card" data-tags="pdf basics">
         <div class="tool-name">PDF to images</div>
         <div class="tool-desc">Export each page as PNG or JPG</div>
         <div class="tool-arrow">→</div>
@@ -253,51 +257,62 @@ html { scroll-behavior: smooth; }
       <span class="cat-number" aria-hidden="true">05</span>
       <div class="cat-icon productivity">⚡</div>
       <div class="cat-title">Productivity</div>
-      <div class="cat-subtitle">8 tools</div>
+      <div class="cat-subtitle">4 tools</div>
     </div>
     <div class="tool-grid">
-      <a href="tools/smart-editor.html" class="tool-card">
+      <a href="tools/folder-editor.html" class="tool-card" data-tags="productivity advanced">
+        <div class="tool-name">Folder Manager &amp; Organizer</div>
+        <div class="tool-desc">Organize files with automatic or custom rules, find duplicates, customize your folder, and more.</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/notes-merger.html" class="tool-card" data-tags="productivity basics">
+        <div class="tool-name">Notes Merger</div>
+        <div class="tool-desc">Merge and export text files to PDF, Word, and more</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/find-replace.html" class="tool-card" data-tags="productivity basics">
+        <div class="tool-name">Find &amp; Replace</div>
+        <div class="tool-desc">Search and replace words across multiple files at once</div>
+        <div class="tool-arrow">→</div>
+      </a>
+      <a href="tools/number-base-converter.html" class="tool-card" data-tags="productivity basics">
+        <div class="tool-name">Number Base Converter</div>
+        <div class="tool-desc">Convert between binary, octal, decimal, hex, and Base64 instantly</div>
+        <div class="tool-arrow">→</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="category" id="creativity">
+    <div class="category-header">
+      <span class="cat-number" aria-hidden="true">06</span>
+      <div class="cat-icon creativity">🖌</div>
+      <div class="cat-title">Creativity</div>
+      <div class="cat-subtitle">5 tools</div>
+    </div>
+    <div class="tool-grid">
+      <a href="tools/smart-editor.html" class="tool-card" data-tags="creativity advanced">
         <div class="tool-name">Smart Editor</div>
         <div class="tool-desc">A clean writing editor and full code editor in one — auto-saved, no cloud</div>
         <div class="editors-pick-badge">★ Editor's Pick</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/folder-editor.html" class="tool-card">
-        <div class="tool-name">Folder Manager and Orgenizer</div>
-        <div class="tool-desc">Organize files with automatic or custom rules, find duplicates, customize your folder, and more.</div>
-        <div class="tool-arrow">→</div>
-      </a>
-      <a href="tools/notes-merger.html" class="tool-card">
-        <div class="tool-name">Notes Merger</div>
-        <div class="tool-desc">Merge and export text files to PDF, Word, and more</div>
-        <div class="tool-arrow">→</div>
-      </a>
-      <a href="tools/find-replace.html" class="tool-card">
-        <div class="tool-name">Find &amp; Replace</div>
-        <div class="tool-desc">Search and replace words across multiple files at once</div>
-        <div class="tool-arrow">→</div>
-      </a>
-      <a href="tools/qr-generator.html" class="tool-card">
+      <a href="tools/qr-generator.html" class="tool-card" data-tags="creativity basics">
         <div class="tool-name">QR Code Generator</div>
         <div class="tool-desc">Turn any link or text into a scannable QR code</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/password-generator.html" class="tool-card">
+      <a href="tools/password-generator.html" class="tool-card" data-tags="creativity basics">
         <div class="tool-name">Password Generator</div>
         <div class="tool-desc">Generate strong passwords with a personal hint baked in</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/color-palette.html" class="tool-card">
+      <a href="tools/color-palette.html" class="tool-card" data-tags="creativity advanced">
         <div class="tool-name">Color Palette &amp; Picker</div>
         <div class="tool-desc">Extract colors from any image and pick exact pixel colors</div>
         <div class="tool-arrow">→</div>
       </a>
-      <a href="tools/number-base-converter.html" class="tool-card">
-        <div class="tool-name">Number Base Converter</div>
-        <div class="tool-desc">Convert between binary, octal, decimal, hex, and Base64 instantly</div>
-        <div class="tool-arrow">→</div>
-      </a>
-      <a href="tools/text-analyzer.html" class="tool-card">
+      <a href="tools/text-analyzer.html" class="tool-card" data-tags="creativity advanced">
         <div class="tool-name">Text Analyzer</div>
         <div class="tool-desc">Count words, characters, sentences, paragraphs and get a readability score</div>
         <div class="tool-arrow">→</div>
