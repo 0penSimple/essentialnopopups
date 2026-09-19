@@ -198,7 +198,7 @@
 
         <div class="control-row">
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.78rem;">
-            <input type="checkbox" id="transientToggle" checked style="accent-color:var(--teal-mid);">
+            <input type="checkbox" id="transientToggle" style="accent-color:var(--teal-mid);">
             <span>Align zero-crossings (preserves drum hits and guitar plucks)</span>
           </label>
         </div>
@@ -399,21 +399,26 @@ async function executeRender() {
   els.mainActionBtn.disabled = true;
   els.mainActionBtn.textContent = "⚙️ Rendering...";
 
+  const startTime = Date.now(); // 1. Record start time
+
   try {
     const tempo = parseFloat(els.speedSlider.value);
     const semis = parseInt(els.pitchSlider.value, 10);
     const vol = els.volSlider.value / 100;
     const grainMs = parseInt(els.grainSlider.value, 10);
     const overlap = parseInt(els.overlapSlider.value, 10);
-    const useTransient = els.transientToggle ? els.transientToggle.checked : true;
+    const useTransient = els.transientToggle ? els.transientToggle.checked : false;
 
     processedBuffer = await processIndependentPitchTempo(
       decodedBuffer, tempo, semis, vol, grainMs, overlap, useTransient
     );
 
-    const extraWaitMs = Math.floor(decodedBuffer.duration * 1000 * ARTIFICIAL_DELAY_FACTOR);
-    if (extraWaitMs > 50) {
-      await new Promise(resolve => setTimeout(resolve, extraWaitMs));
+    // 2. Calculate remaining time needed to hit at least 1500ms (1.5s)
+    const elapsedTime = Date.now() - startTime;
+    const minWaitMs = 1500;
+    
+    if (elapsedTime < minWaitMs) {
+      await new Promise(resolve => setTimeout(resolve, minWaitMs - elapsedTime));
     }
 
     drawWaveform(processedBuffer);
@@ -559,7 +564,7 @@ function resetAll() {
   els.pitchSlider.value = 0; els.pitchValue.textContent = "0 semitones";
   els.grainSlider.value = 40; els.grainValue.textContent = "40 ms";
   els.overlapSlider.value = 4; els.overlapValue.textContent = "4×";
-  if (els.transientToggle) els.transientToggle.checked = true;
+  if (els.transientToggle) els.transientToggle.checked = false;
   els.hqToggle.checked = false;
   els.hqToggle.dispatchEvent(new Event('change'));
   if (gainNode) gainNode.gain.value = 1;
