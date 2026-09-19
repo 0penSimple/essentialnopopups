@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <!-- GNOME/Yaru Style Flat Folder Tab -->
+  <path d="M 24 48 L 104 48 L 120 64 L 232 64 L 232 90 L 24 90 Z" fill="currentColor" opacity="0.8"/>
+  <!-- Flat Base Body -->
+  <rect x="24" y="68" width="208" height="140" rx="4" fill="currentColor"/>
+  <!-- Bottom Edge Accent Stroke -->
+  <rect x="24" y="204" width="208" height="4" rx="2" fill="#000000" opacity="0.2"/>
+</svg>

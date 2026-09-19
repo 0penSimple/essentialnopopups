@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" xml:space="preserve">
+<defs>
+  <!-- Top lighting shine gradient for front flap -->
+  <linearGradient id="mac-front-sheen" x1="0%" y1="0%" x2="0%" y2="100%">
+    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.38"/>
+    <stop offset="45%" stop-color="#ffffff" stop-opacity="0.10"/>
+    <stop offset="100%" stop-color="#ffffff" stop-opacity="0.00"/>
+  </linearGradient>
+
+  <!-- Back tab shading gradient -->
+  <linearGradient id="mac-back-shade" x1="0%" y1="0%" x2="0%" y2="100%">
+    <stop offset="0%" stop-color="#000000" stop-opacity="0.15"/>
+    <stop offset="100%" stop-color="#000000" stop-opacity="0.35"/>
+  </linearGradient>
+</defs>
+
+<g transform="translate(10, 6)">
+  <!-- 1. BACK TAB (Base color + gradient overlay) -->
+  <path d="M 38,18 C 38,18 72,18 82,18 C 94,18 102,34 112,40 C 122,42 212,42 222,42 C 232,42 236,50 236,60 L 236,204 C 236,218 224,228 210,228 L 26,228 C 12,228 0,218 0,204 L 0,36 C 0,22 12,18 26,18 Z" 
+        fill="currentColor" />
+  <path d="M 38,18 C 38,18 72,18 82,18 C 94,18 102,34 112,40 C 122,42 212,42 222,42 C 232,42 236,50 236,60 L 236,204 C 236,218 224,228 210,228 L 26,228 C 12,228 0,218 0,204 L 0,36 C 0,22 12,18 26,18 Z" 
+        fill="url(#mac-back-shade)" />
+
+  <!-- 2. FRONT FLAP (Base color) -->
+  <path d="M 0,68 C 0,60 6,54 14,54 L 222,54 C 230,54 236,60 236,68 L 236,202 C 236,216 224,228 210,228 L 26,228 C 12,228 0,216 0,202 Z" 
+        fill="currentColor" />
+  
+  <!-- Realistic Top-Down Gradient Sheen -->
+  <path d="M 0,68 C 0,60 6,54 14,54 L 222,54 C 230,54 236,60 236,68 L 236,202 C 236,216 224,228 210,228 L 26,228 C 12,228 0,216 0,202 Z" 
+        fill="url(#mac-front-sheen)" />
+
+  <!-- 3. BOTTOM ACCENT LINES -->
+  <path d="M 14,214 L 222,214" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.35" />
+  <path d="M 14,220 L 222,220" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity="0.20" />
+</g>
+</svg>
