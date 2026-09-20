@@ -21,6 +21,145 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
 
 <style>
+/* ── COMMAND PALETTE (Ctrl/Cmd+K) ── */
+.cmdk-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 18, 14, 0.35);
+  z-index: 1000;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+}
+.cmdk-backdrop.show { display: flex; }
+.cmdk-box {
+  width: min(560px, 92vw);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  overflow: hidden;
+}
+.cmdk-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  padding: 16px 18px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+}
+.cmdk-results {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 18px;
+  font-size: 0.88rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.cmdk-item .cmdk-group {
+  font-size: 0.68rem;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.cmdk-item.active {
+  background: var(--teal-light);
+}
+.cmdk-empty {
+  padding: 14px 18px;
+  font-size: 0.82rem;
+  color: var(--faint);
+}
+.cmdk-swatch-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.15);
+  flex-shrink: 0;
+  display: inline-block;
+}
+.cmdk-hint {
+  padding: 8px 18px;
+  font-size: 0.68rem;
+  color: var(--faint);
+  border-top: 1px solid var(--border);
+  background: var(--warm-bg);
+}
+
+/* ── TOOLBAR CUSTOMIZATION PANEL ── */
+.tbe-box {
+  width: min(440px, 92vw);
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  overflow: hidden;
+}
+.tbe-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.tbe-body {
+  overflow-y: auto;
+  padding: 10px 16px;
+}
+.tbe-section-label {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 12px 0 4px;
+}
+.tbe-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 0.85rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--warm-bg);
+}
+.tbe-row .tbe-label { flex: 1; }
+.tbe-row button {
+  background: var(--warm-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1;
+}
+.tbe-row button:disabled { opacity: 0.3; cursor: default; }
+.tbe-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal); }
+.tbe-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  text-align: right;
+  background: var(--warm-bg);
+}
+
 /* ── MODE TOGGLE ── */
 .mode-toggle {
   display: flex;
@@ -57,25 +196,39 @@
 
 .mode-btn .mode-icon { font-size: 0.9rem; }
 
-/* ── TOOLBAR ── */
+/* ── TOOLBAR ──
+   "Canvas" style: larger icon-only buttons with generous spacing, kept
+   pinned to the top of the viewport while you scroll a long document.
+   --toolbar-sticky-top lets this drop-in file account for a real site's
+   fixed nav bar height, if it has one; 0 assumes none. */
+:root { --toolbar-sticky-top: 0px; }
+
 .editor-toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   flex-wrap: wrap;
-  padding: 8px 10px;
+  padding: 7px 10px;
   background: var(--warm-bg);
   border: 1px solid var(--border);
-  border-radius: 8px 8px 0 0;
+  border-radius: 12px 12px 0 0;
   border-bottom: none;
+  position: sticky;
+  top: var(--toolbar-sticky-top);
+  z-index: 20;
 }
 
 .toolbar-btn {
   background: none;
   border: 1px solid transparent;
-  border-radius: 5px;
-  padding: 4px 8px;
-  font-size: 0.8rem;
+  border-radius: 7px;
+  padding: 6px 8px;
+  min-width: 32px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
   font-family: inherit;
   color: var(--muted);
   cursor: pointer;
@@ -97,11 +250,70 @@
 
 .toolbar-sep {
   width: 1px;
-  height: 18px;
+  height: 22px;
   background: var(--border);
-  margin: 0 2px;
+  margin: 0 3px;
   flex-shrink: 0;
 }
+
+.toolbar-btn[data-wide] { min-width: unset; padding-left: 10px; padding-right: 10px; font-size: 0.78rem; gap: 5px; }
+.toolbar-btn svg { display: block; }
+
+/* ── COMPOUND TOOLBAR CONTROLS (text size, typewriter+position) ──
+   These wrap a couple of related controls in one flex item so they move,
+   show, and hide together as a single customizable "action" — see
+   applyToolbarConfig(), which sets order/display on whatever element
+   carries the matching data-action-id, group wrapper or plain button alike. */
+.toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  position: relative;
+}
+.toolbar-value {
+  font-size: 0.68rem;
+  font-family: monospace;
+  color: var(--faint);
+  min-width: 26px;
+  text-align: center;
+  padding: 0 2px;
+  user-select: none;
+}
+.toolbar-caret {
+  padding: 4px 6px !important;
+  font-size: 0.65rem !important;
+  min-width: unset !important;
+  min-height: unset !important;
+}
+.toolbar-popover {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 116px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  padding: 4px;
+  z-index: 50;
+}
+.toolbar-popover.show { display: flex; }
+.toolbar-popover button {
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.toolbar-popover button:hover { background: var(--warm-bg); }
+.toolbar-popover button.active { background: var(--teal-light); color: var(--teal); font-weight: 600; }
 
 .toolbar-select {
   background: none;
@@ -110,7 +322,7 @@
   font-family: inherit;
   font-size: 0.78rem;
   color: var(--muted);
-  padding: 4px 6px;
+  padding: 4px 4px;
   cursor: pointer;
   outline: none;
   transition: all 0.12s;
@@ -122,6 +334,78 @@
   border-color: var(--border);
   color: var(--text);
 }
+
+/* Used for the paragraph-style and line-spacing pickers — short option text
+   (¶/H1/H2/H3, and spacing names without their multiplier) keeps these
+   narrow on their own, and this caps them so the browser doesn't pad out
+   the box to fit some other, unrelated wide option. */
+.toolbar-select-compact {
+  max-width: 64px;
+  font-size: 0.72rem;
+  padding: 4px 2px;
+}
+
+/* The paragraph-style picker spells its options out in full (Paragraph,
+   Title, Heading 1…) rather than abbreviating — there's room for it on any
+   screen the rest of the toolbar already fits on, and short forms like
+   "H1"/"Ti" read as unfinished labels rather than a deliberate choice. */
+.toolbar-select-paragraph {
+  max-width: 98px;
+  font-size: 0.72rem;
+  padding: 4px 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Text/highlight color buttons: a letter with a small color dot under it,
+   showing the last color that was picked. The real <input type="color">
+   behind each one is visually hidden (not display:none, which would stop
+   Chrome delivering the click that opens the picker) and reached only via
+   the visible button's onclick, so there's no second, redundant control
+   sitting in the toolbar for it. */
+.toolbar-color-btn {
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 6px;
+  font-weight: 700;
+  line-height: 1;
+}
+.toolbar-color-dot {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.toolbar-color-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The text/highlight color swatch picker reuses .toolbar-popover (the same
+   floating panel the typewriter-position menu uses) with its own grid of
+   small clickable color squares in the middle, between the "Default"/"None"
+   row and the "Custom…" row that opens the native picker. */
+.toolbar-color-popover { min-width: 148px; }
+.color-swatch-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  padding: 4px 6px;
+}
+.color-swatch-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 1px solid rgba(0,0,0,0.15);
+  padding: 0;
+  cursor: pointer;
+}
+.color-swatch-btn:hover { transform: scale(1.12); }
 
 /* ── EDITOR AREA ── */
 .editor-wrap {
@@ -151,11 +435,29 @@
   pointer-events: none;
 }
 
+/* Heading tags are reused for the paragraph-style picker's Title/H1/H2/H3
+   ladder (see applyHeading()): a real <h1> is either an ordinary Heading 1
+   OR, with the .doc-title class added on top, the bigger "Title" style —
+   the class is what tells the two apart, since both are <h1> underneath. */
 #writerArea h1 { font-size: 1.6rem; font-weight: 600; margin: 0.5em 0 0.3em; }
+#writerArea h1.doc-title { font-size: 2.1rem; font-weight: 700; letter-spacing: -0.01em; margin: 0.2em 0 0.4em; }
 #writerArea h2 { font-size: 1.3rem; font-weight: 600; margin: 0.5em 0 0.3em; }
 #writerArea h3 { font-size: 1.1rem; font-weight: 600; margin: 0.5em 0 0.3em; }
+#writerArea h4 { font-size: 1rem; font-weight: 600; margin: 0.5em 0 0.3em; }
 #writerArea p  { margin: 0 0 0.5em; }
 #writerArea ul, #writerArea ol { padding-left: 1.5em; margin: 0.3em 0; }
+/* Smart quote — an inline span the "quote" toolbar button applies to a
+   text selection (see toggleSmartQuote()). Not to be confused with the old
+   block-level <blockquote> below, which nothing in the toolbar creates
+   anymore but which stays styled here for any older saved document that
+   still has one. */
+.smart-quote {
+  color: var(--muted);
+  font-style: italic;
+}
+.editor-wrap.theme-dark .smart-quote { color: #a6adc8; }
+.editor-wrap.theme-sepia .smart-quote { color: #8a7458; }
+
 #writerArea blockquote {
   border-left: 3px solid var(--teal-border);
   margin: 0.5em 0;
@@ -214,30 +516,10 @@
   align-items: center;
 }
 
-/* ── FOCUS MODE OVERLAY ── */
-body.focus-mode .page-header,
-body.focus-mode .ad-slot,
-body.focus-mode .export-row,
-body.focus-mode .mode-toggle,
-body.focus-mode .width-control,
-body.focus-mode #globalTheme {
-  opacity: 0.12;
-  pointer-events: none;
-  transition: opacity 0.3s;
-}
-
-body.focus-mode .editor-toolbar {
-  opacity: 0.35;
-  transition: opacity 0.3s;
-}
-
-body.focus-mode .editor-toolbar:hover {
-  opacity: 1;
-}
-
-body.focus-mode .status-bar {
-  opacity: 0.25;
-}
+/* ── FOCUS MODE ──
+   Focus mode only affects the words inside the document itself — the
+   toolbar, toolbox, header, ads and status bar always stay fully visible.
+   See the "FOCUS MODE — word-level dimming" block further down. */
 
 /* ── SESSION RESTORE NOTICE ── */
 .restore-notice {
@@ -263,18 +545,6 @@ body.focus-mode .status-bar {
   cursor: pointer;
   font-family: inherit;
   text-decoration: underline;
-}
-
-/* Premium lock inline */
-.toolbar-premium {
-  font-size: 0.65rem;
-  color: var(--premium);
-  background: var(--premium-light);
-  border: 1px solid var(--premium-border);
-  border-radius: 4px;
-  padding: 2px 5px;
-  margin-left: 2px;
-  vertical-align: middle;
 }
 
 @media (max-width: 520px) {
@@ -319,17 +589,20 @@ body.focus-mode .status-bar {
 .editor-wrap.theme-sepia .CodeMirror-cursor { border-left-color: #3d2b1f; }
 .editor-wrap.theme-sepia .CodeMirror-activeline-background { background: rgba(0,0,0,0.04); }
 
-/* ── FOCUS MODE — dim non-active blocks ── */
-#writerArea.focus-active > * {
-  opacity: 0.2;
-  transition: opacity 0.25s;
+/* ── FOCUS MODE — word-level dimming ──
+   Everything you've already typed fades to a faint color except the word
+   you're on and the one right before it. Only *finished* words (ones the
+   cursor has moved past) ever get wrapped in a real <span class="fx-w"> —
+   the word you're actively typing is never touched — so this can't disturb
+   the cursor, and every save/export runs through a cleaned copy so none of
+   this internal wrapping ever ends up in your saved document. The toolbar,
+   toolbox, header and status bar are never affected by focus mode. */
+.fx-w.fx-dim {
+  color: var(--faint);
+  transition: color 0.35s ease;
 }
-#writerArea.focus-active > *.focus-line {
-  opacity: 1;
-}
-#writerArea.focus-active:focus-within > *:only-child {
-  opacity: 1;
-}
+.editor-wrap.theme-dark .fx-w.fx-dim { color: #6f7086; }
+.editor-wrap.theme-sepia .fx-w.fx-dim { color: #a68f6d; }
 
 /* ── WIDTH CONTROL ── */
 .width-control {
@@ -459,6 +732,10 @@ body.focus-mode .status-bar {
   /* Hide width slider on mobile */
   #widthSliderRow { display: none !important; }
 }
+@media (min-width: 769px) {
+  /* On larger screens, the toolbar's "⛶ Full page" button replaces this */
+  .mobile-edit-btn { display: none !important; }
+}
 
 /* Full-screen overlay when mobile-edit-mode active */
 body.mobile-edit-mode #shared-nav,
@@ -584,6 +861,31 @@ body.mobile-edit-mode .toolbox-panel {
 
 <nav id="shared-nav"></nav>
 
+<!-- QUICK COMMAND PALETTE (Ctrl/Cmd+K) -->
+<div class="cmdk-backdrop" id="cmdkBackdrop" onmousedown="if (event.target === this) closeCommandPalette();">
+  <div class="cmdk-box" role="dialog" aria-label="Command palette">
+    <input type="text" id="cmdkInput" class="cmdk-input" placeholder="Type a command… (e.g. bold, heading, line spacing)"
+      autocomplete="off" spellcheck="false"
+      oninput="cmdkOnInput()" onkeydown="cmdkOnKeydown(event)">
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-hint">↑↓ to navigate · Tab/Enter to pick · Backspace/Esc to go back</div>
+  </div>
+</div>
+
+<!-- TOOLBAR CUSTOMIZATION PANEL -->
+<div class="cmdk-backdrop" id="tbeBackdrop" onmousedown="if (event.target === this) closeToolbarEditor();">
+  <div class="tbe-box" role="dialog" aria-label="Customize toolbar">
+    <div class="tbe-header">
+      <strong>Customize toolbar</strong>
+      <button class="btn-secondary" style="font-size:0.72rem;padding:4px 10px;" onclick="resetToolbarConfig()">Reset to default</button>
+    </div>
+    <div class="tbe-body" id="tbeBody"></div>
+    <div class="tbe-footer">
+      <button class="btn-secondary" style="padding:6px 16px;" onclick="closeToolbarEditor()">Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="page">
 
   <div class="page-header">
@@ -631,11 +933,11 @@ body.mobile-edit-mode .toolbox-panel {
   <div id="widthSliderRow" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;
     font-size:0.75rem;color:var(--muted);">
     <span>Editor width:</span>
-    <input type="range" id="widthSlider" min="500" max="1200" value="640" step="10"
+    <input type="range" id="widthSlider" min="500" max="1200" value="1200" step="10"
       style="accent-color:var(--teal);width:160px;"
       oninput="onWidthSlide(this.value)">
     <span id="widthLabel" style="min-width:55px;color:var(--faint);
-      font-family:monospace;font-size:0.72rem;">640px</span>
+      font-family:monospace;font-size:0.72rem;">Full</span>
   </div>
 
   <div class="card">
@@ -650,10 +952,18 @@ body.mobile-edit-mode .toolbox-panel {
           background:var(--warm-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;
           padding:5px 10px;font-size:0.78rem;font-family:inherit;cursor:pointer;">💻 Code</button>
       </div>
-      <button class="mobile-done-btn" onclick="exitMobileEdit()">Done ✓</button>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <button onclick="copyAllText()" title="Copy all text" style="
+          background:var(--warm-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;
+          padding:5px 10px;font-size:0.9rem;font-family:inherit;cursor:pointer;">⧉</button>
+        <button onclick="pasteAtCursor()" title="Paste at cursor" style="
+          background:var(--warm-bg);color:var(--muted);border:1px solid var(--border);border-radius:6px;
+          padding:5px 10px;font-size:0.9rem;font-family:inherit;cursor:pointer;">📋</button>
+        <button class="mobile-done-btn" onclick="exitMobileEdit()">Done ✓</button>
+      </div>
     </div>
 
-    <!-- Theme + Font size controls -->
+    <!-- Theme control (line spacing and text size now live in the toolbar itself) -->
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:1rem;">
       <div style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--muted);">
         <span>Theme:</span>
@@ -663,33 +973,6 @@ body.mobile-edit-mode .toolbox-panel {
           <option value="dark">Dark</option>
           <option value="sepia">Sepia</option>
         </select>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--muted);">
-        <span>Size:</span>
-        <button onclick="changeFontSize(-1)" style="
-          background:var(--warm-bg);border:1px solid var(--border);border-radius:6px;
-          padding:3px 9px;cursor:pointer;font-size:0.78rem;font-family:inherit;
-          color:var(--muted);transition:all 0.15s;line-height:1.4;"
-          title="Decrease font size">A−</button>
-        <span id="fontSizeLabel" style="min-width:32px;text-align:center;
-          font-family:monospace;font-size:0.72rem;color:var(--faint);">16px</span>
-        <button onclick="changeFontSize(1)" style="
-          background:var(--warm-bg);border:1px solid var(--border);border-radius:6px;
-          padding:3px 9px;cursor:pointer;font-size:0.95rem;font-family:inherit;
-          color:var(--muted);transition:all 0.15s;line-height:1.4;"
-          title="Increase font size">A+</button>
-      </div>
-      <div style="display:flex;align-items:center;gap:0;font-size:0.78rem;color:var(--muted);">
-        <button onclick="changeLineHeight(-1)" class="lg-dec" style="
-          background:var(--warm-bg);border:1px solid var(--border);border-radius:6px 0 0 6px;
-          padding:3px 8px;cursor:pointer;font-size:0.78rem;font-family:inherit;
-          color:var(--muted);transition:all 0.15s;line-height:1.4;border-right:none;">−</button>
-        <span class="lg-label" style="background:var(--warm-bg);border:1px solid var(--border);
-          padding:3px 8px;font-size:0.72rem;font-family:monospace;white-space:nowrap;">1.8</span>
-        <button onclick="changeLineHeight(1)" class="lg-inc" style="
-          background:var(--warm-bg);border:1px solid var(--border);border-radius:0 6px 6px 0;
-          padding:3px 8px;cursor:pointer;font-size:0.78rem;font-family:inherit;
-          color:var(--muted);transition:all 0.15s;line-height:1.4;border-left:none;">+</button>
       </div>
     </div>
 
@@ -726,38 +1009,129 @@ body.mobile-edit-mode .toolbox-panel {
       <button class="nikud-btn" onclick="insertNikud('\u05C2')" title="שִן שמאלית">שׂ</button>
     </div>
 
+    <!-- Grouped like a familiar word processor: text style, then lists, then
+         paragraph-level formatting (style/size/spacing/alignment), then
+         history and view controls pushed toward the right, with full-page
+         and the meta tools (⌘K/⚙) at the very end.
+         Every data-action-id element's left-to-right position is controlled
+         at runtime by applyToolbarConfig() (order values 10-210, one per
+         customizable action — a few of these are small groups of controls,
+         like text size and typewriter, that move/show/hide as one unit).
+         The heading/paragraph-style select is NOT customizable (it's always
+         shown), so it gets a fixed order value outside that range, slotting
+         it into the paragraph-formatting cluster without being toggleable
+         or reorderable itself. -->
     <div class="editor-toolbar" id="writerToolbar">
-      <select class="toolbar-select" id="headingSelect" onchange="applyHeading(this.value)">
+      <!-- Text style -->
+      <button class="toolbar-btn" data-action-id="bold" onclick="fmt('bold')" title="Bold (⌘B)"><strong>B</strong></button>
+      <button class="toolbar-btn" data-action-id="italic" onclick="fmt('italic')" title="Italic (⌘I)"><em>I</em></button>
+      <button class="toolbar-btn" data-action-id="underline" onclick="fmt('underline')" title="Underline (⌘U)" style="text-decoration:underline;">U</button>
+      <button class="toolbar-btn" data-action-id="strike" onclick="fmt('strikeThrough')" title="Strikethrough"><s>S</s></button>
+      <div class="toolbar-sep" style="order:45;"></div>
+
+      <!-- Lists -->
+      <button class="toolbar-btn" data-action-id="bullet-list" onclick="fmt('insertUnorderedList')" title="Bullet list">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="2" cy="3" r="1.3" fill="currentColor"/><rect x="5.5" y="2.2" width="9.5" height="1.6" rx="0.8" fill="currentColor"/><circle cx="2" cy="8" r="1.3" fill="currentColor"/><rect x="5.5" y="7.2" width="9.5" height="1.6" rx="0.8" fill="currentColor"/><circle cx="2" cy="13" r="1.3" fill="currentColor"/><rect x="5.5" y="12.2" width="9.5" height="1.6" rx="0.8" fill="currentColor"/></svg>
+      </button>
+      <button class="toolbar-btn" data-action-id="number-list" onclick="fmt('insertOrderedList')" title="Numbered list">1.</button>
+      <button class="toolbar-btn" data-action-id="quote" onclick="toggleSmartQuote()" title="Smart quote — wraps the selected text in curly quotes, italicized and muted; click it again on the same text to remove">❝</button>
+      <div class="toolbar-sep" style="order:75;"></div>
+
+      <!-- Paragraph formatting: style, size, spacing, alignment -->
+      <select class="toolbar-select toolbar-select-paragraph" id="headingSelect" onchange="applyHeading(this.value)" title="Paragraph style" style="order:78;">
         <option value="div">Paragraph</option>
-        <option value="h1">Heading 1</option>
-        <option value="h2">Heading 2</option>
-        <option value="h3">Heading 3</option>
+        <option value="title">Title</option>
+        <option value="h2">Heading 1</option>
+        <option value="h3">Heading 2</option>
+        <option value="h4">Heading 3</option>
       </select>
-      <div class="toolbar-sep"></div>
-      <button class="toolbar-btn" onclick="fmt('bold')" title="Bold (⌘B)"><strong>B</strong></button>
-      <button class="toolbar-btn" onclick="fmt('italic')" title="Italic (⌘I)"><em>I</em></button>
-      <button class="toolbar-btn" onclick="fmt('underline')" title="Underline (⌘U)" style="text-decoration:underline;">U</button>
-      <button class="toolbar-btn" onclick="fmt('strikeThrough')" title="Strikethrough"><s>S</s></button>
-      <div class="toolbar-sep"></div>
-      <button class="toolbar-btn" onclick="fmt('insertUnorderedList')" title="Bullet list">☰</button>
-      <button class="toolbar-btn" onclick="fmt('insertOrderedList')" title="Numbered list">1.</button>
-      <button class="toolbar-btn" onclick="fmt('formatBlock', 'blockquote')" title="Quote">"</button>
-      <div class="toolbar-sep"></div>
-      <button class="toolbar-btn" onclick="fmt('justifyLeft')" title="Align left">⬅</button>
-      <button class="toolbar-btn" onclick="fmt('justifyCenter')" title="Center">⬛</button>
-      <button class="toolbar-btn" onclick="fmt('justifyRight')" title="Align right">➡</button>
-      <div class="toolbar-sep"></div>
-      <button class="toolbar-btn" onclick="fmt('undo')" title="Undo">↩</button>
-      <button class="toolbar-btn" onclick="fmt('redo')" title="Redo">↪</button>
-      <div class="toolbar-sep"></div>
-      <button class="toolbar-btn" id="focusBtn" onclick="toggleFocus()" title="Focus mode">
-        ◎ Focus
+      <!-- Options are populated by populateFontFamilySelect() from FONT_OPTIONS,
+           same reasoning as the line-height select below: one list, defined once
+           in JS, so the dropdown can never drift out of sync with the palette. -->
+      <select class="toolbar-select toolbar-select-compact" id="fontFamilySelect" onchange="applyFontFamily(this.value)" title="Font" style="order:79; max-width:84px;"></select>
+      <span class="toolbar-group" data-action-id="font-size" title="Text size">
+        <button class="toolbar-btn" onclick="changeFontSize(-1)" title="Decrease text size">A−</button>
+        <span class="toolbar-value" id="fontSizeLabel">16px</span>
+        <button class="toolbar-btn" onclick="changeFontSize(1)" title="Increase text size">A+</button>
+      </span>
+      <!-- Text/highlight color: one button that behaves like Bold — click it
+           and it applies (to the last color you picked) if the selection
+           doesn't have it yet, or removes it if it does, no separate
+           "remove" command needed. The small "▾" opens a quick swatch
+           picker for choosing a specific color, with "Custom…" handing off
+           to the browser's own native color picker (the hidden <input
+           type="color"> below) for anything not in the short list. -->
+      <span class="toolbar-group toolbar-split" style="order:81;">
+        <button type="button" class="toolbar-btn toolbar-color-btn" id="textColorBtn" onclick="handleTextColorClick()" title="Text color — click to apply/remove, use ▾ to pick a color">
+          <span>A</span><span class="toolbar-color-dot" id="textColorDot" style="background:#c0392b;"></span>
+        </button>
+        <button type="button" class="toolbar-btn toolbar-caret" onclick="togglePopover('textColorMenu', event)" title="Pick a text color">▾</button>
+        <div class="toolbar-popover toolbar-color-popover" id="textColorMenu">
+          <button type="button" onclick="closePopover('textColorMenu'); clearTextColor();">Default</button>
+          <div class="color-swatch-row" id="textColorSwatchRow"></div>
+          <button type="button" onclick="closePopover('textColorMenu'); document.getElementById('textColorInput').click();">Custom…</button>
+        </div>
+      </span>
+      <input type="color" id="textColorInput" class="toolbar-color-input" value="#c0392b" oninput="applyTextColor(this.value)" tabindex="-1" aria-hidden="true">
+      <span class="toolbar-group toolbar-split" style="order:82;">
+        <button type="button" class="toolbar-btn toolbar-color-btn" id="highlightColorBtn" onclick="handleHighlightColorClick()" title="Highlight color — click to apply/remove, use ▾ to pick a color">
+          <span>H</span><span class="toolbar-color-dot" id="highlightColorDot" style="background:#fff59d;"></span>
+        </button>
+        <button type="button" class="toolbar-btn toolbar-caret" onclick="togglePopover('highlightColorMenu', event)" title="Pick a highlight color">▾</button>
+        <div class="toolbar-popover toolbar-color-popover" id="highlightColorMenu">
+          <button type="button" onclick="closePopover('highlightColorMenu'); clearHighlightColor();">None</button>
+          <div class="color-swatch-row" id="highlightColorSwatchRow"></div>
+          <button type="button" onclick="closePopover('highlightColorMenu'); document.getElementById('highlightColorInput').click();">Custom…</button>
+        </div>
+      </span>
+      <input type="color" id="highlightColorInput" class="toolbar-color-input" value="#fff59d" oninput="applyHighlightColor(this.value)" tabindex="-1" aria-hidden="true">
+      <!-- Options are populated by populateLineHeightSelect() from LINE_HEIGHTS so the
+           labels and values can never drift out of sync with the JS side. The exact
+           multiplier is a title tooltip rather than inline text, to keep this narrow. -->
+      <select class="toolbar-select toolbar-select-compact" data-action-id="line-space" id="lineHeightSelect" onchange="setLineHeightIdx(this.value)"
+        title="Line spacing — pick 'Default' if unsure"></select>
+      <div class="toolbar-sep" style="order:95;"></div>
+      <button class="toolbar-btn" data-action-id="align-left" onclick="fmt('justifyLeft')" title="Align left">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="1" y="12" width="12" height="2" rx="1" fill="currentColor"/></svg>
       </button>
-      <button class="toolbar-btn" id="typewriterBtn" onclick="toggleTypewriter()" title="Typewriter mode — Premium">
-        ⌨ Typewriter <span class="toolbar-premium">✦</span>
+      <button class="toolbar-btn" data-action-id="align-center" onclick="fmt('justifyCenter')" title="Align center">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/><rect x="3.5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="12" width="12" height="2" rx="1" fill="currentColor"/></svg>
       </button>
-      <div class="toolbar-sep"></div>
-      <button class="toolbar-btn" id="toolboxBtn" onclick="toggleToolbox()" title="Mobile toolbox — arrows, nikud, formatting">✎ Toolbox</button>
+      <button class="toolbar-btn" data-action-id="align-right" onclick="fmt('justifyRight')" title="Align right">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/><rect x="6" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="3" y="12" width="12" height="2" rx="1" fill="currentColor"/></svg>
+      </button>
+      <button class="toolbar-btn" data-action-id="align-justify" onclick="fmt('justifyFull')" title="Justify — stretches lines flush to both margins">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="7" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="12" width="14" height="2" rx="1" fill="currentColor"/></svg>
+      </button>
+      <div class="toolbar-sep" style="order:135;"></div>
+
+      <!-- History + view controls, pushed toward the right end -->
+      <button class="toolbar-btn" data-action-id="undo" onclick="fmt('undo')" title="Undo">↩</button>
+      <button class="toolbar-btn" data-action-id="redo" onclick="fmt('redo')" title="Redo">↪</button>
+      <div class="toolbar-sep" style="order:155;"></div>
+      <button class="toolbar-btn" id="focusBtn" data-action-id="focus" onclick="toggleFocus()" title="Focus mode">◎</button>
+      <span class="toolbar-group toolbar-split" data-action-id="typewriter">
+        <button class="toolbar-btn" id="typewriterBtn" onclick="toggleTypewriter()" title="Typewriter mode">⌨</button>
+        <button class="toolbar-btn toolbar-caret" id="typewriterAnchorBtn" onclick="toggleTypewriterMenu(event)" title="Typewriter lock position (Alt+1/2/3)">▾</button>
+        <div class="toolbar-popover" id="typewriterAnchorMenu">
+          <button type="button" data-anchor="top" onclick="setTypewriterAnchor('top')">⬆ Top</button>
+          <button type="button" data-anchor="center" onclick="setTypewriterAnchor('center')">▬ Center</button>
+          <button type="button" data-anchor="bottom" onclick="setTypewriterAnchor('bottom')">⬇ Bottom</button>
+        </div>
+      </span>
+      <button class="toolbar-btn" id="toolboxBtn" data-action-id="toolbox" onclick="toggleToolbox()" title="Mobile toolbox — arrows, nikud, formatting">📱</button>
+      <div class="toolbar-sep" style="order:185;"></div>
+
+      <!-- Full-page really is last among the content controls, as requested -->
+      <button class="toolbar-btn" id="fullPageBtn" data-action-id="fullpage" onclick="toggleFullPage()" title="Full-page mode">⛶</button>
+      <div class="toolbar-sep" style="order:195;"></div>
+      <button class="toolbar-btn" data-action-id="copy" onclick="copyAllText()" title="Copy all text">⧉</button>
+      <button class="toolbar-btn" data-action-id="paste" onclick="pasteAtCursor()" title="Paste at cursor">📋</button>
+      <div class="toolbar-sep" style="order:215;"></div>
+
+      <!-- Meta tools: always last, never customizable -->
+      <button class="toolbar-btn" data-wide style="order:220;" onclick="openCommandPalette()" title="Command palette (Ctrl/Cmd+K)">⌘K</button>
+      <button class="toolbar-btn" style="order:230;" onclick="openToolbarEditor()" title="Customize this toolbar">⚙</button>
     </div>
 
     <!-- CODE TOOLBAR -->
@@ -894,7 +1268,7 @@ body.mobile-edit-mode .toolbox-panel {
       </button>
       <button class="btn-secondary" id="exportDocxBtn" onclick="exportDocx()"
         style="font-size:0.82rem;padding:7px 14px;display:flex;align-items:center;gap:5px;">
-        DOCX <span class="toolbar-premium">✦</span>
+        DOCX
       </button>
       <button class="btn-secondary" onclick="openFile()" style="font-size:0.82rem;padding:7px 14px;margin-left:auto;">
         📂 Open file
@@ -920,8 +1294,9 @@ body.mobile-edit-mode .toolbox-panel {
       <li><strong>Code mode</strong> gives you syntax highlighting for HTML, JavaScript, CSS, Python, and SQL, along with line numbers, bracket matching, and auto-closing brackets. Perfect for editing HTML files or writing quick code snippets.</li>
       <li>Switching between modes transfers your content as plain text. If you switch from Writer to Code, formatting (bold, headings etc.) will be lost — you'll be warned before this happens.</li>
       <li>Use <strong>Open file</strong> to load any .txt, .html, .js, .css, .py, or other text file directly from your computer.</li>
-      <li>PDF export is available in Writer mode. DOCX export requires <strong>✦ Premium</strong>.</li>
-      <li><strong>Typewriter mode (✦ Premium)</strong> keeps your current line vertically centered as you type — reduces eye movement and helps you stay in flow.</li>
+      <li>PDF and DOCX export are both available in Writer mode.</li>
+      <li><strong>Typewriter mode</strong> keeps your current line vertically centered as you type — reduces eye movement and helps you stay in flow.</li>
+      <li><strong>Full page mode</strong> hides everything but the editor itself. It turns on automatically on phone-sized screens, or anytime via the <strong>⛶ Full page</strong> toolbar button.</li>
     </ul>
   </div>
 
@@ -935,22 +1310,39 @@ body.mobile-edit-mode .toolbox-panel {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="../shared.js"></script>
+<script src="../tool-page.js"></script>
+<script src="../tools-api.js"></script>
 
 <script>
 /* ================================================================
    STATE
    ================================================================ */
-const FONT_SIZES = [8, 10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 38];
-let fontSizeIdx = 4; // default 16px
-const LINE_HEIGHTS = [1.2, 1.4, 1.6, 1.8, 2.0, 2.4, 2.8];
-let lineHeightIdx = 3; // default 1.8
+// Text size — a much wider range than before, since there's no real reason
+// to stop at 38px (headings, presentation-style notes, accessibility, etc.
+// can all want bigger, and 8px was never usably small either).
+const FONT_SIZES = [10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40, 48, 56, 64, 72];
+let fontSizeIdx = 3; // default 16px
+// Line spacing, with plain-English names — shown in the "Line spacing"
+// dropdown so it's clear what each option actually does, instead of a bare
+// multiplier. The multiplier itself is unitless (a ratio of the font size),
+// which is why a heavier spacing option can look dramatic on larger text —
+// that's expected, but "Default" is a safe, modest choice.
+const LINE_HEIGHTS = [
+  { v: 1.2, label: 'Compact' },
+  { v: 1.5, label: 'Cozy' },
+  { v: 1.8, label: 'Default' },
+  { v: 2.2, label: 'Relaxed' },
+  { v: 2.6, label: 'Airy' },
+];
+let lineHeightIdx = 2; // default: "Default", 1.8×
 
 const state = {
   mode: 'writer',           // 'writer' | 'code'
   writerSnapshot: '',       // saved HTML when leaving writer
   codeSnapshot: '',         // saved text when leaving code
-  focusMode: false,
-  typewriterMode: false,
+  focusMode: true,
+  typewriterMode: true,
+  typewriterAnchor: 'center', // 'top' | 'center' | 'bottom' — see scrollTypewriter()
   lineNumbers: true,
   wordWrap: false,
   autoSaveTimer: null,
@@ -958,11 +1350,1149 @@ const state = {
 };
 
 /* ================================================================
+   ACTION REGISTRY
+   Every command the editor knows how to run lives here once — the
+   toolbar buttons and the Ctrl/Cmd+K command palette are just two
+   different "views" onto this same list, so adding one new smart
+   action automatically makes it available in both places.
+   ================================================================ */
+
+// Every one of these is a font that already ships with Windows and/or
+// macOS — nothing here is downloaded, so there's no reason to keep the
+// list short. Each entry falls back gracefully (a comma-separated stack)
+// if that exact name isn't installed on a given machine, the same way any
+// web-safe font stack does. Grouped loosely sans-serif / serif / monospace
+// / display so they're not just an alphabetical wall in the dropdown.
+const FONT_OPTIONS = [
+  { value: '', label: 'Default' },
+  { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
+  { value: 'Helvetica, Arial, sans-serif', label: 'Helvetica' },
+  { value: 'Verdana, Geneva, sans-serif', label: 'Verdana' },
+  { value: 'Tahoma, Geneva, sans-serif', label: 'Tahoma' },
+  { value: "'Trebuchet MS', Helvetica, sans-serif", label: 'Trebuchet MS' },
+  { value: "Calibri, Candara, 'Segoe UI', Optima, Arial, sans-serif", label: 'Calibri' },
+  { value: "'Segoe UI', Tahoma, Geneva, sans-serif", label: 'Segoe UI' },
+  { value: "'Century Gothic', 'Apple Gothic', sans-serif", label: 'Century Gothic' },
+  { value: "Futura, 'Trebuchet MS', Arial, sans-serif", label: 'Futura' },
+  { value: "'Gill Sans', 'Gill Sans MT', Calibri, sans-serif", label: 'Gill Sans' },
+  { value: "Optima, Candara, Calibri, Arial, sans-serif", label: 'Optima' },
+  { value: "Georgia, 'Times New Roman', serif", label: 'Georgia' },
+  { value: "'Times New Roman', Times, serif", label: 'Times New Roman' },
+  { value: 'Cambria, Georgia, serif', label: 'Cambria' },
+  { value: "Garamond, Baskerville, 'Times New Roman', serif", label: 'Garamond' },
+  { value: "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif", label: 'Palatino' },
+  { value: "Baskerville, 'Baskerville Old Face', Georgia, serif", label: 'Baskerville' },
+  { value: "'Book Antiqua', Palatino, serif", label: 'Book Antiqua' },
+  { value: "'American Typewriter', 'Courier New', serif", label: 'American Typewriter' },
+  { value: "Rockwell, 'Courier New', serif", label: 'Rockwell' },
+  { value: "'Courier New', Courier, monospace", label: 'Courier New' },
+  { value: 'Consolas, Monaco, monospace', label: 'Consolas' },
+  { value: 'Monaco, Consolas, monospace', label: 'Monaco' },
+  { value: "'Lucida Console', 'Lucida Sans Typewriter', monospace", label: 'Lucida Console' },
+  { value: "'Comic Sans MS', 'Comic Sans', cursive", label: 'Comic Sans MS' },
+  { value: "'Brush Script MT', cursive", label: 'Brush Script MT' },
+  { value: "Copperplate, 'Copperplate Gothic Light', fantasy", label: 'Copperplate' },
+  { value: 'Papyrus, fantasy', label: 'Papyrus' },
+  { value: "Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif", label: 'Impact' },
+];
+
+const TEXT_COLOR_PRESETS = [
+  { value: '', label: 'Default' },
+  { value: '#000000', label: 'Black' },
+  { value: '#5c5c5c', label: 'Gray' },
+  { value: '#c0392b', label: 'Red' },
+  { value: '#d35400', label: 'Orange' },
+  { value: '#f1c40f', label: 'Yellow' },
+  { value: '#27ae60', label: 'Green' },
+  { value: '#2980b9', label: 'Blue' },
+  { value: '#8e44ad', label: 'Purple' },
+];
+
+const HIGHLIGHT_COLOR_PRESETS = [
+  { value: '', label: 'None' },
+  { value: '#fff59d', label: 'Yellow' },
+  { value: '#a5d6a7', label: 'Green' },
+  { value: '#90caf9', label: 'Blue' },
+  { value: '#f8bbd0', label: 'Pink' },
+  { value: '#ffcc80', label: 'Orange' },
+  { value: '#ce93d8', label: 'Purple' },
+];
+
+const ACTIONS = [
+  { id: 'bold',        label: 'Bold',              keywords: 'b strong',      group: 'Format', run: () => fmt('bold') },
+  { id: 'italic',      label: 'Italic',             keywords: 'i em',          group: 'Format', run: () => fmt('italic') },
+  { id: 'underline',   label: 'Underline',          keywords: 'u',             group: 'Format', run: () => fmt('underline') },
+  { id: 'strike',      label: 'Strikethrough',      keywords: 's',             group: 'Format', run: () => fmt('strikeThrough') },
+  { id: 'bullet-list', label: 'Bullet list',        keywords: 'ul list',       group: 'Format', run: () => fmt('insertUnorderedList') },
+  { id: 'number-list', label: 'Numbered list',      keywords: 'ol list',       group: 'Format', run: () => fmt('insertOrderedList') },
+  { id: 'quote',       label: 'Smart quote',        keywords: 'blockquote curly quotation marks', group: 'Format', run: () => toggleSmartQuote() },
+  { id: 'align-left',  label: 'Align left',         keywords: 'justify',       group: 'Format', run: () => fmt('justifyLeft') },
+  { id: 'align-center',label: 'Align center',       keywords: 'justify',       group: 'Format', run: () => fmt('justifyCenter') },
+  { id: 'align-right', label: 'Align right',        keywords: 'justify',       group: 'Format', run: () => fmt('justifyRight') },
+  { id: 'align-justify',label: 'Justify',           keywords: 'align full',    group: 'Format', run: () => fmt('justifyFull') },
+  { id: 'font-size',   label: 'Text size',          keywords: 'font zoom size', group: 'Format',
+    arg: { numeric: 'px', values: [10,12,14,16,18,20,24,28,32,40,48,64,72].map(v => ({ value: v, label: v + 'px' })) },
+    run: (arg) => setFontSizeValue(parseFloat(arg)) },
+  { id: 'heading',     label: 'Paragraph style',    keywords: 'h1 h2 h3 title paragraph heading', group: 'Format',
+    arg: { values: [
+      { value: 'div',   label: 'Paragraph' },
+      { value: 'title', label: 'Title' },
+      { value: 'h2',    label: 'Heading 1' },
+      { value: 'h3',    label: 'Heading 2' },
+      { value: 'h4',    label: 'Heading 3' },
+    ] },
+    run: (arg) => applyHeading(arg || 'div') },
+  { id: 'font-family', label: 'Font',               keywords: 'typeface family serif sans monospace', group: 'Format',
+    arg: { values: FONT_OPTIONS },
+    run: (arg) => applyFontFamily(arg || '') },
+  // "Default"/"none" lives INSIDE each of these value lists (it's just the
+  // first row) rather than as its own separately-named command — the same
+  // way Bold is one command that both applies and removes bold depending
+  // on the current state, there's no separate "Remove bold." A typed RGB
+  // triple or hex code (e.g. "0 0 0") resolves straight to a color via
+  // parseColorQuery(), same idea as typing a plain number for text size.
+  { id: 'text-color',  label: 'Text color',         keywords: 'font color rgb hex black white red', group: 'Format',
+    arg: { color: true, values: TEXT_COLOR_PRESETS },
+    run: (arg) => arg ? applyTextColor(arg) : clearTextColor() },
+  { id: 'highlight-color', label: 'Highlight color', keywords: 'mark background rgb hex', group: 'Format',
+    arg: { color: true, values: HIGHLIGHT_COLOR_PRESETS },
+    run: (arg) => arg ? applyHighlightColor(arg) : clearHighlightColor() },
+  { id: 'undo',        label: 'Undo',               keywords: '',              group: 'History', run: () => fmt('undo') },
+  { id: 'redo',        label: 'Redo',               keywords: '',              group: 'History', run: () => fmt('redo') },
+  { id: 'upper',       label: 'UPPERCASE',          keywords: 'case caps',     group: 'Transform', run: () => transformCase('upper') },
+  { id: 'lower',       label: 'lowercase',          keywords: 'case',          group: 'Transform', run: () => transformCase('lower') },
+  { id: 'title-case',  label: 'Title Case',         keywords: 'case',          group: 'Transform', run: () => transformCase('title') },
+  { id: 'sentence-case',label: 'Sentence case',     keywords: 'case',          group: 'Transform', run: () => transformCase('sentence') },
+  // Cmd/Ctrl+K is a quick SELECTION command changer — every command here
+  // acts on the current selection, not the whole document. There's
+  // deliberately no separate "whole document" version of this in the
+  // palette: select all (Cmd/Ctrl+A) first and run it the same way if
+  // that's what's wanted. The toolbar's own line-spacing dropdown (a
+  // different control, id 'line-space') sets the document-wide default;
+  // this entry is just its label for the toolbar customize panel — it's
+  // marked hideFromPalette so Cmd+K only ever offers the one, selection
+  // version below, never two confusingly similar options.
+  { id: 'line-space', label: 'Line spacing (whole document)', keywords: '', group: 'Transform', hideFromPalette: true, run: () => {} },
+  { id: 'line-space-selection', label: 'Line spacing', keywords: 'leading spacing custom paragraph', group: 'Transform',
+    arg: { numeric: '×', values: [1, 1.15, 1.5, 1.8, 2, 2.5, 3].map(v => ({ value: v, label: v + '×' })) },
+    run: (arg) => applySelectionLineHeight(parseFloat(arg)) },
+  { id: 'focus',       label: 'Toggle Focus mode',  keywords: 'dim',           group: 'View', run: () => toggleFocus() },
+  { id: 'typewriter',  label: 'Toggle Typewriter mode', keywords: 'scroll lock', group: 'View', run: () => toggleTypewriter() },
+  { id: 'typewriter-position', label: 'Typewriter position', keywords: 'anchor top center bottom lock line', group: 'View',
+    arg: { values: [
+      { value: 'top',    label: 'Top' },
+      { value: 'center', label: 'Center' },
+      { value: 'bottom', label: 'Bottom' },
+    ] },
+    run: (arg) => setTypewriterAnchor(arg || 'center') },
+  { id: 'fullpage',    label: 'Toggle Full page mode', keywords: 'fullscreen', group: 'View', run: () => toggleFullPage() },
+  { id: 'toolbox',     label: 'Toggle mobile toolbox', keywords: 'phone mobile arrows nikud', group: 'View', run: () => toggleToolbox() },
+  { id: 'copy',        label: 'Copy all text',      keywords: 'clipboard',     group: 'Clipboard', run: () => copyAllText() },
+  { id: 'paste',       label: 'Paste at cursor',    keywords: 'clipboard',     group: 'Clipboard', run: () => pasteAtCursor() },
+];
+
+function getAction(id) { return ACTIONS.find(a => a.id === id); }
+
+/* ---- transform / clipboard helpers used by the registry above ---- */
+
+function transformCase(kind) {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) {
+    showNotification('Select some text first.', 'info');
+    return;
+  }
+  const original = sel.toString();
+  let out;
+  if (kind === 'upper') out = original.toUpperCase();
+  else if (kind === 'lower') out = original.toLowerCase();
+  else if (kind === 'title') out = original.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+  else if (kind === 'sentence') {
+    const lower = original.toLowerCase();
+    out = lower.replace(/(^\s*[a-z]|[.!?]\s+[a-z])/g, m => m.toUpperCase());
+  } else out = original;
+  document.execCommand('insertText', false, out);
+  onWriterInput();
+}
+
+// "Smart quote" — an inline toggle, unlike the old block-level blockquote:
+// it only ever touches the selected text, wrapping it in curly quote marks
+// plus a muted italic style. Clicking it again on already-quoted text
+// removes all of it.
+//
+// Undo: rather than lean on execCommand + the browser's native undo stack,
+// this (and any other command that mutates the DOM directly instead of
+// going through execCommand — see runAsManualEdit() below) keeps its own
+// one-shot undo snapshot. Two different things can desync the browser's
+// own undo manager here: Chrome's execCommand entries get corrupted when
+// the touched selection is nested inside another pre-existing styled span
+// (Focus Mode wraps "already typed" text in <span class="fx-w"> as you
+// type, and that wrapping can even split across sibling spans before the
+// first Enter is pressed) — and any RAW DOM edit (setting .style on a
+// node, replacing an element) is invisible to execCommand's undo stack
+// no matter what it touches, since nothing was ever "commanded". A
+// private snapshot-and-restore, intercepted on the very next Ctrl/Cmd+Z,
+// sidesteps both classes of bug at once.
+let pendingEditorUndo = null;
+let inManualEdit = false;
+
+// Wraps a DOM-mutating command (anything that touches the editor outside
+// of execCommand, or alongside it) so Ctrl/Cmd+Z reverts it in one shot.
+// `fn` does the actual work; call it synchronously inside this wrapper.
+function runAsManualEdit(fn) {
+  const beforeSnapshot = captureEditorSnapshot();
+  inManualEdit = true;
+  try {
+    fn();
+    pendingEditorUndo = beforeSnapshot;
+  } finally {
+    inManualEdit = false;
+  }
+}
+
+function captureEditorSnapshot() {
+  const area = document.getElementById('writerArea');
+  const sel = window.getSelection();
+  let selStart = null, selEnd = null;
+  if (sel && sel.rangeCount && area.contains(sel.getRangeAt(0).startContainer)) {
+    const map = focusBuildTextMap(area);
+    const r = sel.getRangeAt(0);
+    selStart = rangeCharOffset(map, r.startContainer, r.startOffset);
+    selEnd = rangeCharOffset(map, r.endContainer, r.endOffset);
+  }
+  return { html: area.innerHTML, selStart, selEnd };
+}
+
+function restoreEditorSnapshot(snap) {
+  const area = document.getElementById('writerArea');
+  area.innerHTML = snap.html;
+  if (snap.selStart != null && snap.selEnd != null) {
+    const map = focusBuildTextMap(area);
+    const startPoint = focusCharToPoint(map.map, snap.selStart);
+    const endPoint = focusCharToPoint(map.map, snap.selEnd);
+    if (startPoint && endPoint) {
+      const r = document.createRange();
+      r.setStart(startPoint.node, startPoint.offset);
+      r.setEnd(endPoint.node, endPoint.offset);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  }
+  onWriterInput();
+}
+
+// Given a text map (from focusBuildTextMap) and a DOM (node, offset) pair,
+// returns the character offset into the map's full text.
+function rangeCharOffset(map, node, offset) {
+  for (const m of map.map) {
+    if (m.node === node) return m.start + offset;
+  }
+  return 0;
+}
+
+function toggleSmartQuote() {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) { showNotification('Select some text first.', 'info'); return; }
+
+  // This is meant to behave like a toggle button such as Bold: if the
+  // selection touches ANY existing smart-quote span at all — not only when
+  // it sits exactly inside one or exactly wraps one — clicking again means
+  // "remove it", the same way re-selecting bold text (plus a bit more) and
+  // clicking Bold again un-bolds it. A collapsed cursor (no drag) instead
+  // just checks whether it's sitting inside one.
+  const range = sel.getRangeAt(0);
+  let existingSpans = [];
+  if (range.collapsed) {
+    const container = range.startContainer;
+    const startEl = container.nodeType === 3 ? container.parentElement : container;
+    const span = startEl ? startEl.closest('.smart-quote') : null;
+    if (span && area.contains(span)) existingSpans = [span];
+  } else {
+    area.querySelectorAll('.smart-quote').forEach(span => {
+      if (range.intersectsNode(span)) existingSpans.push(span);
+    });
+  }
+
+  if (!existingSpans.length && (sel.isCollapsed || !sel.toString())) {
+    showNotification('Select some text first.', 'info');
+    return;
+  }
+
+  runAsManualEdit(() => {
+    if (existingSpans.length) {
+      // Unwrap every intersecting span back to plain text (stripping the
+      // curly quote characters) in one pass, then park the caret after the
+      // last one — all as a single action for the undo snapshot above.
+      let lastTextNode = null;
+      existingSpans.forEach(span => {
+        let text = span.textContent;
+        if (text.charAt(0) === '“') text = text.slice(1);
+        if (text.charAt(text.length - 1) === '”') text = text.slice(0, -1);
+        const textNode = document.createTextNode(text);
+        span.replaceWith(textNode);
+        lastTextNode = textNode;
+      });
+      if (lastTextNode) {
+        const caretRange = document.createRange();
+        caretRange.setStartAfter(lastTextNode);
+        caretRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(caretRange);
+      }
+      // normalize() runs after the selection is set: Range/Selection
+      // boundaries are live and get adjusted automatically when normalize()
+      // merges adjacent text nodes, so the caret stays put.
+      area.normalize();
+      onWriterInput();
+    } else {
+      const escaped = sel.toString()
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      document.execCommand('insertHTML', false,
+        '<span class="smart-quote">“' + escaped + '”</span>');
+      onWriterInput();
+    }
+  });
+}
+
+// One-shot interception of the very next Ctrl/Cmd+Z after a manual edit
+// (smart quote, per-selection line spacing, …): restores the pre-edit
+// snapshot directly instead of letting the browser's native (and here,
+// unreliable) undo run. Any other edit to the editor clears
+// pendingEditorUndo (see onWriterInput), so this only ever fires for the
+// undo immediately following that one manual edit.
+document.addEventListener('keydown', function(e) {
+  const isUndo = (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z';
+  if (!isUndo || !pendingEditorUndo) return;
+  const area = document.getElementById('writerArea');
+  if (!area) return;
+  const active = document.activeElement;
+  if (active !== area && !area.contains(active)) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const snap = pendingEditorUndo;
+  pendingEditorUndo = null;
+  restoreEditorSnapshot(snap);
+}, true);
+
+// Removes an inline wrapper element (a `.line-space-custom` span, a
+// `.text-color-custom`/`.highlight-custom` span, a `<font>` tag left behind
+// by execCommand, etc.) while keeping everything it wraps — text, and any
+// other formatting nested inside it — exactly where it was. This is the
+// structural counterpart to toggleSmartQuote()'s unwrap, which can get away
+// with a plain text node because a quote never wraps anything but plain
+// text; this one is used anywhere a wrapper might contain other formatting.
+function unwrapInlineWrapper(span) {
+  const parent = span.parentNode;
+  if (!parent) return;
+  while (span.firstChild) parent.insertBefore(span.firstChild, span);
+  parent.removeChild(span);
+}
+
+// Captures a Range boundary point as a reference to an actual node rather
+// than a (container, offset) pair, so it survives the container itself
+// being moved or removed later (as unwrapInlineWrapper does to whatever it
+// unwraps). A text-node boundary just keeps its node + char offset, since
+// moving a node preserves its own content. An ELEMENT boundary (offset is
+// a child index, e.g. from selectNodeContents()) is resolved down to
+// "immediately before/after this specific child" instead, since "child
+// index N" stops meaning anything once that child has been moved
+// somewhere else in the tree.
+function captureRangePoint(container, offset) {
+  if (container.nodeType !== 1) return { node: container, offset, isText: true };
+  if (offset < container.childNodes.length) return { node: container.childNodes[offset], before: true };
+  if (container.childNodes.length > 0) return { node: container.childNodes[container.childNodes.length - 1], before: false };
+  return { node: container, offset: 0, isText: false, empty: true };
+}
+
+function resolveRangePoint(range, point, isStart) {
+  if (point.isText || point.empty) {
+    if (isStart) range.setStart(point.node, point.offset); else range.setEnd(point.node, point.offset);
+  } else if (point.before) {
+    if (isStart) range.setStartBefore(point.node); else range.setEndBefore(point.node);
+  } else {
+    if (isStart) range.setStartAfter(point.node); else range.setEndAfter(point.node);
+  }
+}
+
+// Removes just ONE inline style property (plus, for a legacy <font> element
+// left behind by execCommand, its equivalent attribute) from every element
+// the current selection overlaps — used for "Default font" / "No
+// highlight" / "Default text color". This exists because
+// document.execCommand(cmd, false, 'inherit') turns out to compute the
+// value at apply time rather than actually writing the CSS keyword
+// "inherit" — confirmed directly: document.execCommand('foreColor', false,
+// 'inherit') produced a literal color="rgba(0, 0, 0, 0)" (fully
+// transparent, i.e. invisible text), not a reset. Clearing the specific
+// property by hand is the only reliable way to get back to "nothing set
+// here, inherit whatever the surrounding text has."
+function clearSelectionStyleProperty(styleProp, fontAttr) {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) {
+    showNotification('Select some text first.', 'info');
+    return;
+  }
+
+  runAsManualEdit(() => {
+    const range = sel.getRangeAt(0);
+    const startPoint = captureRangePoint(range.startContainer, range.startOffset);
+    const endPoint = captureRangePoint(range.endContainer, range.endOffset);
+
+    const touched = [];
+    area.querySelectorAll('font, [style]').forEach(el => {
+      if (range.intersectsNode(el)) touched.push(el);
+    });
+    touched.forEach(el => {
+      if (fontAttr && el.tagName === 'FONT' && el.hasAttribute(fontAttr)) el.removeAttribute(fontAttr);
+      if (el.style && el.style.getPropertyValue(styleProp)) el.style.removeProperty(styleProp);
+      const isEmptyFont = el.tagName === 'FONT' && !el.getAttribute('color') && !el.getAttribute('face') && !(el.getAttribute('style') || '').trim();
+      const isEmptySpan = el.tagName === 'SPAN' && !(el.getAttribute('style') || '').trim() && !el.className;
+      if (isEmptyFont || isEmptySpan) unwrapInlineWrapper(el);
+    });
+
+    const newRange = document.createRange();
+    resolveRangePoint(newRange, startPoint, true);
+    resolveRangePoint(newRange, endPoint, false);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+    onWriterInput();
+  });
+}
+
+// Applies a line-height only to the paragraph(s) the current selection
+// touches, as its own inline style. This is deliberately NOT the same
+// mechanism as the toolbar's whole-document line-spacing control above:
+// that one only ever sets a default on the editor itself (line 2162-ish,
+// applyLineHeight()), which every block inherits UNLESS it has its own
+// explicit line-height — so a custom per-paragraph value set here always
+// wins over the whole-document default, in either order. The toolbar
+// control is a one-time "preset" applied to whatever isn't already custom,
+// not a rule that overwrites custom spacing later.
+function applySelectionLineHeight(value) {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  let sel = window.getSelection();
+  if (!sel || !sel.rangeCount) {
+    showNotification('Select some text first.', 'info');
+    return;
+  }
+  if (!isFinite(value) || value <= 0) return;
+
+  if (sel.isCollapsed) {
+    // There's nothing to drag-select on a blank line, so a collapsed
+    // cursor sitting inside an otherwise-empty block is treated as
+    // shorthand for "this line" — e.g. shrinking the gap between two
+    // paragraphs down to 0.5x instead of leaving it at a full blank
+    // line's worth of space. A cursor anywhere else (mid-sentence, with
+    // no actual selection) still asks for text to be selected, same as
+    // before.
+    const range0 = sel.getRangeAt(0);
+    const block = focusGetBlock(range0.startContainer, area);
+    if (!block || block === area || block.textContent.trim() !== '') {
+      showNotification('Select some text first.', 'info');
+      return;
+    }
+    runAsManualEdit(() => {
+      // Clear out any stale nested spacing first, same reasoning as the
+      // non-collapsed path below: an empty line rarely has one, but it
+      // can if it used to hold text that was deleted.
+      area.querySelectorAll('.line-space-custom').forEach(span => {
+        if (block.contains(span)) unwrapInlineWrapper(span);
+      });
+      block.style.lineHeight = value;
+      onWriterInput();
+    });
+    showNotification('Line spacing set to ' + value + '× for this line.', 'info');
+    return;
+  }
+
+  runAsManualEdit(() => {
+    // A line typed before the very first Enter press sits as a loose text
+    // node directly under the editor, with no element to hang a per-block
+    // inline style off of — the same case focusGetBlock()'s own comment
+    // describes. formatBlock('div') normalizes whatever paragraph(s) the
+    // selection touches into real block elements first (a no-op visually,
+    // and the same trick applyHeading() already relies on), so there's
+    // always a block here to style.
+    document.execCommand('formatBlock', false, 'div');
+    let sel2 = window.getSelection();
+    if (!sel2 || !sel2.rangeCount) return;
+    let range = sel2.getRangeAt(0);
+
+    // Clean up any pre-existing custom line-spacing that overlaps this
+    // selection before applying the new value. Without this, a new value
+    // just nests inside (or sits alongside, on the same line as) an old
+    // one, and CSS gives a shared line box the LARGER of any line-heights
+    // contributing to it — so a smaller value could never visually win
+    // over an old larger one, which is exactly the bug this fixes.
+    // Unwrapping an old .line-space-custom span back to plain inline
+    // content removes its contribution entirely, leaving only the new
+    // span to set the line-height for those lines.
+    //
+    // unwrapInlineWrapper() moves each of the span's own children out
+    // beside it. That's a genuine DOM removal-then-reinsertion of those
+    // exact nodes, and per spec, a live Range whose boundary CONTAINER is
+    // one of those nodes gets reset to "just outside where it used to be"
+    // the instant it's removed — it does NOT ride along to the node's new
+    // home the way you'd hope. (Confirmed directly: this is exactly what
+    // silently corrupted the very first version of this fix, collapsing
+    // the range to an empty one.) So the boundary points are captured as
+    // direct node references first — which DO stay meaningful, since the
+    // nodes themselves are only relocated, never destroyed — and the
+    // range is rebuilt from those same references afterward, instead of
+    // trusting the live Range to survive the move on its own.
+    const startPoint = captureRangePoint(range.startContainer, range.startOffset);
+    const endPoint = captureRangePoint(range.endContainer, range.endOffset);
+
+    area.querySelectorAll('.line-space-custom').forEach(span => {
+      if (range.intersectsNode(span)) unwrapInlineWrapper(span);
+    });
+
+    range = document.createRange();
+    resolveRangePoint(range, startPoint, true);
+    resolveRangePoint(range, endPoint, false);
+    sel2.removeAllRanges();
+    sel2.addRange(range);
+
+    const blocks = new Set();
+    Array.from(area.children).forEach(child => {
+      if (range.intersectsNode(child)) blocks.add(child);
+    });
+    const singleBlock = blocks.size === 1 ? [...blocks][0] : null;
+    const selectedText = sel2.toString();
+    const coversWholeBlock = singleBlock && singleBlock.textContent.trim() === selectedText.trim();
+
+    if (!blocks.size) {
+      area.style.lineHeight = value;
+    } else if (singleBlock && !coversWholeBlock) {
+      // A PARTIAL selection inside one paragraph. Confirmed directly
+      // (rendered and measured it, not assumed): an inline span's own
+      // line-height only inflates the visual LINE(S) its own text is on —
+      // it never bleeds onto lines the selected run doesn't touch, even
+      // within the very same paragraph. So wrapping just the selected run
+      // in its own span keeps this scoped to the selection instead of the
+      // old behavior of styling the whole containing paragraph (which,
+      // when the paragraph was really just one long unbroken block of
+      // text, looked exactly like "the whole document" got changed).
+      //
+      // This wraps the Range directly rather than going through
+      // execCommand('insertHTML', ...): Chrome's insertHTML silently
+      // strips a "line-height" from the style attribute of inserted HTML
+      // and replaces it with whatever font-size happened to be active at
+      // the caret — a real, reproducible quirk, not a guess (confirmed by
+      // running it). Undo doesn't need execCommand's help here anyway,
+      // since runAsManualEdit already covers it with its own snapshot.
+      //
+      // If an earlier "whole selection" pass had set this SAME block's
+      // own line-height directly (the else-branch below), that value is
+      // still the block's default for every line in it, including the
+      // ones this new partial selection touches — so it would keep
+      // dominating over a smaller value applied just to those lines.
+      // Materialize it as explicit spans around the parts of the block
+      // this selection ISN'T touching first, then clear the block's own
+      // style, so nothing is left silently overriding the new value.
+      if (singleBlock.style.lineHeight) {
+        const oldValue = singleBlock.style.lineHeight;
+        const before = document.createRange();
+        before.setStart(singleBlock, 0);
+        before.setEnd(range.startContainer, range.startOffset);
+        if (!before.collapsed) {
+          const w = document.createElement('span');
+          w.className = 'line-space-custom';
+          w.style.lineHeight = oldValue;
+          w.appendChild(before.extractContents());
+          before.insertNode(w);
+        }
+        const after = document.createRange();
+        after.setStart(range.endContainer, range.endOffset);
+        after.setEnd(singleBlock, singleBlock.childNodes.length);
+        if (!after.collapsed) {
+          const w = document.createElement('span');
+          w.className = 'line-space-custom';
+          w.style.lineHeight = oldValue;
+          w.appendChild(after.extractContents());
+          after.insertNode(w);
+        }
+        singleBlock.style.lineHeight = '';
+      }
+
+      const wrapper = document.createElement('span');
+      wrapper.className = 'line-space-custom';
+      wrapper.style.lineHeight = value;
+      wrapper.appendChild(range.extractContents());
+      range.insertNode(wrapper);
+      const newRange = document.createRange();
+      newRange.selectNodeContents(wrapper);
+      sel2.removeAllRanges();
+      sel2.addRange(newRange);
+    } else {
+      // The selection spans more than one paragraph, or covers one
+      // entirely — nothing in that block is left unselected, so styling
+      // the block itself is equivalent and simpler. Any stale nested
+      // spans were already unwrapped above, so this is the only thing
+      // left setting line-height for these blocks.
+      blocks.forEach(b => { b.style.lineHeight = value; });
+    }
+    onWriterInput();
+  });
+  showNotification('Line spacing set to ' + value + '× for the selection.', 'info');
+}
+
+function setLineHeightIdx(idxStr) {
+  const idx = parseInt(idxStr, 10);
+  if (isNaN(idx) || idx < 0 || idx >= LINE_HEIGHTS.length) return;
+  lineHeightIdx = idx;
+  applyLineHeight();
+  scheduleAutoSave();
+}
+
+function setFontSizeValue(px) {
+  if (!isFinite(px)) return;
+  let closestIdx = 0, closestDiff = Infinity;
+  FONT_SIZES.forEach((v, i) => {
+    const diff = Math.abs(v - px);
+    if (diff < closestDiff) { closestDiff = diff; closestIdx = i; }
+  });
+  fontSizeIdx = closestIdx;
+  applyFontSize();
+  scheduleAutoSave();
+}
+
+function getPlainText() {
+  return state.mode === 'writer'
+    ? document.getElementById('writerArea').innerText
+    : (state.cm ? state.cm.getValue() : '');
+}
+
+async function copyAllText() {
+  const text = getPlainText();
+  if (!text.trim()) { showNotification('Nothing to copy.', 'info'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    showNotification('Copied!', 'info');
+  } catch (e) {
+    // Fallback for browsers that block the async Clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showNotification('Copied!', 'info'); }
+    catch (e2) { showNotification('Copy failed — try Ctrl/Cmd+C instead.', 'error'); }
+    document.body.removeChild(ta);
+  }
+}
+
+async function pasteAtCursor() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (state.mode === 'writer') {
+      const area = document.getElementById('writerArea');
+      area.focus();
+      document.execCommand('insertText', false, text);
+      onWriterInput();
+    } else if (state.cm) {
+      state.cm.replaceSelection(text);
+    }
+  } catch (e) {
+    showNotification('Paste blocked by the browser — try Ctrl/Cmd+V instead.', 'info');
+  }
+}
+
+/* ================================================================
+   COMMAND PALETTE (Ctrl/Cmd+K)
+   ================================================================ */
+const cmdk = {
+  open: false,
+  savedRange: null,   // the selection to restore before running a command
+  matches: [],
+  activeIdx: 0,
+  // 'command' = picking which action to run; 'arg' = that action needs a
+  // value (a paragraph style, a size, a position…) and we're now picking
+  // ONE from its preset list. Nothing here is ever free-typed — you filter
+  // the list by typing, then arrow/Enter to pick, same motion both stages.
+  stage: 'command',
+  pendingAction: null,
+};
+
+function openCommandPalette() {
+  if (state.mode !== 'writer') return; // scoped to writer mode for now
+  const sel = window.getSelection();
+  cmdk.savedRange = (sel && sel.rangeCount) ? sel.getRangeAt(0).cloneRange() : null;
+  // Remember where the page was scrolled to — focusing the palette input
+  // (and later restoring focus/selection to the editor) can otherwise make
+  // the browser jump the page back to the top.
+  cmdk.savedScrollY = window.scrollY;
+  cmdk.open = true;
+  cmdk.stage = 'command';
+  cmdk.pendingAction = null;
+  const backdrop = document.getElementById('cmdkBackdrop');
+  const input = document.getElementById('cmdkInput');
+  input.placeholder = 'Type a command… (e.g. bold, heading, line spacing)';
+  backdrop.classList.add('show');
+  input.value = '';
+  cmdkOnInput();
+  setTimeout(() => {
+    input.focus({ preventScroll: true });
+    if (typeof cmdk.savedScrollY === 'number') window.scrollTo(0, cmdk.savedScrollY);
+  }, 0);
+}
+
+function closeCommandPalette() {
+  cmdk.open = false;
+  document.getElementById('cmdkBackdrop').classList.remove('show');
+  // restore focus + selection to wherever the user was
+  const area = document.getElementById('writerArea');
+  area.focus({ preventScroll: true });
+  if (cmdk.savedRange) {
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    try { sel.addRange(cmdk.savedRange); } catch (e) { /* selection no longer valid, ignore */ }
+  }
+  // Belt-and-suspenders: focus() and selection restoration can each trigger
+  // a scroll-into-view (sometimes on the next frame, after the browser has
+  // had a chance to react to the new selection), so re-assert the saved
+  // scroll position both now and a couple of frames later.
+  if (typeof cmdk.savedScrollY === 'number') {
+    const y = cmdk.savedScrollY;
+    window.scrollTo(0, y);
+    requestAnimationFrame(() => {
+      window.scrollTo(0, y);
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    });
+  }
+}
+
+function cmdkFilterCommands(query) {
+  const q = query.trim().toLowerCase();
+  const pool = ACTIONS.filter(a => !a.hideFromPalette);
+  if (!q) return pool.slice(0, 8);
+  return pool.filter(a =>
+    a.id.includes(q) ||
+    a.label.toLowerCase().includes(q) ||
+    (a.keywords || '').toLowerCase().includes(q)
+  ).slice(0, 8);
+}
+
+// Turns "0 0 0", "0,0,0" or a hex string (with or without '#', 3 or 6
+// digits) into a normalized "#rrggbb" — this is what lets "text color 0 0
+// 0" resolve straight to black without going through a color picker at
+// all, exactly like typing a plain number already works for text size or
+// line spacing.
+function parseColorQuery(text) {
+  const rgbMatch = text.match(/^(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})$/);
+  if (rgbMatch) {
+    const [r, g, b] = rgbMatch.slice(1, 4).map(n => Math.max(0, Math.min(255, parseInt(n, 10))));
+    return '#' + [r, g, b].map(n => n.toString(16).padStart(2, '0')).join('');
+  }
+  const hexMatch = text.match(/^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/);
+  if (hexMatch) {
+    let hex = hexMatch[1];
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    return '#' + hex.toLowerCase();
+  }
+  return null;
+}
+
+function cmdkFilterValues(argSpec, query) {
+  const q = query.trim().toLowerCase();
+  const values = argSpec.values;
+  let out = !q ? values.slice() : values.filter(v =>
+    String(v.label).toLowerCase().includes(q) || String(v.value).toLowerCase().includes(q));
+  // Numeric args (text size, line spacing…) still take a typed number —
+  // it just always shows up as a normal, selectable row instead of doing
+  // something invisible the moment you hit Enter. If what's typed is a
+  // valid number that isn't already one of the presets, add it as its own
+  // "custom" option at the top so it can be picked exactly like any other.
+  if (argSpec.numeric && q) {
+    const n = parseFloat(q);
+    if (isFinite(n) && !values.some(v => v.value === n)) {
+      out = [{ value: n, label: n + argSpec.numeric + ' (custom)' }, ...out];
+    }
+  }
+  // Color args (text color, highlight color) take an RGB triple or a hex
+  // code typed directly — "0 0 0" or "#000" both resolve to the same
+  // swatch, shown as its own row with a little color preview. If it
+  // happens to match one of the named presets exactly (e.g. "0 0 0" ==
+  // Black's "#000000"), that preset's own row is what surfaces — not a
+  // second, redundant "#000000 (custom)" entry — since the base substring
+  // filter above has no reason to match a typed hex/RGB against a preset's
+  // word label ("Black") and would otherwise leave the list empty.
+  if (argSpec.color && q) {
+    const hex = parseColorQuery(query.trim());
+    if (hex) {
+      const existing = values.find(v => v.value === hex);
+      out = existing ? [existing] : [{ value: hex, label: hex + ' (custom)', swatch: hex }];
+    }
+  }
+  return out;
+}
+
+function cmdkOnInput() {
+  const raw = document.getElementById('cmdkInput').value;
+  if (cmdk.stage === 'arg') {
+    cmdk.matches = cmdkFilterValues(cmdk.pendingAction.arg, raw);
+    cmdk.activeIdx = 0;
+    cmdkRender();
+    return;
+  }
+
+  // Stage 'command': try the whole typed string as a command filter first.
+  let matches = cmdkFilterCommands(raw);
+  if (!matches.length) {
+    // Nothing matches the whole string -- the user may have typed a
+    // command name and its value in one breath ("line spacing 2",
+    // "heading 1") instead of pausing after the command. Peel words off
+    // the end until what's left names exactly one command with a value
+    // list, then jump straight into that value list, pre-filtered by
+    // whatever was left over.
+    const words = raw.trim().split(/\s+/).filter(Boolean);
+    for (let cut = words.length - 1; cut >= 1; cut--) {
+      const head = words.slice(0, cut).join(' ');
+      const tail = words.slice(cut).join(' ');
+      const candidates = cmdkFilterCommands(head).filter(a => a.arg);
+      if (candidates.length === 1) {
+        cmdk.stage = 'arg';
+        cmdk.pendingAction = candidates[0];
+        const input = document.getElementById('cmdkInput');
+        input.placeholder = candidates[0].label + ' — pick one…';
+        // Trim the box down to just the leftover value text — otherwise the
+        // next keystroke would re-filter against the WHOLE typed phrase
+        // ("line spacing 0.5"), not the "0.5" part, and every value list
+        // would come back empty.
+        input.value = tail;
+        cmdk.matches = cmdkFilterValues(candidates[0].arg, tail);
+        cmdk.activeIdx = 0;
+        cmdkRender();
+        return;
+      }
+    }
+  }
+  cmdk.matches = matches;
+  cmdk.activeIdx = 0;
+  cmdkRender();
+}
+
+function cmdkRender() {
+  const box = document.getElementById('cmdkResults');
+  if (!cmdk.matches.length) {
+    box.innerHTML = '<div class="cmdk-empty">No matches</div>';
+    return;
+  }
+  if (cmdk.stage === 'arg') {
+    box.innerHTML = cmdk.matches.map((v, i) => {
+      const swatch = v.swatch || (/^#[0-9a-f]{6}$/i.test(v.value) ? v.value : null);
+      const dot = swatch ? `<span class="cmdk-swatch-dot" style="background:${swatch};"></span>` : '';
+      return `
+      <div class="cmdk-item${i === cmdk.activeIdx ? ' active' : ''}" data-idx="${i}"
+        onmousemove="cmdkSetActive(${i})" onmousedown="event.preventDefault(); cmdkRun(${i});">
+        <span style="display:inline-flex; align-items:center; gap:8px;">${dot}<span>${v.label}</span></span>
+      </div>`;
+    }).join('');
+    return;
+  }
+  box.innerHTML = cmdk.matches.map((a, i) => `
+    <div class="cmdk-item${i === cmdk.activeIdx ? ' active' : ''}" data-idx="${i}"
+      onmousemove="cmdkSetActive(${i})" onmousedown="event.preventDefault(); cmdkRun(${i});">
+      <span>${a.label}${a.arg ? ' …' : ''}</span>
+      <span class="cmdk-group">${a.group}</span>
+    </div>`).join('');
+}
+
+function cmdkSetActive(i) {
+  cmdk.activeIdx = i;
+  document.querySelectorAll('.cmdk-item').forEach((el, idx) => el.classList.toggle('active', idx === i));
+}
+
+function cmdkOnKeydown(e) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    if (cmdk.stage === 'arg') { cmdkBackToCommands(); return; }
+    closeCommandPalette();
+    return;
+  }
+  // Backspace on an empty value-picker input backs out to the command list,
+  // same as Escape — a quick way to change your mind without starting over.
+  if (e.key === 'Backspace' && cmdk.stage === 'arg' && !document.getElementById('cmdkInput').value) {
+    e.preventDefault();
+    cmdkBackToCommands();
+    return;
+  }
+  if (e.key === 'ArrowDown') { e.preventDefault(); cmdk.activeIdx = Math.min(cmdk.matches.length - 1, cmdk.activeIdx + 1); cmdkRender(); return; }
+  if (e.key === 'ArrowUp') { e.preventDefault(); cmdk.activeIdx = Math.max(0, cmdk.activeIdx - 1); cmdkRender(); return; }
+  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); cmdkRun(cmdk.activeIdx); return; }
+}
+
+function cmdkBackToCommands() {
+  cmdk.stage = 'command';
+  cmdk.pendingAction = null;
+  const input = document.getElementById('cmdkInput');
+  input.placeholder = 'Type a command… (e.g. bold, heading, line spacing)';
+  input.value = '';
+  cmdkOnInput();
+}
+
+function cmdkRun(idx) {
+  if (cmdk.stage === 'arg') {
+    const value = cmdk.matches[idx];
+    if (!value) return;
+    const action = cmdk.pendingAction;
+    closeCommandPalette();
+    // give focus/selection restoration (done in closeCommandPalette) a tick to settle
+    setTimeout(() => action.run(value.value), 0);
+    return;
+  }
+  const action = cmdk.matches[idx];
+  if (!action) { closeCommandPalette(); return; }
+  if (action.arg) {
+    // Never wait for typed input — jump straight to a pickable list of
+    // this command's actual values.
+    cmdk.stage = 'arg';
+    cmdk.pendingAction = action;
+    const input = document.getElementById('cmdkInput');
+    input.placeholder = action.label + ' — pick one…';
+    input.value = '';
+    cmdkOnInput();
+    return;
+  }
+  closeCommandPalette();
+  setTimeout(() => action.run(null), 0);
+}
+
+// Global shortcuts: Ctrl/Cmd+K opens the palette; Alt+1/2/3 set the
+// typewriter anchor while typewriter mode is on.
+document.addEventListener('keydown', (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    if (cmdk.open) closeCommandPalette(); else openCommandPalette();
+    return;
+  }
+  if (cmdk.open) return; // let the palette's own handler deal with everything else
+  if (e.altKey && state.typewriterMode && ['1', '2', '3'].includes(e.key)) {
+    e.preventDefault();
+    setTypewriterAnchor(e.key === '1' ? 'top' : e.key === '2' ? 'center' : 'bottom');
+  }
+});
+
+/* ================================================================
+   TOOLBAR CUSTOMIZATION ("⚙" button)
+   The toolbar's real HTML buttons never get rebuilt — customizing just
+   sets which ones are visible and their left-to-right order (via CSS
+   `order`), which is far less risky than regenerating markup.
+   ================================================================ */
+const DEFAULT_TOOLBAR_IDS = ['bold','italic','underline','strike','bullet-list','number-list','quote',
+  'font-size','line-space','align-left','align-center','align-right','align-justify',
+  'undo','redo','focus','typewriter','toolbox','fullpage','copy','paste'];
+
+// The mobile toolbox (arrows/nikud/formatting panel) is meant for phones —
+// it defaults to hidden on the main toolbar and can be switched on from
+// the "Customize toolbar" panel for anyone who actually wants it there.
+function defaultVisibleFor(id) { return id !== 'toolbox'; }
+function defaultToolbarConfig() {
+  return DEFAULT_TOOLBAR_IDS.map(id => ({ id, visible: defaultVisibleFor(id) }));
+}
+
+let toolbarConfig = null; // array of { id, visible } in display order
+
+// Bump this whenever DEFAULT_TOOLBAR_IDS's ORDER changes in a way that
+// matters (a toolbar redesign/regrouping) — not just when an id is added.
+// Without this, anyone who had already saved a customization (even just by
+// having the panel apply the old default once) would have that OLD order
+// merged on top of a brand new default layout forever, since the merge
+// logic below only appends ids it's never seen before; a reordering of
+// existing ids would otherwise go completely unnoticed and the toolbar
+// would keep looking like the stale saved layout no matter how the
+// defaults above are changed.
+const TOOLBAR_CONFIG_VERSION = 3;
+
+function loadToolbarConfig() {
+  try {
+    const raw = localStorage.getItem('essentialbits_toolbar_config');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const items = Array.isArray(parsed) ? parsed : parsed.items; // old saves were a bare array
+      const version = Array.isArray(parsed) ? 0 : parsed.version;
+      if (Array.isArray(items)) {
+        if (version === TOOLBAR_CONFIG_VERSION) {
+          // Same layout version — safe to keep the user's own order, just
+          // guard against a stale save missing an action added since.
+          const knownIds = items.map(p => p.id);
+          const merged = items.filter(p => DEFAULT_TOOLBAR_IDS.includes(p.id));
+          DEFAULT_TOOLBAR_IDS.forEach(id => { if (!knownIds.includes(id)) merged.push({ id, visible: defaultVisibleFor(id) }); });
+          toolbarConfig = merged;
+          return;
+        }
+        // The layout was redesigned since this was saved — take the fresh
+        // default ORDER, but keep whichever actions the user had
+        // deliberately shown/hidden before.
+        const visibilityById = {};
+        items.forEach(p => { visibilityById[p.id] = p.visible; });
+        toolbarConfig = DEFAULT_TOOLBAR_IDS.map(id => ({
+          id,
+          visible: visibilityById.hasOwnProperty(id) ? visibilityById[id] : defaultVisibleFor(id),
+        }));
+        saveToolbarConfig();
+        return;
+      }
+    }
+  } catch (e) { /* ignore corrupt data */ }
+  toolbarConfig = defaultToolbarConfig();
+}
+
+function saveToolbarConfig() {
+  try {
+    localStorage.setItem('essentialbits_toolbar_config', JSON.stringify({ version: TOOLBAR_CONFIG_VERSION, items: toolbarConfig }));
+  } catch (e) { /* ignore */ }
+}
+
+function applyToolbarConfig() {
+  // Order values 10, 20, 30… — leaves room (see the toolbar's inline
+  // order:5/45/75… styles) for the fixed separators and heading/⌘K/⚙
+  // controls to stay slotted at their default visual positions regardless
+  // of how the customizable actions themselves get reordered.
+  toolbarConfig.forEach((entry, i) => {
+    const btn = document.querySelector('#writerToolbar [data-action-id="' + entry.id + '"]');
+    if (!btn) return;
+    btn.style.order = (i + 1) * 10;
+    btn.style.display = entry.visible ? '' : 'none';
+  });
+}
+
+function resetToolbarConfig() {
+  toolbarConfig = defaultToolbarConfig();
+  saveToolbarConfig();
+  applyToolbarConfig();
+  renderToolbarEditor();
+}
+
+function openToolbarEditor() {
+  document.getElementById('tbeBackdrop').classList.add('show');
+  renderToolbarEditor();
+}
+
+function closeToolbarEditor() {
+  document.getElementById('tbeBackdrop').classList.remove('show');
+}
+
+function renderToolbarEditor() {
+  const body = document.getElementById('tbeBody');
+  body.innerHTML = '<div class="tbe-section-label">Shown on the toolbar, in order</div>' +
+    toolbarConfig.map((entry, i) => {
+      const action = getAction(entry.id) || { label: entry.id };
+      return `<div class="tbe-row">
+        <input type="checkbox" ${entry.visible ? 'checked' : ''} onchange="tbeToggle(${i})">
+        <span class="tbe-label">${action.label}</span>
+        <button onclick="tbeMove(${i},-1)" ${i === 0 ? 'disabled' : ''} title="Move up">↑</button>
+        <button onclick="tbeMove(${i},1)" ${i === toolbarConfig.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
+      </div>`;
+    }).join('');
+}
+
+function tbeToggle(i) {
+  toolbarConfig[i].visible = !toolbarConfig[i].visible;
+  saveToolbarConfig();
+  applyToolbarConfig();
+  renderToolbarEditor();
+}
+
+function tbeMove(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= toolbarConfig.length) return;
+  const tmp = toolbarConfig[i];
+  toolbarConfig[i] = toolbarConfig[j];
+  toolbarConfig[j] = tmp;
+  saveToolbarConfig();
+  applyToolbarConfig();
+  renderToolbarEditor();
+}
+
+/* ================================================================
+   STICKY TOOLBAR OFFSET
+   The toolbar sticks to the top of the viewport as you scroll, but if the
+   site it's dropped into has its own fixed/sticky nav bar, that nav sits
+   on top of the page and would otherwise cover the toolbar right when it
+   becomes sticky (only visible again once scrolled all the way back to
+   the top). Rather than requiring --toolbar-sticky-top to be hand-tuned
+   per site, measure the real nav bar's height at runtime and push the
+   toolbar down by exactly that much — 0 if there's no fixed/sticky nav.
+   ================================================================ */
+function measureStickyNavOffset() {
+  const nav = document.getElementById('shared-nav');
+  if (!nav) return 0;
+  const cs = window.getComputedStyle(nav);
+  if (cs.position === 'fixed' || cs.position === 'sticky') {
+    return nav.getBoundingClientRect().height;
+  }
+  return 0;
+}
+
+function updateToolbarStickyOffset() {
+  const offset = measureStickyNavOffset();
+  document.documentElement.style.setProperty('--toolbar-sticky-top', offset + 'px');
+}
+
+function initToolbarStickyOffset() {
+  updateToolbarStickyOffset();
+  // The real site's nav (injected by shared.js) may finish laying out —
+  // fonts, images, a hamburger menu, etc. — a moment after load, so
+  // re-measure a couple of times shortly after.
+  setTimeout(updateToolbarStickyOffset, 250);
+  setTimeout(updateToolbarStickyOffset, 1000);
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(updateToolbarStickyOffset, 150);
+  });
+  // Catch nav content that loads/changes after the fact (e.g. a menu that
+  // expands, or the nav swapping in asynchronously).
+  const nav = document.getElementById('shared-nav');
+  if (nav && window.MutationObserver) {
+    const obs = new MutationObserver(() => updateToolbarStickyOffset());
+    obs.observe(nav, { childList: true, subtree: true, attributes: true });
+  }
+}
+
+/* ================================================================
    INIT
    ================================================================ */
 window.addEventListener('load', () => {
-  initCodeMirror();
+  // initCodeMirror() depends on the CodeMirror script having loaded from
+  // its CDN — confirmed directly while testing the font/color additions
+  // below: block that request (an ad blocker, a flaky connection, or just
+  // a test harness that didn't mock it) and this throws, which otherwise
+  // silently kills every init step listed AFTER it in this same handler —
+  // the font list, the color swatches, the line-height dropdown, even
+  // restoreSession(). Someone whose ad blocker happens to catch that one
+  // request would open the page to a broken toolbar and a blank editor
+  // with no obvious cause. Writer mode doesn't need CodeMirror at all, so
+  // isolating this one call means the worst case becomes "Code mode won't
+  // work," not "half the editor silently doesn't."
+  try {
+    initCodeMirror();
+  } catch (err) {
+    console.warn('CodeMirror failed to load — Code mode will be unavailable, but Writer mode is unaffected.', err);
+  }
+  setEditorWidth(parseInt(document.getElementById('widthSlider').value, 10));
+  loadToolbarConfig();
+  applyToolbarConfig();
+  initToolbarStickyOffset();
+  populateLineHeightSelect();
+  populateFontFamilySelect();
+  renderColorSwatchRow('textColorSwatchRow', TEXT_COLOR_PRESETS.filter(p => p.value), 'applyTextColor');
+  renderColorSwatchRow('highlightColorSwatchRow', HIGHLIGHT_COLOR_PRESETS.filter(p => p.value), 'applyHighlightColor');
   restoreSession();
+  // Apply whatever Focus/Typewriter ended up being after restore (both
+  // default to on for a brand new session — see the `state` object above).
+  updateTypewriterAnchorUI();
+  applyLineHeight();
+  setFocusMode(state.focusMode);
+  setTypewriterMode(state.typewriterMode);
   updateStatus();
   updateExportButtons();
   updateToolboxNikud();
@@ -1034,8 +2564,9 @@ function switchMode(newMode) {
   }
 
   if (newMode === 'code' && state.mode === 'writer') {
-    // Check if writer has formatting
-    const html = document.getElementById('writerArea').innerHTML;
+    // Check if writer has formatting (using a cleaned copy so focus mode's
+    // internal <span class="fx-w"> wrappers never look like "formatting")
+    const html = getCleanWriterHTML();
     const plain = document.getElementById('writerArea').innerText;
     const hasFormatting = html !== plain && html.includes('<');
 
@@ -1113,11 +2644,132 @@ function fmt(command, value) {
   updateFocusLine();
 }
 
-function applyHeading(tag) {
+function applyHeading(value) {
   const area = document.getElementById('writerArea');
   area.focus();
-  document.execCommand('formatBlock', false, tag);
+  const isTitle = value === 'title';
+  document.execCommand('formatBlock', false, isTitle ? 'h1' : value);
+  updateDocTitleClass(isTitle);
   onWriterInput();
+}
+
+// Font, text color and highlight color all apply the same simple way:
+// document.execCommand handles wrapping the selection reliably for a real
+// value (confirmed directly in Chromium — 'foreColor'/'hiliteColor'/
+// 'fontName' with an actual color or font name all work exactly as
+// expected), and unlike line-height, a nested color/font span never fights
+// its neighbors the way nested line-heights do — CSS color and font-family
+// just cascade normally, so whichever span is innermost simply wins for its
+// own extent. That means, unlike applySelectionLineHeight(), these don't
+// need to hunt down and unwrap older overlapping spans before applying a
+// new value — nesting one on top of another already produces the right
+// visual result on its own.
+function applyFontFamily(value) {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) {
+    showNotification('Select some text first.', 'info');
+    return;
+  }
+  if (!value) { clearSelectionStyleProperty('font-family', 'face'); return; }
+  fmt('fontName', value);
+}
+
+let lastTextColor = '#c0392b';
+let lastHighlightColor = '#fff59d';
+
+function applyTextColor(value) {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) {
+    showNotification('Select some text first.', 'info');
+    return;
+  }
+  fmt('foreColor', value);
+  lastTextColor = value;
+  const dot = document.getElementById('textColorDot');
+  if (dot) dot.style.background = value;
+}
+
+function applyHighlightColor(value) {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) {
+    showNotification('Select some text first.', 'info');
+    return;
+  }
+  fmt('hiliteColor', value);
+  lastHighlightColor = value;
+  const dot = document.getElementById('highlightColorDot');
+  if (dot) dot.style.background = value;
+}
+
+function clearTextColor() { clearSelectionStyleProperty('color', 'color'); }
+function clearHighlightColor() { clearSelectionStyleProperty('background-color', null); }
+
+// Does the selection's own starting point already sit inside something
+// carrying this style? Used to decide, on a single click, whether the
+// text-color/highlight-color toolbar button should REMOVE the existing
+// color or APPLY the last one picked — the same single-button,
+// state-dependent behavior Bold already has, rather than needing a
+// separate "remove" control. Checking just the anchor point (not the
+// whole selection) is a deliberate simplification, same as how Bold's own
+// active-state highlighting works elsewhere in this file — exact,
+// mixed-formatting-aware detection isn't worth the complexity here.
+function selectionAncestorHasStyle(styleProp, fontAttr) {
+  const area = document.getElementById('writerArea');
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return false;
+  let node = sel.anchorNode;
+  if (!node) return false;
+  let el = node.nodeType === 3 ? node.parentElement : node;
+  while (el && el !== area) {
+    if (fontAttr && el.tagName === 'FONT' && el.hasAttribute(fontAttr)) return true;
+    if (el.style && el.style.getPropertyValue(styleProp)) return true;
+    el = el.parentElement;
+  }
+  return false;
+}
+
+function handleTextColorClick() {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) {
+    showNotification('Select some text first.', 'info');
+    return;
+  }
+  if (selectionAncestorHasStyle('color', 'color')) clearTextColor();
+  else applyTextColor(lastTextColor);
+}
+
+function handleHighlightColorClick() {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) {
+    showNotification('Select some text first.', 'info');
+    return;
+  }
+  if (selectionAncestorHasStyle('background-color', null)) clearHighlightColor();
+  else applyHighlightColor(lastHighlightColor);
+}
+
+// "Title" and "Heading 1" are both a real <h1> underneath (formatBlock only
+// understands actual tags) — this class is what makes Title render bigger,
+// so it has to be added/removed right after formatBlock runs.
+function updateDocTitleClass(isTitle) {
+  const area = document.getElementById('writerArea');
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  let node = sel.getRangeAt(0).startContainer;
+  if (node.nodeType === 3) node = node.parentElement;
+  const block = node ? node.closest('h1, h2, h3, h4, div, p, blockquote') : null;
+  if (!block || !area.contains(block) || block.tagName !== 'H1') return;
+  block.classList.toggle('doc-title', isTitle);
 }
 
 function writerKeydown(e) {
@@ -1151,6 +2803,7 @@ function writerKeyup(e) {
 }
 
 function onWriterInput() {
+  if (!inManualEdit) pendingEditorUndo = null;
   updateStatus();
   scheduleAutoSave();
   detectHebrew();
@@ -1245,12 +2898,43 @@ function changeLineHeight(dir) {
   scheduleAutoSave();
 }
 
+function populateLineHeightSelect() {
+  const select = document.getElementById('lineHeightSelect');
+  if (!select) return;
+  // Short label in the option text (keeps the dropdown narrow); the exact
+  // multiplier shows up as a native tooltip on hover instead.
+  select.innerHTML = LINE_HEIGHTS.map((entry, i) =>
+    `<option value="${i}" title="${entry.label} — ${entry.v}× line height">${entry.label}</option>`).join('');
+}
+
+function populateFontFamilySelect() {
+  const select = document.getElementById('fontFamilySelect');
+  if (!select) return;
+  select.innerHTML = FONT_OPTIONS.map(f =>
+    `<option value="${f.value.replace(/"/g, '&quot;')}" style="font-family:${f.value || 'inherit'};">${f.label}</option>`).join('');
+}
+
+// Fills a color-swatch popover's grid with one small button per preset —
+// used for both the text-color and highlight-color popovers so the list of
+// colors only has to be maintained once, as TEXT_COLOR_PRESETS /
+// HIGHLIGHT_COLOR_PRESETS, rather than copy-pasted into the HTML.
+function renderColorSwatchRow(containerId, presets, applyFnName) {
+  const row = document.getElementById(containerId);
+  if (!row) return;
+  row.innerHTML = presets.map(p =>
+    `<button type="button" class="color-swatch-btn" style="background:${p.value};" title="${p.label}" onclick="closePopover('${containerId === 'textColorSwatchRow' ? 'textColorMenu' : 'highlightColorMenu'}'); ${applyFnName}('${p.value}');"></button>`
+  ).join('');
+}
+
 function applyLineHeight() {
-  const lh = LINE_HEIGHTS[lineHeightIdx];
-  document.getElementById('writerArea').style.lineHeight = lh;
-  // Update all LG labels
-  document.querySelectorAll('.lg-label').forEach(el => el.textContent = lh.toFixed(1));
-  // Disable buttons at limits
+  const entry = LINE_HEIGHTS[lineHeightIdx];
+  document.getElementById('writerArea').style.lineHeight = entry.v;
+  // Update all compact "1.8"-style labels (mobile toolbox stepper)
+  document.querySelectorAll('.lg-label').forEach(el => el.textContent = entry.v.toFixed(1));
+  // Keep the main "Line spacing" dropdown in sync
+  const select = document.getElementById('lineHeightSelect');
+  if (select) select.value = lineHeightIdx;
+  // Disable +/- buttons at limits (mobile toolbox stepper)
   document.querySelectorAll('.lg-dec').forEach(btn => btn.style.opacity = lineHeightIdx === 0 ? '0.35' : '1');
   document.querySelectorAll('.lg-inc').forEach(btn => btn.style.opacity = lineHeightIdx === LINE_HEIGHTS.length-1 ? '0.35' : '1');
 }
@@ -1278,50 +2962,316 @@ function applyFontSize() {
   });
 }
 
-function toggleFocus() {
-  state.focusMode = !state.focusMode;
-  document.body.classList.toggle('focus-mode', state.focusMode);
-  const area = document.getElementById('writerArea');
-  area.classList.toggle('focus-active', state.focusMode);
+function toggleFocus() { setFocusMode(!state.focusMode); }
+
+function setFocusMode(on) {
+  state.focusMode = on;
   document.getElementById('focusBtn').classList.toggle('active', state.focusMode);
-  if (!state.focusMode) {
-    area.querySelectorAll('.focus-line').forEach(el => el.classList.remove('focus-line'));
+  scheduleAutoSave();
+  const area = document.getElementById('writerArea');
+  if (state.focusMode) {
+    // Clicking the toolbar button moves focus away from the editor — bring
+    // it back so the caret (and the dimming) reappear immediately. Only do
+    // this in response to a real user action, not during page load.
+    if (document.activeElement !== area && document.hasFocus()) area.focus();
+    updateFocusLine();
+  } else {
+    resetFocusSpans();
   }
-  updateFocusLine();
+}
+
+/* ---- word-level focus dimming (current word + the one before it) ---- */
+// Only *completed* words (ones behind the caret) are ever wrapped in a real
+// <span class="fx-w">. The word being actively typed is never touched, so
+// this never has to fight with where the cursor actually is.
+
+let focusState = { block: null, dimEnd: 0 };
+
+function focusGetBlock(node, area) {
+  let el = node.nodeType === 3 ? node.parentElement : node;
+  // Before the first Enter press, browsers leave typed text as a loose text
+  // node directly inside the editor (no wrapping <div>/<p>) — treat the
+  // whole editor as the "block" in that case.
+  if (el === area) return area;
+  while (el && el.parentElement !== area) el = el.parentElement;
+  return (el && el.parentElement === area) ? el : null;
+}
+
+// Concatenates all the text inside a block, remembering which text node
+// each character came from, so character positions can be turned back into
+// real DOM points (needed because bold/italic/etc split text across nodes,
+// and because our own <span class="fx-w"> wrappers do too).
+function focusBuildTextMap(block) {
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null, false);
+  const map = [];
+  let text = '';
+  let node;
+  while ((node = walker.nextNode())) {
+    const start = text.length;
+    text += node.textContent;
+    map.push({ node, start, end: text.length });
+  }
+  return { text, map };
+}
+
+function focusCharToPoint(map, idx) {
+  // Prefer the START of the next node over the END of the previous one at a
+  // shared boundary — otherwise extractContents() ends up cloning an empty
+  // copy of the previous node's wrapper (harmless, but needless DOM debris).
+  for (const m of map) {
+    if (idx >= m.start && idx < m.end) return { node: m.node, offset: idx - m.start };
+  }
+  const last = map[map.length - 1];
+  return last ? { node: last.node, offset: last.node.textContent.length } : null;
+}
+
+// Removes all of focus mode's <span class="fx-w"> wrappers from the editor,
+// restoring plain text — used before every save/export/mode-switch so none
+// of this internal bookkeeping ever leaks into your actual document, and
+// when focus mode is turned off. Carefully preserves the cursor position.
+function resetFocusSpans() {
+  const area = document.getElementById('writerArea');
+  const spans = area.querySelectorAll('.fx-w');
+  if (!spans.length) { focusState = { block: null, dimEnd: 0 }; return; }
+
+  let restoreBlock = null, restoreOffset = null;
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount && sel.isCollapsed && area.contains(sel.getRangeAt(0).startContainer)) {
+    const r0 = sel.getRangeAt(0);
+    const block = focusGetBlock(r0.startContainer, area);
+    if (block) {
+      const { map } = focusBuildTextMap(block);
+      for (const m of map) {
+        if (m.node === r0.startContainer) { restoreBlock = block; restoreOffset = m.start + r0.startOffset; break; }
+      }
+    }
+  }
+
+  spans.forEach(span => span.replaceWith(document.createTextNode(span.textContent)));
+  area.normalize();
+
+  if (restoreBlock && restoreBlock.isConnected) {
+    const { map } = focusBuildTextMap(restoreBlock);
+    const point = focusCharToPoint(map, restoreOffset);
+    if (point) {
+      const r = document.createRange();
+      r.setStart(point.node, point.offset);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  }
+  focusState = { block: null, dimEnd: 0 };
+}
+
+// Returns a cleaned copy of the writer area's HTML with every fx-w wrapper
+// removed — used by anything that reads/saves/exports the document so focus
+// mode's internal spans never end up in storage, a mode-switch, or a file.
+function getCleanWriterHTML() {
+  const area = document.getElementById('writerArea');
+  if (!area.querySelector('.fx-w')) return area.innerHTML;
+  const clone = area.cloneNode(true);
+  clone.querySelectorAll('.fx-w').forEach(span => span.replaceWith(document.createTextNode(span.textContent)));
+  clone.normalize();
+  return clone.innerHTML;
 }
 
 function updateFocusLine() {
-  const area = document.getElementById('writerArea');
   if (!state.focusMode) return;
+  const area = document.getElementById('writerArea');
   const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return;
-  const node = sel.getRangeAt(0).startContainer;
-  // Walk up to find direct child of writerArea
-  let block = node.nodeType === 3 ? node.parentElement : node;
-  while (block && block.parentElement !== area) {
-    block = block.parentElement;
+  if (!sel || !sel.rangeCount || !sel.isCollapsed) { resetFocusSpans(); return; }
+
+  const range0 = sel.getRangeAt(0);
+  const block = focusGetBlock(range0.startContainer, area);
+  if (!block) { resetFocusSpans(); return; }
+
+  const { text, map } = focusBuildTextMap(block);
+  let caretIdx = null;
+  for (const m of map) {
+    if (m.node === range0.startContainer) { caretIdx = m.start + range0.startOffset; break; }
   }
-  area.querySelectorAll('.focus-line').forEach(el => el.classList.remove('focus-line'));
-  if (block && block.parentElement === area) {
-    block.classList.add('focus-line');
+  if (caretIdx === null) { resetFocusSpans(); return; }
+
+  const isWordChar = c => c !== undefined && !/\s/.test(c);
+  const probe = (caretIdx > 0 && isWordChar(text[caretIdx - 1])) ? caretIdx - 1 : caretIdx;
+  let curStart = caretIdx;
+  if (isWordChar(text[probe])) {
+    curStart = probe;
+    while (curStart > 0 && isWordChar(text[curStart - 1])) curStart--;
   }
+  // Find the end of the "current" word — this can be zero-length when the
+  // caret is just sitting in whitespace (e.g. right after pressing space,
+  // before any character of the next word has been typed).
+  let curEnd = curStart;
+  while (curEnd < text.length && isWordChar(text[curEnd])) curEnd++;
+
+  let dimEndTarget;
+  if (curEnd === curStart) {
+    // Nothing has been typed into a next word yet — don't advance the dim
+    // boundary. This keeps the word you just finished fully visible until
+    // you actually start writing the next one, instead of dimming it the
+    // instant you press space.
+    dimEndTarget = focusState.dimEnd || 0;
+  } else {
+    // The word right before the current one — everything before *that* is dim.
+    let p = curStart - 1;
+    while (p >= 0 && !isWordChar(text[p])) p--;
+    let prevStart = p;
+    while (prevStart > 0 && isWordChar(text[prevStart - 1])) prevStart--;
+    dimEndTarget = Math.max(0, prevStart);
+  }
+
+  if (block === focusState.block && dimEndTarget >= focusState.dimEnd) {
+    growDimZone(block, map, dimEndTarget);
+  } else {
+    // Different block, or the cursor jumped backward (click / arrow nav) —
+    // reset cleanly and re-establish the dim zone without animating (a
+    // deliberate jump reads fine as an instant cut, not a fade).
+    const wasBlock = focusState.block;
+    resetFocusSpans();
+    hardSetDimZone(block, dimEndTarget);
+    focusState.block = block;
+  }
+  focusState.dimEnd = dimEndTarget;
+}
+
+// Wraps the newly-crossed slice of text [oldEnd, newEnd) in its own span,
+// seeded at full brightness then released on the next frame so the CSS
+// transition carries it smoothly down to the dim color.
+function growDimZone(block, map, newEnd) {
+  const oldEnd = focusState.dimEnd || 0;
+  if (newEnd <= oldEnd) return;
+  const a = focusCharToPoint(map, oldEnd), b = focusCharToPoint(map, newEnd);
+  if (!a || !b) return;
+  const range = document.createRange();
+  let frag;
+  try {
+    range.setStart(a.node, a.offset);
+    range.setEnd(b.node, b.offset);
+    frag = range.extractContents();
+  } catch (e) { return; }
+  const span = document.createElement('span');
+  span.className = 'fx-w fx-dim';
+  span.style.color = 'var(--text)'; // start bright…
+  span.appendChild(frag);
+  range.insertNode(span);
+  void span.offsetWidth; // force layout so the browser registers the starting color
+  requestAnimationFrame(() => { span.style.color = ''; }); // …then release to fade via CSS
+}
+
+// Establishes the dim zone [0, end) instantly, no fade — used right after a
+// reset (block change, cursor jump, or first turning focus mode on).
+function hardSetDimZone(block, end) {
+  if (end <= 0) return;
+  const { map } = focusBuildTextMap(block); // fresh map, since resetFocusSpans() may have changed the DOM
+  const a = focusCharToPoint(map, 0), b = focusCharToPoint(map, end);
+  if (!a || !b) return;
+  const range = document.createRange();
+  let frag;
+  try {
+    range.setStart(a.node, a.offset);
+    range.setEnd(b.node, b.offset);
+    frag = range.extractContents();
+  } catch (e) { return; }
+  const span = document.createElement('span');
+  span.className = 'fx-w fx-dim';
+  span.appendChild(frag);
+  range.insertNode(span);
 }
 
 /* ================================================================
-   TYPEWRITER MODE (PREMIUM)
+   TYPEWRITER MODE
    ================================================================ */
-function toggleTypewriter() {
-  if (!IS_PREMIUM) {
-    showNotification('Typewriter mode is a Premium feature.', 'info');
-    return;
-  }
-  state.typewriterMode = !state.typewriterMode;
+function toggleTypewriter() { setTypewriterMode(!state.typewriterMode); }
+
+function setTypewriterMode(on) {
+  state.typewriterMode = on;
   document.getElementById('typewriterBtn').classList.toggle('active', state.typewriterMode);
   if (state.typewriterMode) {
     document.getElementById('writerArea').addEventListener('keyup', scrollTypewriter);
   } else {
     document.getElementById('writerArea').removeEventListener('keyup', scrollTypewriter);
   }
+  scheduleAutoSave();
+}
+
+const TYPEWRITER_ANCHOR_NAMES = ['top', 'center', 'bottom'];
+
+// Generic open/close for any small "▾ opens a floating panel" control on
+// the toolbar (typewriter position, text color, highlight color…) — one
+// mechanism instead of one bespoke show/hide pair per popover. Opening one
+// closes any other that's currently open, the way a native menu bar would.
+function togglePopover(id, e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById(id);
+  if (!menu) return;
+  const willShow = !menu.classList.contains('show');
+  document.querySelectorAll('.toolbar-popover.show').forEach(p => p.classList.remove('show'));
+  if (willShow) menu.classList.add('show');
+}
+function closePopover(id) {
+  const menu = document.getElementById(id);
+  if (menu) menu.classList.remove('show');
+}
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.toolbar-popover.show').forEach(menu => {
+    if (menu.contains(e.target)) return;
+    const wrapper = menu.closest('.toolbar-group');
+    if (wrapper && wrapper.contains(e.target)) return; // the group's own caret button
+    menu.classList.remove('show');
+  });
+});
+
+// The typewriter position control lives directly on the toolbar's
+// ⌨ button (a small "▾" caret opens this popover) rather than a separate
+// dropdown floating elsewhere, so it always reads as one control.
+function toggleTypewriterMenu(e) {
+  togglePopover('typewriterAnchorMenu', e);
+}
+
+function setTypewriterAnchor(name) {
+  if (!TYPEWRITER_ANCHOR_NAMES.includes(name)) return;
+  state.typewriterAnchor = name;
+  updateTypewriterAnchorUI();
+  const menu = document.getElementById('typewriterAnchorMenu');
+  if (menu) menu.classList.remove('show');
+  scheduleAutoSave();
+  if (state.typewriterMode) scrollTypewriter();
+}
+
+function updateTypewriterAnchorUI() {
+  document.querySelectorAll('#typewriterAnchorMenu button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.anchor === state.typewriterAnchor);
+  });
+}
+
+const TYPEWRITER_DEAD_ZONE_PX = 8; // ignore tiny drift so it doesn't re-scroll on every keystroke
+
+// How much space to leave above the cursor's target line, measured in real
+// pixels rather than a flat fraction of the viewport. This matters most for
+// "top": a flat 15%-of-viewport offset used to land the line right behind
+// the site's fixed nav bar + our own sticky toolbar (which overlay the top
+// of the page), so typing near the top of a document would immediately
+// scroll the very line you're writing out of view, underneath them. Instead,
+// measure what's actually covering the top of the viewport right now and
+// keep the line clear of it.
+function typewriterTargetOffsetPx() {
+  const vh = window.innerHeight;
+  if (state.typewriterAnchor === 'top') {
+    const obscured = measureStickyNavOffset() + getStickyToolbarHeight();
+    return Math.min(vh * 0.5, obscured + 28);
+  }
+  if (state.typewriterAnchor === 'bottom') return vh * 0.75;
+  return vh * 0.45; // center
+}
+
+function getStickyToolbarHeight() {
+  const toolbar = document.getElementById('writerToolbar');
+  if (!toolbar || state.mode !== 'writer' || toolbar.style.display === 'none') return 0;
+  const cs = window.getComputedStyle(toolbar);
+  if (cs.position !== 'sticky' && cs.position !== 'fixed') return 0;
+  return toolbar.getBoundingClientRect().height;
 }
 
 function scrollTypewriter() {
@@ -1336,7 +3286,8 @@ function scrollTypewriter() {
   const rect = span.getBoundingClientRect();
   span.parentNode.removeChild(span);
   if (!rect || rect.top === 0) return;
-  const targetY = window.scrollY + rect.top - (window.innerHeight * 0.45);
+  const targetY = window.scrollY + rect.top - typewriterTargetOffsetPx();
+  if (Math.abs(targetY - window.scrollY) < TYPEWRITER_DEAD_ZONE_PX) return;
   window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
 }
 
@@ -1460,11 +3411,14 @@ function saveSession() {
   try {
     const data = {
       mode:       state.mode,
-      writer:     document.getElementById('writerArea').innerHTML,
+      writer:     getCleanWriterHTML(),
       code:       state.cm ? state.cm.getValue() : '',
       lang:       document.getElementById('languageSelect').value,
       fontSizeIdx: fontSizeIdx,
       lineHeightIdx: lineHeightIdx,
+      focusMode: state.focusMode,
+      typewriterMode: state.typewriterMode,
+      typewriterAnchor: state.typewriterAnchor,
     };
     localStorage.setItem('essentialbits_editor', JSON.stringify(data));
     document.getElementById('autoSaveStatus').textContent = 'Auto-saved';
@@ -1490,8 +3444,33 @@ function restoreSession() {
       setLanguage(data.lang);
     }
     if (data.mode === 'code') switchMode('code');
-    if (data.fontSizeIdx !== undefined) { fontSizeIdx = data.fontSizeIdx; applyFontSize(); }
-    if (data.lineHeightIdx !== undefined) { lineHeightIdx = data.lineHeightIdx; applyLineHeight(); }
+    if (data.fontSizeIdx !== undefined) {
+      fontSizeIdx = Math.max(0, Math.min(FONT_SIZES.length - 1, data.fontSizeIdx));
+      applyFontSize();
+    }
+    if (data.lineHeightIdx !== undefined) {
+      lineHeightIdx = Math.max(0, Math.min(LINE_HEIGHTS.length - 1, data.lineHeightIdx));
+      applyLineHeight();
+    }
+    if (data.typewriterAnchor !== undefined) {
+      if (typeof data.typewriterAnchor === 'string' && TYPEWRITER_ANCHOR_NAMES.includes(data.typewriterAnchor)) {
+        state.typewriterAnchor = data.typewriterAnchor;
+      } else if (typeof data.typewriterAnchor === 'number') {
+        // Legacy sessions stored this as a fraction of viewport height —
+        // map it back to the closest named position.
+        const legacy = { top: 0.15, center: 0.45, bottom: 0.75 };
+        let best = 'center', bestDiff = Infinity;
+        for (const name in legacy) {
+          const diff = Math.abs(legacy[name] - data.typewriterAnchor);
+          if (diff < bestDiff) { bestDiff = diff; best = name; }
+        }
+        state.typewriterAnchor = best;
+      }
+    }
+    // Focus/Typewriter default to ON (see `state` above); only override
+    // here if this saved session explicitly turned one off before.
+    if (data.focusMode !== undefined) state.focusMode = data.focusMode;
+    if (data.typewriterMode !== undefined) state.typewriterMode = data.typewriterMode;
   } catch(e) { /* ignore corrupt data */ }
 }
 
@@ -1601,14 +3580,15 @@ async function exportPdf() {
 }
 
 async function exportDocx() {
-  if (!IS_PREMIUM) {
-    showNotification('DOCX export is a Premium feature.', 'info');
-    return;
-  }
-  const area = document.getElementById('writerArea');
-  if (!area.innerText.trim()) { showNotification('Nothing to export.', 'info'); return; }
+  const liveArea = document.getElementById('writerArea');
+  if (!liveArea.innerText.trim()) { showNotification('Nothing to export.', 'info'); return; }
   try {
     const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Read from a cleaned clone so focus mode's internal <span class="fx-w">
+    // wrappers never end up as stray unstyled runs in the exported file.
+    const area = liveArea.cloneNode(true);
+    area.querySelectorAll('.fx-w').forEach(span => span.replaceWith(document.createTextNode(span.textContent)));
+    area.normalize();
     const paragraphs = [];
     area.childNodes.forEach(node => {
       const tag = node.nodeName.toLowerCase();
@@ -1895,8 +3875,14 @@ function tbNikudPtr(e, c)     { if (e.pointerType === 'touch') e.preventDefault(
 /* ================================================================
    MOBILE FULL-SCREEN EDIT MODE
    ================================================================ */
+function isSmallScreen() {
+  return window.matchMedia('(max-width: 768px)').matches;
+}
+
 function enterMobileEdit() {
   document.body.classList.add('mobile-edit-mode');
+  var btn = document.getElementById('fullPageBtn');
+  if (btn) btn.classList.add('active');
   var area = document.getElementById('writerArea');
   area.setAttribute('inputmode', 'text');
   // Prevent accidental pinch-zoom in edit mode
@@ -1909,6 +3895,8 @@ function exitMobileEdit() {
   var area = document.getElementById('writerArea');
   area.setAttribute('inputmode', 'none');
   area.blur();
+  var btn = document.getElementById('fullPageBtn');
+  if (btn) btn.classList.remove('active');
   // Restore zoom capability
   var vp = document.querySelector('meta[name=viewport]');
   if (vp) vp.content = 'width=device-width, initial-scale=1.0';
@@ -1918,12 +3906,23 @@ function exitMobileEdit() {
   }, 50);
 }
 
-// Auto-enter mobile edit when user taps writerArea on mobile
+// Manual toggle — the "⛶ Full page" toolbar button (works on any screen size)
+function toggleFullPage() {
+  if (document.body.classList.contains('mobile-edit-mode')) {
+    exitMobileEdit();
+  } else {
+    enterMobileEdit();
+  }
+}
+
+// On phone-sized screens, tapping into the text automatically goes full-page,
+// since there's no room to spare. On larger screens it stays inline — use the
+// ⛶ Full page button (or the on-screen "Tap to edit" button on mobile) instead.
 document.addEventListener('DOMContentLoaded', function() {
   var area = document.getElementById('writerArea');
   if (area) {
     area.addEventListener('focus', function() {
-      if (!document.body.classList.contains('mobile-edit-mode')) {
+      if (isSmallScreen() && !document.body.classList.contains('mobile-edit-mode')) {
         enterMobileEdit();
       }
     });
