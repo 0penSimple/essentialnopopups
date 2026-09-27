@@ -313,7 +313,7 @@ window.loadFFmpeg = async function() {
   // Returns { vcodec, width, height, fps, acodec, sampleRate, channels, hasVideo, hasAudio }
   // Think of this as peeking at each file's recipe card without cooking anything.
   async function _readMediaRecipe(file) {
-    const MB_CDN = "https://cdn.jsdelivr.net/npm/mediabunny@1.34.5/+esm";
+    const MB_CDN = "https://cdn.jsdelivr.net/npm/mediabunny@1.35.1/+esm";
     const mb = await import(MB_CDN);
     const { Input, ALL_FORMATS, BlobSource } = mb;
 
@@ -572,10 +572,76 @@ window.loadFFmpeg = async function() {
     return new Blob([output[outputName].buffer], { type: file.type || _mimeForExt(extension) });
   }
 
+  async function convertMedia(file, options = {}) {
+    if (!(file instanceof Blob)) throw new TypeError("Choose a media file to convert.");
+    const kind = options.kind === "video" ? "video" : options.kind === "audio" ? "audio" : null;
+    if (!kind) throw new TypeError("Media conversion requires an audio or video kind.");
+
+    const aliases = {
+      "audio/mpeg": "mp3", "audio/wav": "wav",
+      "video/mp4": "mp4", "video/webm": "webm",
+      "video/quicktime": "mov", "video/x-msvideo": "avi"
+    };
+    const rawFormat = String(options.format || "").toLowerCase();
+    const format = aliases[rawFormat] || rawFormat;
+
+    if (kind === "audio") {
+      if (!new Set(["mp3", "wav"]).has(format)) throw new TypeError("Audio output must be MP3 or WAV.");
+      return extractAudio(file, { format, bitrate: options.bitrate || 192 });
+    }
+
+    if (!new Set(["mp4", "webm", "mov", "avi"]).has(format)) {
+      throw new TypeError("Video output must be MP4, WebM, MOV, or AVI.");
+    }
+    const quality = new Set(["high", "medium", "low"]).has(options.quality) ? options.quality : "medium";
+    const inputExtension = _mediaExtension(file, "mp4");
+    const inputName = `input.${inputExtension}`;
+    const outputName = `output.${format}`;
+    const maps = ["-i", inputName, "-map", "0:v:0", "-map", "0:a?"];
+    let encode;
+
+    if (format === "webm") {
+      const crf = { high: "24", medium: "33", low: "42" }[quality];
+      encode = ["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", crf, "-c:a", "libopus"];
+    } else if (format === "avi") {
+      const qscale = { high: "2", medium: "4", low: "8" }[quality];
+      encode = ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "mpeg4", "-q:v", qscale,
+        "-c:a", "libmp3lame", "-b:a", "192k"];
+    } else {
+      const crf = { high: "18", medium: "23", low: "30" }[quality];
+      encode = ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "medium",
+        "-crf", crf, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"];
+    }
+
+    const output = await _ffExec([...maps, ...encode, "-y", outputName], { [inputName]: file }, [outputName]);
+    return new Blob([output[outputName].buffer], { type: _mimeForExt(format) });
+  }
+
+  async function trimMedia(file, options = {}) {
+    if (!(file instanceof Blob)) throw new TypeError("Choose a media file to trim.");
+    const start = Number(options.start);
+    const end = Number(options.end);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) {
+      throw new RangeError("Choose an end time that is later than the start time.");
+    }
+    const extension = _mediaExtension(file, file.type?.startsWith("audio/") ? "mp3" : "mp4");
+    const inputName = `input.${extension}`;
+    const outputName = `output.${extension}`;
+    const output = await _ffExec(
+      ["-i", inputName, "-ss", start.toFixed(3), "-t", (end - start).toFixed(3),
+        "-map", "0", "-c", "copy", "-avoid_negative_ts", "make_zero", "-y", outputName],
+      { [inputName]: file },
+      [outputName]
+    );
+    return new Blob([output[outputName].buffer], { type: file.type || _mimeForExt(extension) });
+  }
+
   // ── PUBLIC API ──
   const Tools = window.Tools || {};
   Tools.extractAudio = extractAudio;
   Tools.removeAudio = removeAudio;
+  Tools.convertMedia = convertMedia;
+  Tools.trimMedia = trimMedia;
 
   window.processFile = async function(file, options) {
     const { op } = options;
@@ -586,6 +652,18 @@ window.loadFFmpeg = async function() {
 
     if (op === "removeAudio") {
       return removeAudio(file);
+    }
+
+    if (op === "convertAudio") {
+      return convertMedia(file, { ...options, kind: "audio" });
+    }
+
+    if (op === "convertVideo") {
+      return convertMedia(file, { ...options, kind: "video" });
+    }
+
+    if (op === "trim") {
+      return trimMedia(file, options);
     }
 
     if (op === "videoToGif") {
@@ -705,7 +783,7 @@ window.loadFFmpeg = async function() {
 (function() {
 
   // ── CONSTANTS ──
-  var MB_CDN      = "https://cdn.jsdelivr.net/npm/mediabunny@1.34.5/+esm";
+  var MB_CDN      = "https://cdn.jsdelivr.net/npm/mediabunny@1.35.1/+esm";
   var MB_MP3_CDN  = "https://cdn.jsdelivr.net/npm/@mediabunny/mp3-encoder@1.35.1/+esm";
 
   // Formats Mediabunny can read as input (AVI not supported)
