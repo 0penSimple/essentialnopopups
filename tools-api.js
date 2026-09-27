@@ -12,7 +12,7 @@
     : new URL("./", document.baseURI).href;
   // Increment when an engine contract changes. The query keeps browsers and
   // CDNs from pairing a newer API facade with a stale private engine file.
-  const engineVersion = "2026-09-20.4";
+  const engineVersion = "2026-09-27.2";
   const engineLoads = new Map();
 
   const catalog = Object.freeze({
@@ -156,6 +156,20 @@
       output: "Promise<Blob>",
       engine: "archive"
     }),
+    extractAudio: Object.freeze({
+      description: "Extract and encode the audio track from a video as MP3 or WAV.",
+      input: "Blob",
+      options: "{ format?: 'mp3'|'wav', bitrate?: 128|192|320 }",
+      output: "Promise<Blob>",
+      engine: "media"
+    }),
+    removeAudio: Object.freeze({
+      description: "Remove every audio track while copying the remaining video streams without re-encoding.",
+      input: "Blob",
+      options: null,
+      output: "Promise<Blob>",
+      engine: "media"
+    }),
     loadFFmpeg: Object.freeze({
       description: "Load the shared browser media engine and compatibility router.",
       input: null,
@@ -237,6 +251,8 @@
   lazyTool("mergePdfs", "pdf");
   lazyTool("splitPdf", "pdf");
   lazyTool("createArchive", "archive");
+  lazyTool("extractAudio", "media");
+  lazyTool("removeAudio", "media");
 
   // Existing media pages use globals. Preserve that contract while preventing
   // the media engine from loading on image and utility pages.

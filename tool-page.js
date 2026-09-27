@@ -750,7 +750,7 @@ function clearLastDownload() {
       ${controls.map(control => `<div class="converter-option" id="option-${control.name}" hidden>
         <label for="control-${control.name}">${control.label}</label>
         <select id="control-${control.name}">${control.choices.map(choice =>
-          `<option value="${choice.value}">${choice.label}</option>`).join("")}</select>
+          `<option value="${choice.value}"${choice.selected ? " selected" : ""}>${choice.label}</option>`).join("")}</select>
         ${control.hint ? `<p>${control.hint}</p>` : ""}</div>`).join("")}
       ${config.settingsPosition === "workspace" ? "" : config.settingsHtml || ""}`;
 
@@ -819,8 +819,16 @@ function clearLastDownload() {
       resetConversion();
     }
     function setFiles(newFiles, append = false) {
-      const accepted = Array.from(newFiles).filter(file => !config.acceptPrefix ||
-        file.type.startsWith(config.acceptPrefix) || !file.type);
+      const candidates = Array.from(newFiles);
+      const accepted = candidates.filter(file => {
+        const prefixAccepted = !config.acceptPrefix || file.type.startsWith(config.acceptPrefix) || !file.type;
+        return prefixAccepted && (!config.acceptFile || config.acceptFile(file));
+      });
+      const rejected = candidates.filter(file => !accepted.includes(file));
+      if (rejected.length) {
+        showNotification(config.invalidFileMessage ||
+          `${rejected.map(file => file.name).join(", ")} could not be added to this tool.`, "error");
+      }
       if (!accepted.length) return;
       files.splice(append ? files.length : 0, append ? 0 : files.length, ...accepted);
       renderFiles();
@@ -933,6 +941,106 @@ function clearLastDownload() {
   }
 
   window.createFileConverterPage = createFileConverterPage;
+})();
+
+/* Shared media pages. Format specific pages configure this layer; all processing
+   is performed by the lazily loaded media engine behind Tools.*. */
+(function () {
+  const VIDEO_EXTENSIONS = /\.(mp4|mov|avi|mkv|webm|flv|wmv|m4v|mpeg|mpg|3gp)$/i;
+  const videoAccept = "video/*,.mp4,.mov,.avi,.mkv,.webm,.flv,.wmv,.m4v,.mpeg,.mpg,.3gp";
+  const isVideoFile = file => file.type.startsWith("video/") || VIDEO_EXTENSIONS.test(file.name);
+
+  function mediaPrivacy(subject) {
+    return {
+      privacyTitle: `${subject} stays on your device.`,
+      privacyNote: "The file is processed inside your browser. It is never uploaded to EssentialBits or stored on a server.",
+      privacyPoints: ["Local processing", "No server copy", "No account required"]
+    };
+  }
+
+  function startExtractAudioPage() {
+    createFileConverterPage({
+      page: {
+        title: "Extract audio from video",
+        category: "Audio",
+        description: "Pull the audio track from a video and save it as MP3 or WAV.",
+        ...mediaPrivacy("Your video"),
+        goodToKnow: [
+          "MP3 creates a smaller file that works almost everywhere. WAV preserves uncompressed audio for editing.",
+          "The selected bitrate applies to MP3 output. Higher bitrates retain more detail and create larger files.",
+          "A video without an audio track cannot produce an audio file.",
+          "The media engine loads when you start extraction and is cached by your browser."
+        ]
+      },
+      input: { label: "Your video file", icon: "🎬", hint: "MP4, MOV, AVI, MKV, WebM and more" },
+      accept: videoAccept,
+      acceptPrefix: "video/",
+      acceptFile: isVideoFile,
+      invalidFileMessage: "Choose a video file to extract audio from.",
+      batchAllowed: IS_PREMIUM,
+      batchHint: "Drop multiple video files at once",
+      formats: [{ label: "Audio formats", options: [
+        { mime: "audio/mpeg", extension: "mp3", label: "MP3", hint: "Smaller and widely compatible." },
+        { mime: "audio/wav", extension: "wav", label: "WAV", hint: "Uncompressed audio for editing." }
+      ] }],
+      controls: [{
+        name: "bitrate", label: "MP3 bitrate", formats: ["audio/mpeg"],
+        choices: [
+          { value: "128", label: "128 kbps · smaller", output: 128 },
+          { value: "192", label: "192 kbps · balanced", output: 192, selected: true },
+          { value: "320", label: "320 kbps · highest quality", output: 320 }
+        ],
+        hint: "Higher bitrates preserve more audio detail and produce larger files."
+      }],
+      buttonVerb: "Extract",
+      progressVerb: "Extracting",
+      zipName: "extracted_audio.zip",
+      scrollAfterUpload: "format",
+      convert: (file, options) => Tools.extractAudio(file, {
+        format: options.format,
+        bitrate: options.bitrate || 192
+      })
+    });
+  }
+
+  function startRemoveAudioPage() {
+    createFileConverterPage({
+      page: {
+        title: "Remove audio from video",
+        category: "Video",
+        description: "Remove every audio track while preserving the original video stream.",
+        ...mediaPrivacy("Your video"),
+        goodToKnow: [
+          "The video stream is copied without re-encoding, so its visual quality does not change.",
+          "All audio tracks are removed, including alternate languages and commentary tracks.",
+          "Subtitles, chapters, and other compatible streams remain in the output container.",
+          "A video that already has no audio can still be processed."
+        ]
+      },
+      input: { label: "Your video file", icon: "🔇", hint: "MP4, MOV, AVI, MKV, WebM and more" },
+      accept: videoAccept,
+      acceptPrefix: "video/",
+      acceptFile: isVideoFile,
+      invalidFileMessage: "Choose a video file to remove audio from.",
+      batchAllowed: IS_PREMIUM,
+      batchHint: "Drop multiple video files at once",
+      buttonVerb: "Remove audio",
+      progressVerb: "Processing",
+      zipName: "muted_videos.zip",
+      scrollAfterUpload: "input",
+      resolveFormat(file) {
+        const extension = file.name.match(/\.([a-z0-9]{2,5})$/i)?.[1]?.toLowerCase() || "mp4";
+        return { extension };
+      },
+      filename(file, options, format) {
+        return `${file.name.replace(/\.[^.]+$/, "")}_muted.${format.extension}`;
+      },
+      convert: file => Tools.removeAudio(file)
+    });
+  }
+
+  window.startExtractAudioPage = startExtractAudioPage;
+  window.startRemoveAudioPage = startRemoveAudioPage;
 })();
 
 /* Images to animation controls. Processing lives behind the Tools API. */
