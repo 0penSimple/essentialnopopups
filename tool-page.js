@@ -954,8 +954,9 @@ function clearLastDownload() {
   const isAudioFile = file => file.type.startsWith("audio/") || AUDIO_EXTENSIONS.test(file.name);
 
   function mediaPrivacy(subject) {
+    const verb = /\b(?:files|videos)$/.test(subject) ? "stay" : "stays";
     return {
-      privacyTitle: `${subject} stays on your device.`,
+      privacyTitle: `${subject} ${verb} on your device.`,
       privacyNote: "The file is processed inside your browser. It is never uploaded to EssentialBits or stored on a server.",
       privacyPoints: ["Local processing", "No server copy", "No account required"]
     };
@@ -1338,12 +1339,265 @@ function clearLastDownload() {
   function startTrimAudioPage() { startTrimMediaPage("audio"); }
   function startTrimVideoPage() { startTrimMediaPage("video"); }
 
+  async function finishMediaDownload(blob, filename, buttonId) {
+    const url = URL.createObjectURL(blob);
+    if (window._lastDownload) URL.revokeObjectURL(window._lastDownload.url);
+    window._lastDownload = { url, filename };
+    await triggerDownload(url, filename);
+    const button = document.getElementById(buttonId);
+    button.disabled = false;
+    button.textContent = "✓ Done! — click to re-download";
+    button.classList.add("btn-done");
+    button._redownloadHandler = async () => {
+      if (window._lastDownload) await triggerDownload(window._lastDownload.url, window._lastDownload.filename);
+    };
+    button.addEventListener("click", button._redownloadHandler);
+    button.scrollIntoView({ behavior: "smooth", block: "center" });
+    refreshAds();
+  }
+
+  function startMergeMediaPage(kind) {
+    const isVideo = kind === "video";
+    const title = isVideo ? "Merge videos" : "Merge audio";
+    const accept = isVideo ? videoAccept : audioAccept;
+    const acceptFile = isVideo ? isVideoFile : isAudioFile;
+    const icon = isVideo ? "🎬" : "🎵";
+    const files = [];
+    const $ = id => document.getElementById(id);
+    renderToolPage({
+      title, category: isVideo ? "Video" : "Audio",
+      description: `Arrange and join multiple ${kind} files into one continuous ${kind} file.`,
+      input: { type: "file", label: `Your ${kind} files`, icon, accept,
+        hint: `Choose two or more ${kind} files. They will be joined in the order shown.` },
+      workspaceHtml: `<section class="files-section" id="filesSection" data-tool-section="files">
+        <div class="files-header"><div class="files-count" id="filesCount">0 files</div><label class="btn-add-more">+ Add more
+          <input id="mergeAddInput" type="file" accept="${accept}" multiple></label></div>
+        <div class="file-list" id="fileList"></div><p class="merge-hint">Drag files to change their order.</p></section>`,
+      resultHtml: `<section class="progress-section" id="progressSection" aria-live="polite"><div class="progress-label">
+        <span id="progressLabel">Checking files…</span><span id="progressPct">0%</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div></section>
+        <button class="btn-primary" id="mergeBtn" disabled>Add at least 2 ${kind} files</button>`,
+      ...mediaPrivacy(isVideo ? "Your videos" : "Your audio"),
+      goodToKnow: [
+        `Drag the ${isVideo ? "clips" : "files"} to choose their order in the finished ${kind}.`,
+        `Matching files are joined by copying their existing streams, which is fast and preserves quality.`,
+        `Files with different technical settings are re-encoded to a compatible shared format when necessary.`,
+        `This tool creates straight joins without fades or crossfades.`
+      ]
+    });
+    function reset() {
+      clearLastDownload();
+      $("progressSection").classList.remove("show");
+      $("mergeBtn").disabled = files.length < 2;
+      $("mergeBtn").textContent = files.length < 2 ? `Add at least 2 ${kind} files` : "Merge & download";
+    }
+    function render() {
+      const list = $("fileList"); list.replaceChildren();
+      files.forEach((file, index) => {
+        const row = document.createElement("div"); row.className = "file-item";
+        row.innerHTML = `<span class="file-drag-handle" aria-hidden="true">⠿</span><span class="file-icon">${icon}</span>
+          <div class="file-info"><div class="file-name"></div><div class="file-meta"></div></div>
+          <button class="file-remove" type="button" aria-label="Remove file">×</button>`;
+        row.querySelector(".file-name").textContent = file.name;
+        row.querySelector(".file-meta").textContent = formatBytes(file.size);
+        row.querySelector(".file-remove").addEventListener("click", () => { files.splice(index, 1); render(); });
+        list.appendChild(row);
+      });
+      makeDraggable(list, files, reordered => { files.splice(0, files.length, ...reordered); render(); });
+      $("filesSection").classList.toggle("show", files.length > 0);
+      $("filesCount").textContent = `${files.length} file${files.length === 1 ? "" : "s"}`;
+      reset();
+    }
+    function addFiles(selected, append) {
+      const accepted = Array.from(selected).filter(acceptFile);
+      if (accepted.length !== selected.length) showNotification(`Choose ${kind} files only.`, "error");
+      if (!accepted.length) return;
+      if (!append) files.length = 0;
+      files.push(...accepted); render();
+      requestAnimationFrame(() => scrollToToolSection("files"));
+    }
+    async function merge() {
+      if (files.length < 2) return;
+      btnLoading("mergeBtn", "Merging…");
+      $("progressSection").classList.add("show");
+      $("progressFill").classList.add("indeterminate");
+      try {
+        const result = await Tools.mergeMedia({ files: files.slice(), kind,
+          onPhase(phase) {
+            $("progressLabel").textContent = phase === "fast" ? "Joining without quality loss…"
+              : phase === "slow" ? "Matching different file settings…" : "Checking compatibility…";
+          },
+          onProgress(progress) {
+            $("progressFill").classList.remove("indeterminate");
+            $("progressFill").style.width = `${Math.round(progress * 100)}%`;
+            $("progressPct").textContent = `${Math.round(progress * 100)}%`;
+          }
+        });
+        $("progressFill").classList.remove("indeterminate"); $("progressFill").style.width = "100%";
+        $("progressPct").textContent = "100%";
+        $("progressLabel").textContent = result.method === "copy" ? "Done — joined without re-encoding." : "Done — files matched and joined.";
+        await finishMediaDownload(result.blob, `merged_${kind}.${result.extension}`, "mergeBtn");
+      } catch (error) {
+        $("progressSection").classList.remove("show"); showNotification(error.message || "The files could not be merged.", "error"); reset();
+      }
+    }
+    makeDropZone($("dropZone"), { accept: "", multiple: true, maxFree: Infinity, onFiles: selected => addFiles(selected, false) });
+    $("mergeAddInput").addEventListener("change", event => { addFiles(event.target.files, true); event.target.value = ""; });
+    $("mergeBtn").addEventListener("click", event => { if (!event.currentTarget.classList.contains("btn-done")) merge(); });
+  }
+
+  function startCombineMediaPage() {
+    const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|bmp|avif)$/i;
+    const isImageFile = file => file.type.startsWith("image/") || IMAGE_EXTENSIONS.test(file.name);
+    const state = { visual: null, audio: null, visualIsImage: false, videoDuration: 0, audioDuration: 0 };
+    const $ = id => document.getElementById(id);
+    renderToolPage({
+      title: "Combine video & audio", category: "Video",
+      description: "Mix an audio track with a video, or pair audio with a still image to create an MP4.",
+      input: { html: `<label>Your files</label><div class="media-pair">
+        <div class="media-slot" id="visualSlot"><input id="visualInput" type="file" accept="video/*,image/*,.mp4,.mov,.avi,.mkv,.webm,.jpg,.jpeg,.png,.gif,.webp,.avif">
+          <button class="media-slot-clear" id="visualClear" type="button" hidden aria-label="Remove video or image">×</button>
+          <div class="media-slot-icon" id="visualIcon">🎬</div><div class="media-slot-label">Video or image</div>
+          <div class="media-slot-name" id="visualName">Choose or drop a file</div><div class="media-slot-meta" id="visualMeta"></div></div>
+        <div class="media-slot" id="audioSlot"><input id="audioInput" type="file" accept="${audioAccept}">
+          <button class="media-slot-clear" id="audioClear" type="button" hidden aria-label="Remove audio">×</button>
+          <div class="media-slot-icon">🎵</div><div class="media-slot-label">Audio</div>
+          <div class="media-slot-name" id="audioName">Choose or drop a file</div><div class="media-slot-meta" id="audioMeta"></div></div>
+        </div>` },
+      advancedHtml: `<div class="combine-settings">
+        <div id="alignmentSetting"><label for="combineAlignment">Audio alignment</label><select id="combineAlignment">
+          <option value="start">Start together</option><option value="end">End together</option><option value="custom">Custom start time</option></select>
+          <p class="combine-hint" id="alignmentHint">Audio begins with the video.</p></div>
+        <div id="offsetSetting" hidden><label for="combineOffset">Audio starts at <span class="combine-value" id="offsetValue">0:00.00</span></label>
+          <input id="combineOffset" type="range" min="0" max="0" step="0.05" value="0"></div>
+        <div id="videoVolumeSetting"><label for="videoVolume">Original video volume <span class="combine-value" id="videoVolumeValue">100%</span></label>
+          <input id="videoVolume" type="range" min="0" max="100" value="100"></div>
+        <div><label for="audioVolume">Added audio volume <span class="combine-value" id="audioVolumeValue">100%</span></label>
+          <input id="audioVolume" type="range" min="0" max="100" value="100"></div>
+      </div>`,
+      resultHtml: `<section class="progress-section" id="progressSection" aria-live="polite"><div class="progress-label">
+        <span id="progressLabel">Combining…</span><span id="progressPct"></span></div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div></section>
+        <button class="btn-primary" id="combineBtn" disabled>Combine &amp; download</button>`,
+      ...mediaPrivacy("Your files"),
+      goodToKnow: [
+        "The added audio is mixed with the video's existing sound. Set the original video volume to 0% to replace it.",
+        "Start together begins both files at zero. End together delays shorter audio so both finish together.",
+        "A custom start time lets you place the added audio later in the video.",
+        "A still image is held for the full audio duration and exported as an MP4 video."
+      ]
+    });
+
+    function resetOutput() {
+      clearLastDownload(); $("progressSection").classList.remove("show");
+      $("combineBtn").disabled = !(state.visual && state.audio);
+      $("combineBtn").textContent = "Combine & download";
+    }
+    function calculatedOffset() {
+      if (state.visualIsImage) return 0;
+      const mode = $("combineAlignment").value;
+      if (mode === "end") return Math.max(0, state.videoDuration - state.audioDuration);
+      if (mode === "custom") return Number($("combineOffset").value) || 0;
+      return 0;
+    }
+    function updateSettings() {
+      const both = state.visual && state.audio;
+      const canAlign = both && !state.visualIsImage && state.videoDuration > 0 && state.audioDuration > 0;
+      $("alignmentSetting").hidden = !canAlign;
+      $("videoVolumeSetting").hidden = !state.visual || state.visualIsImage;
+      const endOption = $("combineAlignment").querySelector('option[value="end"]');
+      endOption.disabled = !canAlign || state.audioDuration > state.videoDuration;
+      if (endOption.disabled && $("combineAlignment").value === "end") $("combineAlignment").value = "start";
+      const custom = canAlign && $("combineAlignment").value === "custom";
+      $("offsetSetting").hidden = !custom;
+      $("combineOffset").max = String(Math.max(0, state.videoDuration));
+      $("offsetValue").textContent = formatTrimTime(calculatedOffset());
+      const mode = $("combineAlignment").value;
+      $("alignmentHint").textContent = mode === "end" ? `Audio starts at ${formatTrimTime(calculatedOffset())} so both finish together.`
+        : mode === "custom" ? `Audio begins at ${formatTrimTime(calculatedOffset())}.` : "Audio begins with the video.";
+      resetOutput();
+    }
+    function renderSlot(type) {
+      const visual = type === "visual"; const file = state[type];
+      $(`${type}Clear`).hidden = !file;
+      $(`${type}Slot`).classList.toggle("loaded", Boolean(file));
+      $(`${type}Name`).textContent = file ? file.name : visual ? "Choose or drop a file" : "Choose or drop an audio file";
+      const duration = visual ? state.videoDuration : state.audioDuration;
+      $(`${type}Meta`).textContent = file ? `${formatBytes(file.size)}${duration ? ` · ${formatTrimTime(duration)}` : ""}` : "";
+      if (visual) $("visualIcon").textContent = state.visualIsImage ? "🖼" : "🎬";
+      updateSettings();
+    }
+    async function setSlot(type, file) {
+      if (!file) return;
+      const visual = type === "visual";
+      const valid = visual ? isVideoFile(file) || isImageFile(file) : isAudioFile(file);
+      if (!valid) { showNotification(`Choose ${visual ? "a video or image" : "an audio"} file.`, "error"); return; }
+      state[type] = file;
+      if (visual) state.visualIsImage = isImageFile(file);
+      const durationKey = visual ? "videoDuration" : "audioDuration";
+      state[durationKey] = 0;
+      if (!visual || !state.visualIsImage) {
+        const url = URL.createObjectURL(file);
+        try { state[durationKey] = await readMediaDuration(file, visual ? "video" : "audio", url); }
+        catch (_) { state[durationKey] = 0; }
+        finally { URL.revokeObjectURL(url); }
+      }
+      renderSlot(type);
+    }
+    function wireSlot(type) {
+      const slot = $(`${type}Slot`); const input = $(`${type}Input`);
+      input.addEventListener("change", () => { setSlot(type, input.files[0]); input.value = ""; });
+      slot.addEventListener("dragover", event => { event.preventDefault(); slot.classList.add("dragover"); });
+      slot.addEventListener("dragleave", () => slot.classList.remove("dragover"));
+      slot.addEventListener("drop", event => { event.preventDefault(); slot.classList.remove("dragover"); setSlot(type, event.dataTransfer.files[0]); });
+      $(`${type}Clear`).addEventListener("click", event => {
+        event.preventDefault(); event.stopPropagation(); state[type] = null;
+        if (type === "visual") { state.visualIsImage = false; state.videoDuration = 0; }
+        else state.audioDuration = 0;
+        renderSlot(type);
+      });
+    }
+    async function combine() {
+      if (!state.visual || !state.audio) return;
+      btnLoading("combineBtn", "Combining…");
+      $("progressSection").classList.add("show"); $("progressFill").classList.add("indeterminate");
+      $("progressLabel").textContent = "Combining video and audio…";
+      try {
+        const blob = await Tools.combineVideoAudio({ visual: state.visual, audio: state.audio,
+          visualIsImage: state.visualIsImage, offset: calculatedOffset(),
+          videoVolume: Number($("videoVolume").value) / 100, audioVolume: Number($("audioVolume").value) / 100 });
+        $("progressFill").classList.remove("indeterminate"); $("progressFill").style.width = "100%";
+        $("progressPct").textContent = "100%"; $("progressLabel").textContent = "Done!";
+        const base = state.visual.name.replace(/\.[^.]+$/, "");
+        await finishMediaDownload(blob, `${base}_with_audio.mp4`, "combineBtn");
+      } catch (error) {
+        $("progressSection").classList.remove("show"); showNotification(error.message || "The files could not be combined.", "error"); resetOutput();
+      }
+    }
+    wireSlot("visual"); wireSlot("audio");
+    $("combineAlignment").addEventListener("change", updateSettings);
+    $("combineOffset").addEventListener("input", updateSettings);
+    for (const type of ["video", "audio"]) {
+      $(`${type}Volume`).addEventListener("input", event => {
+        $(`${type}VolumeValue`).textContent = `${event.target.value}%`; resetOutput();
+      });
+    }
+    $("combineBtn").addEventListener("click", event => { if (!event.currentTarget.classList.contains("btn-done")) combine(); });
+    updateSettings();
+  }
+
+  function startMergeAudioPage() { startMergeMediaPage("audio"); }
+  function startMergeVideoPage() { startMergeMediaPage("video"); }
+
   window.startExtractAudioPage = startExtractAudioPage;
   window.startRemoveAudioPage = startRemoveAudioPage;
   window.startAudioConverterPage = startAudioConverterPage;
   window.startVideoConverterPage = startVideoConverterPage;
   window.startTrimAudioPage = startTrimAudioPage;
   window.startTrimVideoPage = startTrimVideoPage;
+  window.startMergeAudioPage = startMergeAudioPage;
+  window.startMergeVideoPage = startMergeVideoPage;
+  window.startCombineMediaPage = startCombineMediaPage;
 })();
 
 /* Images to animation controls. Processing lives behind the Tools API. */
