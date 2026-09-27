@@ -3,271 +3,144 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Image Converter — EssentialNoPopups</title>
+<meta name="description" content="Convert images to JPG, PNG, WebP, AVIF, BMP, or ICO in your browser. Preview the result before downloading.">
+<title>Image Converter — EssentialBits</title>
 <link rel="stylesheet" href="../shared.css">
-<style>
-  .quality-row { margin-bottom:1.25rem; display:none; }
-  .quality-row.show { display:block; }
-  .quality-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-  .quality-value { font-size:0.82rem; font-weight:500; color:var(--teal); }
-  .slider-hints { display:flex; justify-content:space-between; font-size:0.68rem; color:var(--faint); margin-top:4px; }
-
-  .files-section { display:none; margin-bottom:1.25rem; }
-  .files-section.show { display:block; }
-  .files-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
-  .files-count { font-size:0.78rem; color:var(--muted); }
-  .file-list { display:flex; flex-direction:column; gap:6px; }
-  .file-item { display:flex; align-items:center; gap:10px; background:var(--warm-bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
-  .file-icon { font-size:1.1rem; flex-shrink:0; }
-  .file-info { flex:1; min-width:0; }
-  .file-name { font-size:0.82rem; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .file-meta { font-size:0.72rem; color:var(--faint); margin-top:1px; }
-  .file-remove { background:none; border:none; color:var(--faint); font-size:1rem; cursor:pointer; padding:0 4px; flex-shrink:0; transition:color 0.15s; }
-  .file-remove:hover { color:var(--error); }
-
-  .progress-section { display:none; margin-bottom:1.25rem; }
-  .progress-section.show { display:block; }
-  .progress-label { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
-  .progress-track { height:6px; background:var(--border); border-radius:99px; overflow:hidden; }
-  .progress-fill { height:100%; background:var(--teal-mid); border-radius:99px; transition:width 0.2s; width:0%; }
-</style>
+<link rel="stylesheet" href="../tool-page.css">
 </head>
 <body>
 <nav id="shared-nav"></nav>
-<div class="page">
-  <div class="page-header">
-    <div class="breadcrumb">
-      <a href="../index.html">Home</a><span>›</span><span>Images</span><span>›</span><span>Image converter</span>
-    </div>
-    <h1>Image converter</h1>
-    <div class="info-btn-row">
-      <p>Convert any image to JPG, PNG, or WebP — instantly, in your browser. Nothing is uploaded to any server.</p>
-      <button class="info-btn" onclick="toggleInfo()" id="infoBtn" title="Help & info">?</button>
-    </div>
-    <div id="infoPanel" class="info-panel" style="display:none;">
-      <div class="info-panel-row">
-        <div class="info-panel-icon">💡</div>
-        <div>
-          <div class="info-panel-title">Not sure what to do?</div>
-          <div class="info-panel-text">Check the <strong>Good to know</strong> section at the bottom of this page.</div>
-        </div>
-      </div>
-      <div class="info-panel-row">
-        <div class="info-panel-icon">🙏</div>
-        <div>
-          <div class="info-panel-title">This site survives thanks to you</div>
-          <div class="info-panel-text">No pop-ups — just simple banner ads. Please consider whitelisting us in your ad blocker.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="notification" class="notification"></div>
-  <div class="ad-slot" style="margin-bottom:1.25rem;">
-    <div class="ad-slot-inner" style="height:90px;">728 × 90 — Ad</div>
-  </div>
-
-  <div class="card">
-    <label>Your image</label>
-    <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*">
-      <div class="drop-icon">🖼</div>
-      <div class="drop-text"><strong>Click to choose</strong> or drag an image here</div>
-      <div class="drop-sub" id="dropSub">Any image format supported</div>
-    </div>
-
-    <div class="files-section" id="filesSection">
-      <div class="files-header">
-        <div class="files-count" id="filesCount">0 files</div>
-        <div class="btn-add-more" id="addMoreBtn" style="display:none;">
-          <input type="file" accept="image/*" multiple onchange="addFiles(this.files); this.value=''">
-          + Add more
-        </div>
-      </div>
-      <div class="file-list" id="fileList"></div>
-    </div>
-
-    <div class="format-row">
-      <label>Convert to</label>
-      <div class="format-pills">
-        <div class="format-pill selected" data-fmt="image/jpeg" data-ext="jpg" onclick="selectFormat(this)">JPG</div>
-        <div class="format-pill" data-fmt="image/png" data-ext="png" onclick="selectFormat(this)">PNG</div>
-        <div class="format-pill" data-fmt="image/webp" data-ext="webp" onclick="selectFormat(this)">WebP</div>
-      </div>
-    </div>
-
-    <div class="quality-row show" id="qualityRow">
-      <div class="quality-header">
-        <label style="margin:0">Quality</label>
-        <div class="quality-value" id="qualityVal">92%</div>
-      </div>
-      <input type="range" id="qualitySlider" min="10" max="100" step="1" value="92"
-        oninput="document.getElementById('qualityVal').textContent = this.value + '%'">
-      <div class="slider-hints"><span>Smaller file</span><span>Better quality</span></div>
-    </div>
-
-    <div class="preview-section" id="previewSection">
-      <label style="margin-bottom:10px">Preview</label>
-      <div class="preview-grid">
-        <div class="preview-box">
-          <div class="preview-label">Original <span id="origSize">—</span></div>
-          <div class="preview-img-wrap"><img id="origImg" src="" alt="Original"></div>
-        </div>
-        <div class="preview-box">
-          <div class="preview-label">Converted <span id="convSize">—</span></div>
-          <div class="preview-img-wrap"><img id="convImg" src="" alt="Converted"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="progress-section" id="progressSection">
-      <div class="progress-label">
-        <span id="progressLabel">Converting...</span>
-        <span id="progressPct">0%</span>
-      </div>
-      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
-    </div>
-
-    <button class="btn-primary" id="convBtn" onclick="convert()" disabled>
-      Convert &amp; download — 0/1
-    </button>
-  </div>
-
-  <div class="ad-slot">
-    <div class="ad-slot-inner" style="height:260px;">300 × 250 — Ad</div>
-  </div>
-
-  <div class="info-card">
-    <h3>Good to know</h3>
-    <ul class="info-list">
-      <li>Everything happens in your browser — your image is never uploaded anywhere.</li>
-      <li>JPG is best for photos. PNG keeps transparency. WebP is smaller than both.</li>
-      <li>Quality setting only applies to JPG and WebP output.</li>
-    </ul>
-  </div>
-</div>
-
+<main class="page" id="tool-page">
+  <h1>Image converter</h1>
+  <p>Convert images to JPG, PNG, WebP, AVIF, BMP, or ICO in your browser.</p>
+</main>
 <footer id="shared-footer"></footer>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="../shared.js"></script>
+<script src="../tool-page.js"></script>
+<script src="../tools-api.js"></script>
 <script>
-  const state = { files: [], isPremium: IS_PREMIUM };
-  let selectedMime = "image/jpeg";
-  let selectedExt  = "jpg";
-  let singlePreviewBlob = null;
-
-  document.addEventListener("DOMContentLoaded", () => {
-    makeDropZone(document.getElementById("dropZone"), {
-      accept: "image/", multiple: state.isPremium, maxFree: 1,
-      onFiles: (files) => { state.files = files.map(f => ({ file: f, name: f.name, size: f.size })); render(); updateSinglePreview(); }
-    });
-    if (state.isPremium) {
-      document.getElementById("addMoreBtn").style.display = "block";
-      document.getElementById("dropSub").textContent = "Drop multiple images at once";
+createFileConverterPage({
+  page: {
+    title: "Image converter",
+    category: "Images",
+    description: "Choose an output format, preview the result, and download it. Everything runs in your browser.",
+    privacyTitle: "Your image stays on your device.",
+    privacyNote: "Choose a file, make your changes, and download the result. This tool processes the image in your browser—there is no upload or server copy to clean up later.",
+    privacyPoints: ["Processed on your device", "No account needed", "No server upload"],
+    goodToKnow: [
+      "JPG is useful for photos. PNG preserves transparency. WebP and AVIF often make smaller files.",
+      "BMP is a simple bitmap format and may be much larger. ICO bundles several icon sizes into one file.",
+      "The quality control applies to JPG, WebP, and AVIF output.",
+      "PNG output is losslessly optimized when useful. Choosing PNG for an existing PNG keeps its original bytes, including any metadata.",
+      "Same-format JPG and WebP conversion gently limits file growth. Converting between formats follows the quality you choose.",
+      "Animated GIF, WebP, and AVIF inputs can be converted from their first frame or extracted as individual PNG files in a ZIP."
+    ]
+  },
+  input: { label: "Your image", icon: "🖼", hint: "Any image format your browser supports" },
+  accept: "image/*",
+  acceptPrefix: "image/",
+  fileLabel: "image",
+  preview: "image",
+  scrollAfterUpload: "format",
+  batchAllowed: IS_PREMIUM,
+  batchHint: "Drop multiple images at once",
+  zipName: "converted_images.zip",
+  settingsHtml: `<div class="converter-option" id="animationFramesOption" hidden>
+    <label for="animationFramesMode">Animated image</label>
+    <select id="animationFramesMode">
+      <option value="first">Convert the first frame</option>
+      <option value="webp">Keep animation and convert to WebP</option>
+      <option value="all">Extract all frames as PNG ZIP</option>
+    </select>
+    <p id="animationFramesHint">Choose whether to convert one frame or extract the complete animation.</p>
+  </div>`,
+  readOptions: () => ({
+    animationFrames: document.getElementById("animationFramesMode")?.value || "first",
+    animationQuality: Number(document.getElementById("qualitySlider")?.value || 92) / 100
+  }),
+  convert: async (file, options) => {
+    if (options.animationFrames === "first") return Tools.convertImage(file, options);
+    if (options.animationFrames === "webp") {
+      const sequence = await Tools.decodeAnimation(file, { frames: "all" });
+      return Tools.encodeAnimation(sequence, { format: "image/webp", quality: options.animationQuality });
     }
-  });
-
-  function addFiles(fileList) {
-    const newFiles = Array.from(fileList).filter(f => f.type.startsWith("image/")).map(f => ({ file: f, name: f.name, size: f.size }));
-    state.files = [...state.files, ...newFiles];
-    render();
-  }
-
-  function render() {
-    const { files } = state;
-    const list = document.getElementById("fileList");
-    list.innerHTML = "";
-    files.forEach((item, i) => {
-      const div = document.createElement("div");
-      div.className = "file-item";
-      div.innerHTML = `<div class="file-icon">🖼</div><div class="file-info"><div class="file-name">${item.name}</div><div class="file-meta">${formatBytes(item.size)}</div></div><button class="file-remove" onclick="removeFile(${i})">×</button>`;
-      list.appendChild(div);
-    });
-    document.getElementById("filesSection").classList.toggle("show", files.length > 0);
-    document.getElementById("filesCount").textContent = `${files.length} image${files.length !== 1 ? "s" : ""}`;
-    const dropText = document.querySelector("#dropZone .drop-text");
-    if (files.length === 0) dropText.innerHTML = `<strong>Click to choose</strong> or drag an image here`;
-    else if (files.length === 1) dropText.innerHTML = `<strong>${files[0].name}</strong>`;
-    else dropText.innerHTML = `<strong>${files.length} images loaded</strong>`;
-    const btn = document.getElementById("convBtn");
-    btn.disabled = files.length === 0;
-    btn.textContent = files.length === 0 ? "Convert & download — 0/1" : `Convert & download — 0/${files.length}`;
-    btn.classList.remove("btn-done");
-  }
-
-  function removeFile(index) { state.files.splice(index, 1); render(); updateSinglePreview(); }
-
-  function selectFormat(el) {
-    document.querySelectorAll(".format-pill").forEach(p => p.classList.remove("selected"));
-    el.classList.add("selected");
-    selectedMime = el.dataset.fmt; selectedExt = el.dataset.ext;
-    document.getElementById("qualityRow").classList.toggle("show", selectedMime !== "image/png");
-    updateSinglePreview();
-  }
-
-  function updateSinglePreview() {
-    if (state.files.length !== 1) { document.getElementById("previewSection").classList.remove("show"); return; }
-    const file = state.files[0].file;
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onload = e => {
-      document.getElementById("origImg").src = e.target.result;
-      document.getElementById("origSize").textContent = formatBytes(file.size);
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        if (selectedMime === "image/jpeg") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-        ctx.drawImage(img, 0, 0);
-        const quality = parseInt(document.getElementById("qualitySlider").value) / 100;
-        canvas.toBlob(blob => {
-          singlePreviewBlob = blob;
-          document.getElementById("convImg").src = URL.createObjectURL(blob);
-          document.getElementById("convSize").textContent = formatBytes(blob.size);
-          document.getElementById("previewSection").classList.add("show");
-        }, selectedMime, selectedMime !== "image/png" ? quality : undefined);
-      };
-      img.src = e.target.result;
+    const split = await Tools.splitAnimation(file, { format: "image/png" });
+    const base = (file.name || "animation").replace(/\.[^.]+$/, "");
+    const digits = String(split.frames.length).length;
+    return Tools.createArchive(split.frames.map((frame, index) => ({
+      filename: `${base}_frame_${String(index + 1).padStart(digits, "0")}.png`,
+      data: frame.blob
+    })));
+  },
+  resolveFormat: (_file, options) => options.animationFrames === "all"
+    ? { extension: "zip" }
+    : options.animationFrames === "webp" ? { extension: "webp" } : null,
+  filename: (file, options, format) => options.animationFrames === "all"
+    ? `${(file.name || "animation").replace(/\.[^.]+$/, "")}_frames.zip`
+    : `${(file.name || "image").replace(/\.[^.]+$/, "")}.${format.extension}`,
+  previewReady: options => options.animationFrames !== "all",
+  onFilesChanged: async file => {
+    const option = document.getElementById("animationFramesOption");
+    const select = document.getElementById("animationFramesMode");
+    if (!option || !select) return;
+    let animated = false;
+    let frameCount = 1;
+    if (file) {
+      const info = await Tools.inspectImage(file);
+      animated = info.animated;
+      frameCount = info.frameCount;
+    }
+    option.hidden = !animated;
+    if (!animated) {
+      select.value = "first";
+      select.dispatchEvent(new Event("change"));
+    }
+    document.getElementById("animationFramesHint").textContent = animated
+      ? `${frameCount} frames detected. Keep the animation as WebP or extract its frames as a PNG ZIP.`
+      : "Choose whether to convert one frame or extract the complete animation.";
+  },
+  setupSettings: ({ refreshPreview, resetConversion }) => {
+    const select = document.getElementById("animationFramesMode");
+    const update = () => {
+      const extracting = select.value === "all";
+      const animatedWebP = select.value === "webp";
+      document.querySelector(".format-row").hidden = extracting || animatedWebP;
+      const selectedFormat = document.getElementById("formatSelect").value;
+      document.getElementById("qualityRow").classList.toggle("show",
+        animatedWebP || (!extracting && ["image/jpeg", "image/webp", "image/avif"].includes(selectedFormat)));
+      resetConversion();
+      refreshPreview();
     };
-    reader.readAsDataURL(file);
-  }
-
-  function convertImage(file) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      const reader = new FileReader();
-      reader.onload = e => {
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-          const ctx = canvas.getContext("2d");
-          if (selectedMime === "image/jpeg") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-          ctx.drawImage(img, 0, 0);
-          const quality = parseInt(document.getElementById("qualitySlider").value) / 100;
-          canvas.toBlob(blob => {
-            const baseName = file.name.replace(/\.[^.]+$/, "");
-            resolve({ filename: `${baseName}.${selectedExt}`, data: blob });
-          }, selectedMime, selectedMime !== "image/png" ? quality : undefined);
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function convert() {
-    if (!state.files.length) return;
-    document.getElementById("progressSection").classList.add("show");
-    const batch = new BatchProcessor({
-      items: state.files, btnId: "convBtn", btnLabel: "Convert", zipName: "converted_images.zip",
-      processOne: async (item, index) => {
-        document.getElementById("progressLabel").textContent = `Converting ${index + 1}/${state.files.length}: ${item.name}`;
-        return await convertImage(item.file);
-      },
-      onComplete: () => { document.getElementById("progressLabel").textContent = "Done!"; }
-    });
-    await batch.run();
-  }
+    select.addEventListener("change", update);
+  },
+  onFormatChanged: () => {
+    const mode = document.getElementById("animationFramesMode")?.value;
+    if (mode === "all") document.getElementById("qualityRow").classList.remove("show");
+    if (mode === "webp") document.getElementById("qualityRow").classList.add("show");
+  },
+  formats: [
+    { label: "Common formats", options: [
+      { mime: "image/jpeg", label: "JPG", extension: "jpg", quality: true, hint: "JPG works well for photos and broad compatibility." },
+      { mime: "image/png", label: "PNG", extension: "png", hint: "PNG preserves transparency. An unchanged PNG keeps its original bytes." },
+      { mime: "image/webp", label: "WebP", extension: "webp", quality: true, hint: "WebP supports transparency and often makes a smaller file." },
+      { mime: "image/avif", label: "AVIF", extension: "avif", quality: true, hint: "AVIF can make compact images. Encoding may take a little longer." }
+    ] },
+    { label: "Specialized formats", options: [
+      { mime: "image/bmp", label: "BMP", extension: "bmp", hint: "BMP is widely recognized but often much larger than modern formats." },
+      { mime: "image/x-icon", label: "ICO (icon)", extension: "ico", hint: "ICO packages several icon sizes for favicons or Windows icons." }
+    ] }
+  ],
+  controls: [{
+    name: "icoSizes",
+    label: "Icon sizes",
+    formats: ["image/x-icon"],
+    choices: [
+      { value: "favicon", label: "Favicon · 16, 32, 48 px", output: [16, 32, 48] },
+      { value: "windows", label: "Windows icon · 16, 32, 48, 256 px", output: [16, 32, 48, 256] }
+    ],
+    hint: "One ICO file contains each selected size. The image is fitted into a square without cropping."
+  }]
+});
 </script>
 </body>
 </html>
