@@ -1449,7 +1449,8 @@ function clearLastDownload() {
   function startCombineMediaPage() {
     const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|bmp|avif)$/i;
     const isImageFile = file => file.type.startsWith("image/") || IMAGE_EXTENSIONS.test(file.name);
-    const state = { visual: null, audio: null, visualIsImage: false, videoDuration: 0, audioDuration: 0 };
+    const state = { visual: null, audio: null, visualIsImage: false, videoDuration: 0, audioDuration: 0,
+      visualUrl: "", audioUrl: "", playing: false, raf: 0, previewTimer: 0, previousVideoVolume: 100 };
     const $ = id => document.getElementById(id);
     renderToolPage({
       title: "Combine video & audio", category: "Video",
@@ -1464,21 +1465,37 @@ function clearLastDownload() {
           <div class="media-slot-icon">🎵</div><div class="media-slot-label">Audio</div>
           <div class="media-slot-name" id="audioName">Choose or drop a file</div><div class="media-slot-meta" id="audioMeta"></div></div>
         </div>` },
-      advancedHtml: `<div class="combine-settings">
-        <div id="alignmentSetting"><label for="combineAlignment">Audio alignment</label><select id="combineAlignment">
-          <option value="start">Start together</option><option value="end">End together</option><option value="custom">Custom start time</option></select>
-          <p class="combine-hint" id="alignmentHint">Audio begins with the video.</p></div>
-        <div id="offsetSetting" hidden><label for="combineOffset">Audio starts at <span class="combine-value" id="offsetValue">0:00.00</span></label>
-          <input id="combineOffset" type="range" min="0" max="0" step="0.05" value="0"></div>
-        <div id="videoVolumeSetting"><label for="videoVolume">Original video volume <span class="combine-value" id="videoVolumeValue">100%</span></label>
-          <input id="videoVolume" type="range" min="0" max="100" value="100"></div>
-        <div><label for="audioVolume">Added audio volume <span class="combine-value" id="audioVolumeValue">100%</span></label>
-          <input id="audioVolume" type="range" min="0" max="100" value="100"></div>
+      advancedHtml: `<div class="combine-editor" id="combineEditor" hidden>
+        <div class="combine-preview" id="combinePreview"><div class="combine-preview-empty">Add a video or image to start</div></div>
+        <div class="combine-transport"><button class="combine-play" id="combinePlay" type="button" aria-label="Play preview">▶</button>
+          <input class="combine-seek" id="combineSeek" type="range" min="0" max="0" step="0.05" value="0" aria-label="Preview position">
+          <span class="combine-time" id="combineTime">0:00 / 0:00</span></div>
+        <div class="combine-timeline" id="combineTimeline">
+          <div class="combine-ruler"><span>0:00</span><span id="rulerMiddle">0:00</span><span id="rulerEnd">0:00</span></div>
+          <div class="combine-track"><div class="combine-track-label"><strong id="videoTrackName">Visual</strong><span>Video</span></div>
+            <div class="combine-lane" id="videoLane"><div class="combine-clip combine-video-clip"></div><div class="combine-playhead"></div></div></div>
+          <div class="combine-track" id="audioTrack"><div class="combine-track-label"><strong id="audioTrackName">Soundtrack</strong><span>Drag to position</span></div>
+            <div class="combine-lane" id="audioLane"><div class="combine-clip combine-audio-clip" id="audioClip"></div><div class="combine-playhead"></div></div></div>
+          <p class="combine-timeline-note" id="timelineNote">Drop an audio file above to place it on the timeline.</p>
+        </div>
+        <div class="combine-align" id="alignmentSetting"><span class="combine-align-label">Align audio</span>
+          <button type="button" data-align="start" class="active">Start</button><button type="button" data-align="end">End</button>
+          <div class="combine-offset"><label for="combineOffset">Start time</label><input id="combineOffset" type="number" min="0" step="0.05" value="0"><span>seconds</span></div>
+        </div>
+        <div class="combine-mixer">
+          <div class="combine-channel" id="videoVolumeSetting"><div class="combine-channel-head"><span>🎬</span><strong>Original video sound</strong>
+            <button class="combine-mute" id="videoMute" type="button">Mute</button><output id="videoVolumeValue">100%</output></div>
+            <input id="videoVolume" type="range" min="0" max="100" value="100" aria-label="Original video volume"></div>
+          <div class="combine-channel"><div class="combine-channel-head"><span>🎵</span><strong>Added soundtrack</strong>
+            <button class="combine-mute" id="audioMute" type="button">Mute</button><output id="audioVolumeValue">100%</output></div>
+            <input id="audioVolume" type="range" min="0" max="100" value="100" aria-label="Added audio volume"></div>
+        </div>
       </div>`,
       resultHtml: `<section class="progress-section" id="progressSection" aria-live="polite"><div class="progress-label">
         <span id="progressLabel">Combining…</span><span id="progressPct"></span></div>
         <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div></section>
-        <button class="btn-primary" id="combineBtn" disabled>Combine &amp; download</button>`,
+        <div class="combine-actions"><button class="combine-preview-btn" id="previewMixBtn" disabled>Preview mix</button>
+          <button class="btn-primary" id="combineBtn" disabled>Export MP4</button></div>`,
       ...mediaPrivacy("Your files"),
       goodToKnow: [
         "The added audio is mixed with the video's existing sound. Set the original video volume to 0% to replace it.",
@@ -1491,30 +1508,87 @@ function clearLastDownload() {
     function resetOutput() {
       clearLastDownload(); $("progressSection").classList.remove("show");
       $("combineBtn").disabled = !(state.visual && state.audio);
-      $("combineBtn").textContent = "Combine & download";
+      $("previewMixBtn").disabled = !(state.visual && state.audio);
+      $("combineBtn").textContent = "Export MP4";
     }
     function calculatedOffset() {
       if (state.visualIsImage) return 0;
-      const mode = $("combineAlignment").value;
-      if (mode === "end") return Math.max(0, state.videoDuration - state.audioDuration);
-      if (mode === "custom") return Number($("combineOffset").value) || 0;
-      return 0;
+      return Math.max(0, Math.min(state.videoDuration || 0, Number($("combineOffset").value) || 0));
+    }
+    function outputDuration() {
+      return state.visualIsImage ? state.audioDuration : state.videoDuration;
+    }
+    function stopPreview() {
+      state.playing = false; cancelAnimationFrame(state.raf); clearTimeout(state.previewTimer);
+      const video = $("combineVideoPreview"); const audio = $("combineAudioPreview");
+      if (video) video.pause(); if (audio) audio.pause();
+      $("combinePlay").textContent = "▶"; $("combinePlay").setAttribute("aria-label", "Play preview");
+      $("previewMixBtn").textContent = "Preview mix";
+    }
+    function setPreviewTime(time) {
+      const duration = outputDuration() || 0; const next = Math.max(0, Math.min(duration, Number(time) || 0));
+      const video = $("combineVideoPreview"); const audio = $("combineAudioPreview"); const offset = calculatedOffset();
+      if (video && !state.visualIsImage) video.currentTime = Math.min(next, video.duration || next);
+      if (audio) audio.currentTime = Math.max(0, Math.min(audio.duration || state.audioDuration, next - offset));
+      $("combineSeek").value = String(next); updatePlayhead(next);
+    }
+    function updatePlayhead(time) {
+      const duration = outputDuration() || 1; const pct = Math.max(0, Math.min(100, (time / duration) * 100));
+      document.querySelectorAll(".combine-playhead").forEach(line => line.style.left = `${pct}%`);
+      $("combineTime").textContent = `${formatTrimTime(time)} / ${formatTrimTime(outputDuration())}`;
+    }
+    function tickPreview() {
+      if (!state.playing) return;
+      const video = $("combineVideoPreview"); const audio = $("combineAudioPreview");
+      const time = state.visualIsImage ? (audio ? calculatedOffset() + audio.currentTime : 0) : (video ? video.currentTime : 0);
+      $("combineSeek").value = String(time); updatePlayhead(time);
+      if (time >= outputDuration() - .03) { stopPreview(); setPreviewTime(0); return; }
+      state.raf = requestAnimationFrame(tickPreview);
+    }
+    async function playPreview() {
+      if (!(state.visual && state.audio)) return;
+      if (state.playing) { stopPreview(); return; }
+      let time = Number($("combineSeek").value) || 0;
+      if (time >= outputDuration() - .05) { time = 0; setPreviewTime(0); }
+      const video = $("combineVideoPreview"); const audio = $("combineAudioPreview"); const offset = calculatedOffset();
+      const videoVolume = Number($("videoVolume").value) / 100; const audioVolume = Number($("audioVolume").value) / 100;
+      if (video) video.volume = videoVolume; if (audio) audio.volume = audioVolume;
+      state.playing = true; $("combinePlay").textContent = "❚❚"; $("combinePlay").setAttribute("aria-label", "Pause preview");
+      $("previewMixBtn").textContent = "Pause preview";
+      const audioDelay = Math.max(0, offset - time);
+      const starts = [];
+      if (!state.visualIsImage && video) starts.push(video.play());
+      if (audioDelay > 0) state.previewTimer = setTimeout(() => { if (state.playing) audio.play().catch(() => {}); }, audioDelay * 1000);
+      else if (audio && time < offset + state.audioDuration) starts.push(audio.play());
+      await Promise.all(starts);
+      tickPreview();
+    }
+    function renderTimeline() {
+      const duration = outputDuration(); const offset = calculatedOffset();
+      $("combineEditor").hidden = !state.visual;
+      $("combineSeek").max = String(duration || 0);
+      $("rulerMiddle").textContent = formatTrimTime(duration / 2);
+      $("rulerEnd").textContent = formatTrimTime(duration);
+      $("videoTrackName").textContent = state.visual ? state.visual.name : "Visual";
+      $("audioTrackName").textContent = state.audio ? state.audio.name : "Soundtrack";
+      const left = duration ? Math.min(100, offset / duration * 100) : 0;
+      const fullWidth = duration ? state.audioDuration / duration * 100 : 0;
+      const visibleWidth = Math.max(0, Math.min(fullWidth, 100 - left));
+      $("audioClip").style.left = `${left}%`; $("audioClip").style.width = `${visibleWidth}%`;
+      $("audioClip").hidden = !state.audio; $("audioClip").classList.toggle("clipped", Boolean(state.audio && offset + state.audioDuration > duration + .05));
+      $("timelineNote").textContent = !state.audio ? "Drop an audio file above to place it on the timeline."
+        : offset + state.audioDuration > duration + .05 ? `${formatTrimTime(offset + state.audioDuration - duration)} of the soundtrack extends past the video and will be cut.`
+        : `Soundtrack starts at ${formatTrimTime(offset)} and ends at ${formatTrimTime(offset + state.audioDuration)}.`;
+      $("alignmentSetting").hidden = !state.audio || state.visualIsImage;
+      $("videoVolumeSetting").hidden = state.visualIsImage;
+      updatePlayhead(Number($("combineSeek").value) || 0);
     }
     function updateSettings() {
       const both = state.visual && state.audio;
       const canAlign = both && !state.visualIsImage && state.videoDuration > 0 && state.audioDuration > 0;
-      $("alignmentSetting").hidden = !canAlign;
-      $("videoVolumeSetting").hidden = !state.visual || state.visualIsImage;
-      const endOption = $("combineAlignment").querySelector('option[value="end"]');
-      endOption.disabled = !canAlign || state.audioDuration > state.videoDuration;
-      if (endOption.disabled && $("combineAlignment").value === "end") $("combineAlignment").value = "start";
-      const custom = canAlign && $("combineAlignment").value === "custom";
-      $("offsetSetting").hidden = !custom;
-      $("combineOffset").max = String(Math.max(0, state.videoDuration));
-      $("offsetValue").textContent = formatTrimTime(calculatedOffset());
-      const mode = $("combineAlignment").value;
-      $("alignmentHint").textContent = mode === "end" ? `Audio starts at ${formatTrimTime(calculatedOffset())} so both finish together.`
-        : mode === "custom" ? `Audio begins at ${formatTrimTime(calculatedOffset())}.` : "Audio begins with the video.";
+      $("combineOffset").max = String(Math.max(0, state.videoDuration || 0));
+      if (!canAlign || state.visualIsImage) $("combineOffset").value = "0";
+      stopPreview(); renderTimeline();
       resetOutput();
     }
     function renderSlot(type) {
@@ -1527,6 +1601,19 @@ function clearLastDownload() {
       if (visual) $("visualIcon").textContent = state.visualIsImage ? "🖼" : "🎬";
       updateSettings();
     }
+    function renderPreview() {
+      const preview = $("combinePreview"); preview.replaceChildren();
+      if (!state.visual) { preview.innerHTML = '<div class="combine-preview-empty">Add a video or image to start</div>'; return; }
+      const media = document.createElement(state.visualIsImage ? "img" : "video");
+      media.id = "combineVideoPreview"; media.src = state.visualUrl; media.playsInline = true; media.preload = "metadata";
+      if (state.visualIsImage) media.alt = "Selected image preview";
+      preview.appendChild(media);
+      const badge = document.createElement("span"); badge.className = "combine-preview-badge";
+      badge.textContent = state.visualIsImage ? "Still image + audio" : "Mix preview"; preview.appendChild(badge);
+      if (state.audio) {
+        const audio = document.createElement("audio"); audio.id = "combineAudioPreview"; audio.src = state.audioUrl; audio.preload = "auto"; preview.appendChild(audio);
+      }
+    }
     async function setSlot(type, file) {
       if (!file) return;
       const visual = type === "visual";
@@ -1534,6 +1621,9 @@ function clearLastDownload() {
       if (!valid) { showNotification(`Choose ${visual ? "a video or image" : "an audio"} file.`, "error"); return; }
       state[type] = file;
       if (visual) state.visualIsImage = isImageFile(file);
+      const urlKey = visual ? "visualUrl" : "audioUrl";
+      if (state[urlKey]) URL.revokeObjectURL(state[urlKey]);
+      state[urlKey] = URL.createObjectURL(file);
       const durationKey = visual ? "videoDuration" : "audioDuration";
       state[durationKey] = 0;
       if (!visual || !state.visualIsImage) {
@@ -1542,7 +1632,7 @@ function clearLastDownload() {
         catch (_) { state[durationKey] = 0; }
         finally { URL.revokeObjectURL(url); }
       }
-      renderSlot(type);
+      renderPreview(); renderSlot(type);
     }
     function wireSlot(type) {
       const slot = $(`${type}Slot`); const input = $(`${type}Input`);
@@ -1551,14 +1641,17 @@ function clearLastDownload() {
       slot.addEventListener("dragleave", () => slot.classList.remove("dragover"));
       slot.addEventListener("drop", event => { event.preventDefault(); slot.classList.remove("dragover"); setSlot(type, event.dataTransfer.files[0]); });
       $(`${type}Clear`).addEventListener("click", event => {
-        event.preventDefault(); event.stopPropagation(); state[type] = null;
+        event.preventDefault(); event.stopPropagation(); stopPreview(); state[type] = null;
+        const urlKey = type === "visual" ? "visualUrl" : "audioUrl";
+        if (state[urlKey]) URL.revokeObjectURL(state[urlKey]); state[urlKey] = "";
         if (type === "visual") { state.visualIsImage = false; state.videoDuration = 0; }
         else state.audioDuration = 0;
-        renderSlot(type);
+        renderPreview(); renderSlot(type);
       });
     }
     async function combine() {
       if (!state.visual || !state.audio) return;
+      stopPreview();
       btnLoading("combineBtn", "Combining…");
       $("progressSection").classList.add("show"); $("progressFill").classList.add("indeterminate");
       $("progressLabel").textContent = "Combining video and audio…";
@@ -1575,14 +1668,57 @@ function clearLastDownload() {
       }
     }
     wireSlot("visual"); wireSlot("audio");
-    $("combineAlignment").addEventListener("change", updateSettings);
-    $("combineOffset").addEventListener("input", updateSettings);
+    document.querySelectorAll("[data-align]").forEach(button => button.addEventListener("click", () => {
+      if (!state.videoDuration || !state.audioDuration) return;
+      const offset = button.dataset.align === "end" ? Math.max(0, state.videoDuration - state.audioDuration) : 0;
+      $("combineOffset").value = String(offset);
+      document.querySelectorAll("[data-align]").forEach(item => item.classList.toggle("active", item === button));
+      updateSettings();
+    }));
+    $("combineOffset").addEventListener("input", () => {
+      document.querySelectorAll("[data-align]").forEach(item => item.classList.remove("active")); updateSettings();
+    });
+    function seekFromPointer(event) {
+      if (!outputDuration()) return;
+      const rect = $("videoLane").getBoundingClientRect();
+      setPreviewTime((event.clientX - rect.left) / rect.width * outputDuration());
+    }
+    $("videoLane").addEventListener("click", seekFromPointer);
+    $("audioLane").addEventListener("click", event => { if (event.target !== $("audioClip")) seekFromPointer(event); });
+    let draggingAudio = false;
+    function dragAudio(event) {
+      if (!draggingAudio || !state.videoDuration) return;
+      const point = event.touches ? event.touches[0] : event; const rect = $("audioLane").getBoundingClientRect();
+      $("combineOffset").value = String(Math.max(0, Math.min(state.videoDuration, (point.clientX - rect.left) / rect.width * state.videoDuration)));
+      document.querySelectorAll("[data-align]").forEach(item => item.classList.remove("active"));
+      stopPreview(); renderTimeline(); resetOutput(); event.preventDefault();
+    }
+    $("audioClip").addEventListener("pointerdown", event => { draggingAudio = true; $("audioClip").setPointerCapture(event.pointerId); dragAudio(event); });
+    $("audioClip").addEventListener("pointermove", dragAudio);
+    $("audioClip").addEventListener("pointerup", () => { draggingAudio = false; });
+    $("combineSeek").addEventListener("input", event => { stopPreview(); setPreviewTime(event.target.value); });
+    $("combinePlay").addEventListener("click", playPreview);
+    $("previewMixBtn").addEventListener("click", playPreview);
     for (const type of ["video", "audio"]) {
       $(`${type}Volume`).addEventListener("input", event => {
-        $(`${type}VolumeValue`).textContent = `${event.target.value}%`; resetOutput();
+        $(`${type}VolumeValue`).textContent = `${event.target.value}%`;
+        $(`${type}Mute`).classList.toggle("active", event.target.value === "0");
+        const preview = $(type === "video" ? "combineVideoPreview" : "combineAudioPreview");
+        if (preview) preview.volume = Number(event.target.value) / 100;
+        resetOutput();
+      });
+      $(`${type}Mute`).addEventListener("click", () => {
+        const slider = $(`${type}Volume`); const muting = slider.value !== "0";
+        if (muting) state[`previous${type[0].toUpperCase() + type.slice(1)}Volume`] = Number(slider.value) || 100;
+        slider.value = muting ? "0" : String(state[`previous${type[0].toUpperCase() + type.slice(1)}Volume`] || 100);
+        slider.dispatchEvent(new Event("input"));
       });
     }
     $("combineBtn").addEventListener("click", event => { if (!event.currentTarget.classList.contains("btn-done")) combine(); });
+    window.addEventListener("pagehide", () => {
+      stopPreview(); if (state.visualUrl) URL.revokeObjectURL(state.visualUrl); if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
+    });
+    renderPreview();
     updateSettings();
   }
 
