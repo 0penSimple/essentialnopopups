@@ -636,12 +636,76 @@ window.loadFFmpeg = async function() {
     return new Blob([output[outputName].buffer], { type: file.type || _mimeForExt(extension) });
   }
 
+  async function combineVideoAudio(options = {}) {
+    const visual = options.visual;
+    const audio = options.audio;
+    if (!(visual instanceof Blob) || !(audio instanceof Blob)) {
+      throw new TypeError("Choose both a video or image and an audio file.");
+    }
+    const visualIsImage = Boolean(options.visualIsImage) || visual.type.startsWith("image/");
+    const offset = Math.max(0, Number(options.offset) || 0);
+    const videoVolume = Math.max(0, Math.min(2, Number(options.videoVolume ?? 1)));
+    const audioVolume = Math.max(0, Math.min(2, Number(options.audioVolume ?? 1)));
+    const audioExtension = _mediaExtension(audio, "mp3");
+    const audioName = `audio.${audioExtension}`;
+
+    if (visualIsImage) {
+      const imageExtension = _mediaExtension(visual, "png");
+      const imageName = `image.${imageExtension}`;
+      const clip = await _ffExec(
+        ["-loop", "1", "-i", imageName, "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+          "-t", "1", "-r", "25", "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p", "-y", "clip.mp4"],
+        { [imageName]: visual }, ["clip.mp4"]
+      );
+      const output = await _ffExec(
+        ["-stream_loop", "-1", "-i", "clip.mp4", "-i", audioName,
+          "-filter_complex", `[1:a]volume=${audioVolume}[aout]`, "-map", "0:v:0", "-map", "[aout]",
+          "-c:v", "copy", "-c:a", "aac", "-shortest", "-movflags", "+faststart", "-y", "output.mp4"],
+        { "clip.mp4": clip["clip.mp4"], [audioName]: audio }, ["output.mp4"]
+      );
+      return new Blob([output["output.mp4"].buffer], { type: "video/mp4" });
+    }
+
+    const videoExtension = _mediaExtension(visual, "mp4");
+    const videoName = `video.${videoExtension}`;
+    const delayMs = Math.round(offset * 1000);
+    const delayed = delayMs ? `adelay=${delayMs}:all=1,` : "";
+    const mixFilter = `[1:a]${delayed}volume=${audioVolume}[newa];[0:a]volume=${videoVolume}[basea];` +
+      `[basea][newa]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
+    const replacementFilter = `[1:a]${delayed}volume=${audioVolume}[aout]`;
+
+    async function run(filter, reencodeVideo) {
+      const videoCodec = reencodeVideo
+        ? ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p"]
+        : ["-c:v", "copy"];
+      const result = await _ffExec(
+        ["-i", videoName, "-i", audioName, "-filter_complex", filter,
+          "-map", "0:v:0", "-map", "[aout]", ...videoCodec, "-c:a", "aac", "-b:a", "192k",
+          "-shortest", "-movflags", "+faststart", "-y", "output.mp4"],
+        { [videoName]: visual, [audioName]: audio }, ["output.mp4"]
+      );
+      return new Blob([result["output.mp4"].buffer], { type: "video/mp4" });
+    }
+
+    const attempts = [
+      [mixFilter, false], [replacementFilter, false],
+      [mixFilter, true], [replacementFilter, true]
+    ];
+    let lastError;
+    for (const [filter, reencode] of attempts) {
+      try { return await run(filter, reencode); }
+      catch (error) { lastError = error; }
+    }
+    throw lastError || new Error("The video and audio could not be combined.");
+  }
+
   // ── PUBLIC API ──
   const Tools = window.Tools || {};
   Tools.extractAudio = extractAudio;
   Tools.removeAudio = removeAudio;
   Tools.convertMedia = convertMedia;
   Tools.trimMedia = trimMedia;
+  Tools.combineVideoAudio = combineVideoAudio;
 
   window.processFile = async function(file, options) {
     const { op } = options;
@@ -682,7 +746,7 @@ window.loadFFmpeg = async function() {
   // options: { files: [File...], kind: "video"|"audio", outExt: "mp4"|"mp3"...,
   //            onProgress: fn(0..1), onPhase: fn("inspecting"|"fast"|"slow") }
   // Returns { blob, method: "copy"|"reencode" }
-  window.concatFiles = async function(options) {
+  async function mergeMedia(options) {
     const files   = options.files || [];
     const kind    = options.kind  || "video";
     const isVideo = kind === "video";
@@ -738,7 +802,7 @@ window.loadFFmpeg = async function() {
           }
         }
 
-        return { blob, method: "copy" };
+        return { blob, method: "copy", extension: outExt };
       } catch(e) {
         console.warn("[concatFiles] Fast path failed, falling back to re-encode:", e.message);
       }
@@ -756,8 +820,12 @@ window.loadFFmpeg = async function() {
     if (!isVideo && outExt !== "mp3" && outExt !== "m4a") outExt = "mp3";
 
     const blob = await _concatReEncode(files, outExt, isVideo, target, onProgress);
-    return { blob, method: "reencode" };
-  };
+    return { blob, method: "reencode", extension: outExt };
+  }
+
+  Tools.mergeMedia = mergeMedia;
+  window.concatFiles = mergeMedia;
+  window.Tools = Tools;
 
 })();
 
