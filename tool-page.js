@@ -947,8 +947,11 @@ function clearLastDownload() {
    is performed by the lazily loaded media engine behind Tools.*. */
 (function () {
   const VIDEO_EXTENSIONS = /\.(mp4|mov|avi|mkv|webm|flv|wmv|m4v|mpeg|mpg|3gp)$/i;
+  const AUDIO_EXTENSIONS = /\.(mp3|wav|flac|aac|ogg|oga|m4a|wma|opus|webm)$/i;
   const videoAccept = "video/*,.mp4,.mov,.avi,.mkv,.webm,.flv,.wmv,.m4v,.mpeg,.mpg,.3gp";
+  const audioAccept = "audio/*,.mp3,.wav,.flac,.aac,.ogg,.oga,.m4a,.wma,.opus,.webm";
   const isVideoFile = file => file.type.startsWith("video/") || VIDEO_EXTENSIONS.test(file.name);
+  const isAudioFile = file => file.type.startsWith("audio/") || AUDIO_EXTENSIONS.test(file.name);
 
   function mediaPrivacy(subject) {
     return {
@@ -1039,8 +1042,308 @@ function clearLastDownload() {
     });
   }
 
+  function startAudioConverterPage() {
+    createFileConverterPage({
+      page: {
+        title: "Audio converter",
+        category: "Audio",
+        description: "Convert audio to MP3 or WAV with the quality you need.",
+        ...mediaPrivacy("Your audio"),
+        goodToKnow: [
+          "MP3 is compact and widely compatible. WAV is uncompressed and better suited to editing.",
+          "Converting a lossy file to a higher bitrate cannot restore detail that was already removed.",
+          "WebM files are accepted when they contain audio. Any video track is discarded.",
+          "The selected MP3 bitrate controls the quality and output size."
+        ]
+      },
+      input: { label: "Your audio file", icon: "🎵", hint: "MP3, WAV, FLAC, AAC, OGG, M4A, WebM and more" },
+      accept: audioAccept,
+      acceptFile: isAudioFile,
+      invalidFileMessage: "Choose an audio file. Use Extract Audio when the source is a video.",
+      batchAllowed: IS_PREMIUM,
+      batchHint: "Drop multiple audio files at once",
+      formats: [{ label: "Audio formats", options: [
+        { mime: "audio/mpeg", extension: "mp3", label: "MP3", hint: "Smaller and compatible with nearly every player." },
+        { mime: "audio/wav", extension: "wav", label: "WAV", hint: "Uncompressed PCM audio for editing and archiving." }
+      ] }],
+      controls: [{
+        name: "bitrate", label: "MP3 bitrate", formats: ["audio/mpeg"],
+        choices: [
+          { value: "128", label: "128 kbps · smaller", output: 128 },
+          { value: "192", label: "192 kbps · balanced", output: 192, selected: true },
+          { value: "320", label: "320 kbps · highest quality", output: 320 }
+        ],
+        hint: "Higher bitrates retain more detail and create larger MP3 files."
+      }],
+      buttonVerb: "Convert",
+      progressVerb: "Converting",
+      zipName: "converted_audio.zip",
+      scrollAfterUpload: "format",
+      convert: (file, options) => Tools.convertMedia(file, {
+        kind: "audio", format: options.format, bitrate: options.bitrate || 192
+      })
+    });
+  }
+
+  function startVideoConverterPage() {
+    const videoFormats = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"];
+    createFileConverterPage({
+      page: {
+        title: "Video converter",
+        category: "Video",
+        description: "Convert videos to MP4, WebM, MOV, or AVI directly in your browser.",
+        ...mediaPrivacy("Your video"),
+        goodToKnow: [
+          "MP4 offers the broadest compatibility. WebM is well suited to websites and modern browsers.",
+          "MOV works well with Apple editing software. AVI is mainly useful for older applications.",
+          "Video conversion re-encodes the picture, so larger or longer files can take several minutes.",
+          "High quality keeps more visual detail and produces a larger file."
+        ]
+      },
+      input: { label: "Your video file", icon: "🎬", hint: "MP4, MOV, AVI, MKV, WebM and more" },
+      accept: videoAccept,
+      acceptPrefix: "video/",
+      acceptFile: isVideoFile,
+      invalidFileMessage: "Choose a video file to convert.",
+      batchAllowed: IS_PREMIUM,
+      batchHint: "Drop multiple video files at once",
+      formats: [{ label: "Video formats", options: [
+        { mime: "video/mp4", extension: "mp4", label: "MP4", hint: "H.264 video for the widest device and platform support." },
+        { mime: "video/webm", extension: "webm", label: "WebM", hint: "VP9 video designed for modern browsers and the web." },
+        { mime: "video/quicktime", extension: "mov", label: "MOV", hint: "H.264 video in an Apple friendly container." },
+        { mime: "video/x-msvideo", extension: "avi", label: "AVI", hint: "A legacy container for older Windows software." }
+      ] }],
+      controls: [{
+        name: "quality", label: "Video quality", formats: videoFormats,
+        choices: [
+          { value: "high", label: "High quality · larger file", output: "high" },
+          { value: "medium", label: "Balanced", output: "medium", selected: true },
+          { value: "low", label: "Smaller file", output: "low" }
+        ],
+        hint: "Quality controls video compression. Audio is encoded at a compatible standard bitrate."
+      }],
+      buttonVerb: "Convert",
+      progressVerb: "Converting",
+      zipName: "converted_videos.zip",
+      scrollAfterUpload: "format",
+      convert: (file, options) => Tools.convertMedia(file, {
+        kind: "video", format: options.format, quality: options.quality || "medium"
+      })
+    });
+  }
+
+  function formatTrimTime(seconds) {
+    const safe = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    const secs = (safe % 60).toFixed(2).padStart(5, "0");
+    return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${secs}` : `${minutes}:${secs}`;
+  }
+
+  function parseTrimTime(value) {
+    const parts = String(value).trim().split(":");
+    if (!parts.length || parts.length > 3 || parts.some(part => !/^\d+(?:\.\d+)?$/.test(part))) return null;
+    const numbers = parts.map(Number);
+    if (numbers.some(number => !Number.isFinite(number))) return null;
+    if (numbers.length === 3) return numbers[0] * 3600 + numbers[1] * 60 + numbers[2];
+    if (numbers.length === 2) return numbers[0] * 60 + numbers[1];
+    return numbers[0];
+  }
+
+  function readMediaDuration(file, kind, url) {
+    return new Promise((resolve, reject) => {
+      const media = document.createElement(kind);
+      const timer = setTimeout(() => finish(new Error("The file took too long to read.")), 15000);
+      function finish(error, duration) {
+        clearTimeout(timer);
+        media.removeAttribute("src");
+        media.load();
+        error ? reject(error) : resolve(duration);
+      }
+      media.preload = "metadata";
+      media.onloadedmetadata = () => {
+        const duration = media.duration;
+        if (!Number.isFinite(duration) || duration <= 0) finish(new Error("The browser could not read this file's duration."));
+        else finish(null, duration);
+      };
+      media.onerror = () => finish(new Error(`The browser could not preview ${file.name}.`));
+      media.src = url;
+    });
+  }
+
+  function startTrimMediaPage(kind) {
+    const isVideo = kind === "video";
+    const title = isVideo ? "Trim video" : "Trim audio";
+    const accept = isVideo ? videoAccept : audioAccept;
+    const acceptFile = isVideo ? isVideoFile : isAudioFile;
+    const icon = isVideo ? "🎬" : "🎵";
+    const files = [];
+    const $ = id => document.getElementById(id);
+
+    renderToolPage({
+      title,
+      category: isVideo ? "Video" : "Audio",
+      description: `Choose the exact part of ${isVideo ? "a video" : "an audio"} file you want to keep, preview it, and download the result.`,
+      input: { type: "file", label: `Your ${kind} file`, icon: "✂", accept,
+        hint: isVideo ? "MP4, MOV, AVI, MKV, WebM and more" : "MP3, WAV, FLAC, AAC, OGG, M4A and more" },
+      workspaceHtml: `
+        <section class="trim-files" id="trimFiles" data-tool-section="timeline" hidden></section>
+        <div class="trim-add-more" id="trimAddMore" hidden><label class="btn-add-more">+ Add more files
+          <input id="trimAddInput" type="file" accept="${accept}" multiple></label></div>`,
+      resultHtml: `
+        <section class="progress-section" id="progressSection" aria-live="polite"><div class="progress-label">
+          <span id="progressLabel">Trimming…</span><span id="progressPct">0%</span></div>
+          <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div></section>
+        <button class="btn-primary" id="trimBtn" disabled>Trim &amp; download — 0/1</button>`,
+      ...mediaPrivacy(isVideo ? "Your video" : "Your audio"),
+      goodToKnow: [
+        "Trimming copies the original media streams without re-encoding, preserving their existing quality.",
+        isVideo ? "Video cuts occur near encoded keyframes, so the saved start can differ slightly from the selected time." : "Audio cuts follow encoded packet boundaries, so the saved edge can differ by a tiny fraction of a second.",
+        "Use the sliders, enter a time such as 1:23.50, or set an edge from the preview's current position.",
+        "Preview selection plays only the range currently selected on the timeline."
+      ]
+    });
+
+    function minimumGap(item) { return Math.min(0.05, item.duration); }
+    function resetOutput() {
+      clearLastDownload();
+      $("progressSection").classList.remove("show");
+      $("trimBtn").classList.remove("btn-done");
+      $("trimBtn").disabled = !files.length;
+      $("trimBtn").textContent = `Trim & download — 0/${files.length || 1}`;
+    }
+    function updateItem(item, card) {
+      const gap = minimumGap(item);
+      item.start = Math.max(0, Math.min(item.start, item.end - gap));
+      item.end = Math.min(item.duration, Math.max(item.end, item.start + gap));
+      const startRange = card.querySelector('[data-trim="start-range"]');
+      const endRange = card.querySelector('[data-trim="end-range"]');
+      startRange.max = endRange.max = String(item.duration);
+      startRange.value = String(item.start);
+      endRange.value = String(item.end);
+      card.querySelector('[data-trim="start-time"]').value = formatTrimTime(item.start);
+      card.querySelector('[data-trim="end-time"]').value = formatTrimTime(item.end);
+      card.querySelector('[data-trim="selection"]').textContent = formatTrimTime(item.end - item.start);
+      resetOutput();
+    }
+    function render() {
+      const list = $("trimFiles");
+      list.replaceChildren();
+      files.forEach((item, index) => {
+        const card = document.createElement("article");
+        card.className = "trim-file";
+        card.innerHTML = `<div class="trim-file-header"><span class="trim-file-icon" aria-hidden="true">${icon}</span>
+          <div class="trim-file-info"><div class="trim-file-name"></div><div class="trim-file-meta"></div></div>
+          <button class="trim-file-remove" type="button" aria-label="Remove file">×</button></div>
+          <div data-trim="preview"></div>
+          <div class="trim-range-row"><label>Start</label><input data-trim="start-range" type="range" min="0" step="0.01">
+            <input data-trim="start-time" class="trim-time-input" aria-label="Start time"></div>
+          <div class="trim-range-row"><label>End</label><input data-trim="end-range" type="range" min="0" step="0.01">
+            <input data-trim="end-time" class="trim-time-input" aria-label="End time"></div>
+          <div class="trim-summary"><span><strong data-trim="selection"></strong> selected</span><div class="trim-actions">
+            <button data-trim="set-start" type="button">Set start here</button><button data-trim="set-end" type="button">Set end here</button>
+            <button data-trim="play" type="button">Preview selection</button></div></div>`;
+        card.querySelector(".trim-file-name").textContent = item.file.name;
+        card.querySelector(".trim-file-meta").textContent = `${formatBytes(item.file.size)} · ${formatTrimTime(item.duration)}`;
+        const media = document.createElement(kind);
+        media.className = "trim-preview";
+        media.controls = true;
+        media.preload = "metadata";
+        media.src = item.url;
+        if (isVideo) media.playsInline = true;
+        card.querySelector('[data-trim="preview"]').appendChild(media);
+        card.querySelector(".trim-file-remove").addEventListener("click", () => {
+          media.pause(); URL.revokeObjectURL(item.url); files.splice(index, 1); render();
+        });
+        const changeRange = edge => event => {
+          item[edge] = Number(event.target.value); updateItem(item, card);
+        };
+        card.querySelector('[data-trim="start-range"]').addEventListener("input", changeRange("start"));
+        card.querySelector('[data-trim="end-range"]').addEventListener("input", changeRange("end"));
+        for (const edge of ["start", "end"]) {
+          const input = card.querySelector(`[data-trim="${edge}-time"]`);
+          const commitTime = () => {
+            const value = parseTrimTime(input.value);
+            if (value === null) showNotification("Enter time as seconds, M:SS, or H:MM:SS.", "error");
+            else item[edge] = value;
+            updateItem(item, card);
+          };
+          input.addEventListener("change", commitTime);
+          input.addEventListener("blur", commitTime);
+          input.addEventListener("keydown", event => { if (event.key === "Enter") { commitTime(); input.blur(); } });
+        }
+        card.querySelector('[data-trim="set-start"]').addEventListener("click", () => {
+          item.start = Math.min(media.currentTime, item.end - minimumGap(item)); updateItem(item, card);
+        });
+        card.querySelector('[data-trim="set-end"]').addEventListener("click", () => {
+          item.end = Math.max(media.currentTime, item.start + minimumGap(item)); updateItem(item, card);
+        });
+        card.querySelector('[data-trim="play"]').addEventListener("click", async () => {
+          media.currentTime = item.start;
+          const stopAtEnd = () => { if (media.currentTime >= item.end) { media.pause(); media.removeEventListener("timeupdate", stopAtEnd); } };
+          media.addEventListener("timeupdate", stopAtEnd);
+          try { await media.play(); } catch (_) {}
+        });
+        updateItem(item, card);
+        list.appendChild(card);
+      });
+      list.hidden = !files.length;
+      resetOutput();
+    }
+    async function addFiles(selected, append = false) {
+      const accepted = Array.from(selected).filter(acceptFile);
+      if (accepted.length !== selected.length) showNotification(`Choose ${kind} files only.`, "error");
+      if (!accepted.length) return;
+      if (!append) {
+        files.forEach(item => URL.revokeObjectURL(item.url));
+        files.length = 0;
+      }
+      for (const file of accepted) {
+        const url = URL.createObjectURL(file);
+        try {
+          const duration = await readMediaDuration(file, kind, url);
+          files.push({ file, url, duration, start: 0, end: duration });
+        } catch (error) {
+          URL.revokeObjectURL(url);
+          showNotification(`${file.name}: ${error.message}`, "error");
+        }
+      }
+      render();
+      if (files.length) requestAnimationFrame(() => scrollToToolSection("timeline"));
+    }
+    async function trimAll() {
+      if (!files.length) return;
+      const items = files.slice();
+      const batch = new BatchProcessor({
+        items, btnId: "trimBtn", btnLabel: "Trim", zipName: `trimmed_${kind}.zip`,
+        processOne: async (item, index) => {
+          $("progressLabel").textContent = `Trimming ${index + 1}/${items.length}: ${item.file.name}`;
+          const data = await Tools.trimMedia(item.file, { start: item.start, end: item.end });
+          const extension = item.file.name.match(/\.([a-z0-9]{2,5})$/i)?.[1]?.toLowerCase() || (isVideo ? "mp4" : "mp3");
+          return { filename: `${item.file.name.replace(/\.[^.]+$/, "")}_trimmed.${extension}`, data };
+        }
+      });
+      await batch.run();
+    }
+
+    makeDropZone($("dropZone"), { accept: "", multiple: IS_PREMIUM, maxFree: 1, onFiles: selected => addFiles(selected) });
+    if (IS_PREMIUM) {
+      $("trimAddMore").hidden = false;
+      $("trimAddInput").addEventListener("change", event => { addFiles(event.target.files, true); event.target.value = ""; });
+    }
+    $("trimBtn").addEventListener("click", event => { if (!event.currentTarget.classList.contains("btn-done")) trimAll(); });
+    window.addEventListener("pagehide", () => files.forEach(item => URL.revokeObjectURL(item.url)));
+  }
+
+  function startTrimAudioPage() { startTrimMediaPage("audio"); }
+  function startTrimVideoPage() { startTrimMediaPage("video"); }
+
   window.startExtractAudioPage = startExtractAudioPage;
   window.startRemoveAudioPage = startRemoveAudioPage;
+  window.startAudioConverterPage = startAudioConverterPage;
+  window.startVideoConverterPage = startVideoConverterPage;
+  window.startTrimAudioPage = startTrimAudioPage;
+  window.startTrimVideoPage = startTrimVideoPage;
 })();
 
 /* Images to animation controls. Processing lives behind the Tools API. */
