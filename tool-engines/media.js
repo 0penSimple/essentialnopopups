@@ -636,6 +636,98 @@ window.loadFFmpeg = async function() {
     return new Blob([output[outputName].buffer], { type: file.type || _mimeForExt(extension) });
   }
 
+  async function _combineImageAudioSparse(image, audio) {
+    if (typeof createImageBitmap !== "function" || typeof VideoEncoder === "undefined") {
+      throw new Error("Hardware media encoding is unavailable.");
+    }
+    // Composable conversions were added after the version used by the legacy
+    // media router. Keep this self-contained path on the newer stable API.
+    const MB_CDN = "https://cdn.jsdelivr.net/npm/mediabunny@1.56.3/+esm";
+    const mb = await import(MB_CDN);
+    const {
+      Input, Output, Conversion, ALL_FORMATS, BlobSource, BufferTarget,
+      Mp4OutputFormat, VideoSampleSource, VideoSample, canEncodeVideo, canEncodeAudio
+    } = mb;
+    if (!(await canEncodeVideo("avc")) || !(await canEncodeAudio("aac"))) {
+      throw new Error("This browser cannot create a compatible MP4 with WebCodecs.");
+    }
+
+    const input = new Input({ source: new BlobSource(audio), formats: ALL_FORMATS });
+    const duration = await input.computeDuration();
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error("The audio duration could not be read.");
+
+    let bitmap;
+    let sample;
+    let output;
+    try {
+      bitmap = await createImageBitmap(image);
+      const scale = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height));
+      const width = Math.max(2, Math.round(bitmap.width * scale / 2) * 2);
+      const height = Math.max(2, Math.round(bitmap.height * scale / 2) * 2);
+      const canvas = typeof OffscreenCanvas !== "undefined"
+        ? new OffscreenCanvas(width, height)
+        : Object.assign(document.createElement("canvas"), { width, height });
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) throw new Error("The image could not be prepared for video encoding.");
+      context.fillStyle = "#000";
+      context.fillRect(0, 0, width, height);
+      context.drawImage(bitmap, 0, 0, width, height);
+
+      const target = new BufferTarget();
+      output = new Output({ format: new Mp4OutputFormat(), target });
+      const videoSource = new VideoSampleSource({ codec: "avc", bitrate: 1500000 });
+      output.addVideoTrack(videoSource);
+      const conversion = await Conversion.init({
+        input, output, composable: true, showWarnings: false,
+        video: { discard: true },
+        audio: { codec: "aac", bitrate: 192000 }
+      });
+      if (!conversion.isValid) {
+        throw new Error(conversion.discardedTracks.map(track => track.reason).join(", ") || "The audio track is unsupported.");
+      }
+
+      await output.start();
+      sample = new VideoSample(canvas, { timestamp: 0, duration });
+      await videoSource.add(sample, { keyFrame: true });
+      sample.close(); sample = null;
+      videoSource.close();
+      await conversion.execute();
+      await output.finalize();
+      if (!target.buffer || target.buffer.byteLength === 0) throw new Error("The browser created an empty MP4.");
+      return new Blob([target.buffer], { type: "video/mp4" });
+    } catch (error) {
+      if (output && output.state !== "finalized" && output.state !== "canceled") {
+        try { await output.cancel(); } catch (_) {}
+      }
+      throw error;
+    } finally {
+      if (sample) sample.close();
+      if (bitmap) bitmap.close();
+      if (typeof input.dispose === "function") input.dispose();
+    }
+  }
+
+  async function _combineImageAudioFallback(image, audio, audioVolume) {
+    const imageExtension = _mediaExtension(image, "png");
+    const audioExtension = _mediaExtension(audio, "mp3");
+    const imageName = `image.${imageExtension}`;
+    const audioName = `audio.${audioExtension}`;
+    const duration = await _readFileDuration(audio);
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error("The audio duration could not be read.");
+    const output = await _ffExec(
+      ["-loop", "1", "-framerate", "1", "-i", imageName, "-i", audioName,
+        "-filter_complex", `[1:a]volume=${audioVolume}[aout]`,
+        "-map", "0:v:0", "-map", "[aout]",
+        "-vf", "scale='if(gt(iw,ih),min(1920,iw),-2)':'if(gt(iw,ih),-2,min(1920,ih))'",
+        "-c:v", "libx264", "-preset", "ultrafast",
+        "-tune", "stillimage", "-crf", "23", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k", "-t", duration.toFixed(3), "-shortest",
+        "-movflags", "+faststart", "-y", "output.mp4"],
+      { [imageName]: image, [audioName]: audio }, ["output.mp4"]
+    );
+    return new Blob([output["output.mp4"].buffer], { type: "video/mp4" });
+  }
+
   async function combineVideoAudio(options = {}) {
     const visual = options.visual;
     const audio = options.audio;
@@ -646,26 +738,16 @@ window.loadFFmpeg = async function() {
     const offset = Math.max(0, Number(options.offset) || 0);
     const videoVolume = Math.max(0, Math.min(2, Number(options.videoVolume ?? 1)));
     const audioVolume = Math.max(0, Math.min(2, Number(options.audioVolume ?? 1)));
-    const audioExtension = _mediaExtension(audio, "mp3");
-    const audioName = `audio.${audioExtension}`;
-
     if (visualIsImage) {
-      const imageExtension = _mediaExtension(visual, "png");
-      const imageName = `image.${imageExtension}`;
-      const clip = await _ffExec(
-        ["-loop", "1", "-i", imageName, "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-          "-t", "1", "-r", "25", "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p", "-y", "clip.mp4"],
-        { [imageName]: visual }, ["clip.mp4"]
-      );
-      const output = await _ffExec(
-        ["-stream_loop", "-1", "-i", "clip.mp4", "-i", audioName,
-          "-filter_complex", `[1:a]volume=${audioVolume}[aout]`, "-map", "0:v:0", "-map", "[aout]",
-          "-c:v", "copy", "-c:a", "aac", "-shortest", "-movflags", "+faststart", "-y", "output.mp4"],
-        { "clip.mp4": clip["clip.mp4"], [audioName]: audio }, ["output.mp4"]
-      );
-      return new Blob([output["output.mp4"].buffer], { type: "video/mp4" });
+      if (Math.abs(audioVolume - 1) < .001) {
+        try { return await _combineImageAudioSparse(visual, audio); }
+        catch (error) { console.warn("Sparse image/video encoding unavailable; using FFmpeg fallback:", error.message); }
+      }
+      return _combineImageAudioFallback(visual, audio, audioVolume);
     }
 
+    const audioExtension = _mediaExtension(audio, "mp3");
+    const audioName = `audio.${audioExtension}`;
     const videoExtension = _mediaExtension(visual, "mp4");
     const videoName = `video.${videoExtension}`;
     const delayMs = Math.round(offset * 1000);
