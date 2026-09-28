@@ -1521,7 +1521,7 @@ function clearLastDownload() {
     function stopPreview() {
       state.playing = false; cancelAnimationFrame(state.raf); clearTimeout(state.previewTimer);
       const video = $("combineVideoPreview"); const audio = $("combineAudioPreview");
-      if (video) video.pause(); if (audio) audio.pause();
+      if (video && typeof video.pause === "function") video.pause(); if (audio) audio.pause();
       $("combinePlay").textContent = "▶"; $("combinePlay").setAttribute("aria-label", "Play preview");
       $("previewMixBtn").textContent = "Preview mix";
     }

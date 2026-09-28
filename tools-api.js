@@ -12,7 +12,7 @@
     : new URL("./", document.baseURI).href;
   // Increment when an engine contract changes. The query keeps browsers and
   // CDNs from pairing a newer API facade with a stale private engine file.
-  const engineVersion = "2026-09-27.5";
+  const engineVersion = "2026-09-28.3";
   const engineLoads = new Map();
 
   const catalog = Object.freeze({
