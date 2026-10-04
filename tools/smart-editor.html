@@ -841,6 +841,15 @@ body.mobile-edit-mode .cmdk-backdrop { z-index: 1100; }
 #ambienceMenu .ambience-row { max-width: 360px; }
 #ambienceMenu .ambience-row label { text-transform: none; letter-spacing: normal; }
 button.outline-item { display: block; width: 100%; border: 0; background: transparent; font: inherit; text-align: start; }
+
+::highlight(smart-audit-passive) { background-color: rgba(155,89,182,.20); text-decoration: underline dotted #8e44ad; }
+::highlight(smart-audit-filler) { background-color: rgba(241,196,15,.24); text-decoration: underline dashed #b67708; }
+::highlight(smart-audit-repeat) { background-color: rgba(231,76,60,.18); text-decoration: underline dotted #c0392b; }
+#auditPanel { padding: 12px 16px; background: var(--warm-bg); border: 1px solid var(--border); font-size: .78rem; }
+#auditPanel[hidden] { display: none !important; }
+#auditList { max-height: 150px; overflow-y: auto; margin-top: 8px; }
+.audit-finding { display: block; width: 100%; text-align: start; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); padding: 6px 0; font: inherit; cursor: pointer; }
+.audit-finding:hover { color: var(--teal); }
 </style>
 </head>
 <body>
@@ -854,7 +863,7 @@ button.outline-item { display: block; width: 100%; border: 0; background: transp
       autocomplete="off" spellcheck="false"
       oninput="cmdkOnInput()" onkeydown="cmdkOnKeydown(event)">
     <div class="cmdk-results" id="cmdkResults"></div>
-    <div class="cmdk-hint">↑↓ to navigate · Tab/Enter to pick · Backspace/Esc to go back</div>
+    <div class="cmdk-hint">↑↓ to navigate · Tab/Enter to pick · Esc to close</div>
   </div>
 </div>
 
@@ -1049,7 +1058,7 @@ button.outline-item { display: block; width: 100%; border: 0; background: transp
       <button class="toolbar-btn" id="findBarBtn" data-action-id="find" onclick="toggleFindBar()" title="Find & Replace (⌘F)">🔍</button>
       <button class="toolbar-btn" id="outlineBtn" data-action-id="outline" onclick="toggleOutlineDrawer()" title="Document Outline (TOC)">📑</button>
       <button class="toolbar-btn" id="historyBtn" data-action-id="history" onclick="toggleHistoryDrawer()" title="Version History & Snapshots">🕒</button>
-      <button class="toolbar-btn" id="auditBtn" data-action-id="audit" onclick="toggleStyleAudit()" title="Style & Grammar Audit">✨ Audit</button>
+      <button class="toolbar-btn" id="auditBtn" data-action-id="audit" onclick="toggleStyleAudit()" title="English style hints: possible passive voice, wordiness, repeated words">✨ Audit</button>
 
       <!-- Ambience & Soundscapes -->
       <button type="button" class="toolbar-btn" id="ambienceBtn" data-action-id="ambience" onclick="toggleAmbienceDrawer()" aria-controls="ambienceMenu" aria-expanded="false" title="Open sound controls; click again to stop audio" aria-pressed="false">🎧 Sound</button>
@@ -1158,6 +1167,11 @@ button.outline-item { display: block; width: 100%; border: 0; background: transp
             <input type="range" min="0" max="1" step="0.01" value="0.22" style="accent-color:var(--teal);width:100px;" oninput="setAmbientVolume(this.value)">
           </div>
         </div>
+
+    <section id="auditPanel" hidden aria-label="English style audit">
+      <div style="display:flex;justify-content:space-between;gap:10px;"><strong id="auditSummary">English style hints</strong><button type="button" class="find-btn" onclick="toggleStyleAudit()">Close audit</button></div>
+      <div id="auditList"></div>
+    </section>
 
     <!-- OUTLINE DRAWER -->
     <div class="outline-drawer" id="outlineDrawer"></div>
@@ -1289,7 +1303,7 @@ button.outline-item { display: block; width: 100%; border: 0; background: transp
     <ul class="info-list">
       <li>Your work is <strong>auto-saved in your browser</strong> locally every 2 seconds.</li>
       <li>Click <strong>🕒 Version History</strong> to view point-in-time snapshots or create manual restore points.</li>
-      <li>Toggle <strong>✨ Audit</strong> to highlight passive voice constructions (violet) and filler phrases (yellow).</li>
+      <li>Toggle <strong>✨ Audit</strong> for English style hints: possible passive voice (violet), wordiness (yellow), and repeated words (red). Click a hint to locate it. These rules are suggestions, not a complete grammar check.</li>
       <li>Turn on <strong>🎧 Sound</strong> for ambient background audio (rain, brown noise, warm room tone) and soft typing taps. Click Sound again or Stop all to silence everything.</li>
     </ul>
   </div>
@@ -1888,66 +1902,128 @@ function renderHistoryDrawer() {
 /* ================================================================
    STYLE & GRAMMAR AUDIT
    ================================================================ */
+let auditTimer = null;
+let writerIsComposing = false;
+let auditFindings = [];
+
 function toggleStyleAudit() {
   state.styleAuditMode = !state.styleAuditMode;
   document.getElementById('auditBtn').classList.toggle('active', state.styleAuditMode);
-  applyInspectionOverlays();
-  if (state.styleAuditMode) {
-    showNotification('Style Audit active: Violet = Passive Voice, Yellow = Filler Words', 'info');
-  }
+  document.getElementById('auditPanel').hidden = !state.styleAuditMode;
+  clearTimeout(auditTimer);
+  refreshStyleAudit();
 }
 
-function applyStyleAuditOverlays(area) {
-  if (!state.styleAuditMode) return;
+function scheduleStyleAudit() {
+  clearTimeout(auditTimer);
+  if (writerIsComposing) return;
+  auditTimer = setTimeout(refreshStyleAudit, 300);
+}
 
-  const passiveRegex = /\b(am|is|are|was|were|be|been|being)\s+([a-z]+(?:ed|en|t)|known|made|done|seen|given|taken|written|found|built|driven|chosen|bought|brought)\b/gi;
-  const fillerRegex = /\b(very|really|actually|basically|literally|simply|just|in order to|at the end of the day|due to the fact that|at this point in time|as a matter of fact|needless to say)\b/gi;
+function findAuditMatches(text) {
+  const findings = [];
+  const phrases = {
+    'in order to': 'Consider “to”.', 'due to the fact that': 'Consider “because”.',
+    'at this point in time': 'Consider “now”.', 'at the end of the day': 'Consider a more specific conclusion.',
+    'as a matter of fact': 'Often removable.', 'needless to say': 'Often removable.',
+    'for the purpose of': 'Consider “to” or “for”.', 'in the event that': 'Consider “if”.',
+    'in spite of the fact that': 'Consider “although”.', 'a large number of': 'Consider “many”.',
+    'on a daily basis': 'Consider “daily”.', 'very': 'Consider a more precise word.',
+    'really': 'Check whether this adds meaning.', 'actually': 'Keep if the contrast matters.',
+    'basically': 'Often removable.', 'literally': 'Check whether you mean this literally.',
+    'simply': 'Check whether this adds meaning.', 'just': 'Keep if its meaning is needed.',
+  };
+  const filler = /\b(in spite of the fact that|due to the fact that|at this point in time|at the end of the day|as a matter of fact|for the purpose of|in the event that|a large number of|on a daily basis|needless to say|in order to|very|really|actually|basically|literally|simply|just)\b/gi;
+  const passive = /\b(?:am|is|are|was|were|be|been|being|get|gets|got|getting)\s+(?:(?:not|never|often|usually|sometimes|already|still|also|just|really|very|well|[a-z]+ly)\s+){0,3}(?:(?:being|been)\s+)?(?:(?:not|well|[a-z]+ly)\s+){0,2}(?:[a-z]{2,}ed|known|made|done|seen|given|taken|written|found|built|driven|chosen|bought|brought|broken|caught|taught|sold|paid|lost|sent|told|understood|held|kept|hit|hurt|left|read|set|fed|struck|shown|eaten|stolen|forgotten|worn)\b/gi;
+  const repeated = /\b([a-z]+)(\s+)\1\b/gi;
+  let match;
+  while ((match = filler.exec(text))) findings.push({start:match.index,end:match.index+match[0].length,type:'filler',message:phrases[match[0].toLowerCase()]});
+  while ((match = passive.exec(text))) {
+    const word = match[0].split(/\s+/).at(-1).toLowerCase();
+    if (['indeed','need','tired','bored','excited','worried','pleased','interested'].includes(word) && !/^\s+by\b/i.test(text.slice(match.index+match[0].length))) continue;
+    findings.push({start:match.index,end:match.index+match[0].length,type:'passive',message:'Possible passive voice. Consider naming who performs the action; keep it if the emphasis is intentional.'});
+  }
+  while ((match = repeated.exec(text))) findings.push({start:match.index,end:match.index+match[0].length,type:'repeat',message:'Possible repeated word. Check whether the repetition is intentional.'});
+  return findings.sort((a,b)=>a.start-b.start || b.end-a.end);
+}
 
-  const treeWalker = document.createTreeWalker(area, NodeFilter.SHOW_TEXT, null, false);
-  const textNodes = [];
+function auditTextGroups(area) {
+  const groups = new Map();
+  const walker = document.createTreeWalker(area, NodeFilter.SHOW_TEXT);
   let node;
-  while ((node = treeWalker.nextNode())) {
-    if (node.parentElement && !['H1','H2','H3','H4','SCRIPT','STYLE'].includes(node.parentElement.tagName)) {
-      textNodes.push(node);
+  while ((node = walker.nextNode())) {
+    if (node.parentElement.closest('script,style,[contenteditable="false"]')) continue;
+    const block = node.parentElement.closest('p,li,h1,h2,h3,h4,h5,h6,blockquote,div') || area;
+    if (!groups.has(block)) groups.set(block, {text:'',map:[]});
+    const group = groups.get(block);
+    // Preserve explicit line breaks as boundaries instead of joining words.
+    if (group.map.length) {
+      const between = document.createRange();
+      const previous = group.map.at(-1).node;
+      between.setStartAfter(previous); between.setEndBefore(node);
+      if (between.cloneContents().querySelector('br')) group.text += '\n';
+    }
+    const start = group.text.length;
+    group.text += node.textContent;
+    group.map.push({node,start,end:group.text.length});
+  }
+  return [...groups.values()];
+}
+
+function refreshStyleAudit() {
+  const supportsHighlights = !!(window.CSS && CSS.highlights && window.Highlight);
+  if (supportsHighlights) ['passive','filler','repeat'].forEach(type => CSS.highlights.delete('smart-audit-'+type));
+  const panel = document.getElementById('auditPanel');
+  const list = document.getElementById('auditList');
+  list.replaceChildren(); auditFindings = [];
+  if (!state.styleAuditMode || writerIsComposing) return;
+  const ranges = {passive:[],filler:[],repeat:[]};
+  for (const group of auditTextGroups(document.getElementById('writerArea'))) {
+    for (const finding of findAuditMatches(group.text)) {
+      const start = focusCharToPoint(group.map, finding.start);
+      const end = focusCharToPoint(group.map, finding.end);
+      if (!start || !end) continue;
+      const range = document.createRange();
+      range.setStart(start.node,start.offset); range.setEnd(end.node,end.offset);
+      ranges[finding.type].push(range);
+      auditFindings.push({...finding,range,text:group.text.slice(finding.start,finding.end)});
     }
   }
-
-  textNodes.forEach(tNode => {
-    const txt = tNode.textContent;
-    if (!txt.trim()) return;
-
-    const matches = [];
-    let match;
-
-    while ((match = passiveRegex.exec(txt)) !== null) {
-      matches.push({ start: match.index, end: match.index + match[0].length, type: 'passive' });
-    }
-    while ((match = fillerRegex.exec(txt)) !== null) {
-      matches.push({ start: match.index, end: match.index + match[0].length, type: 'filler' });
-    }
-
-    matches.sort((a, b) => b.start - a.start);
-
-    matches.forEach(m => {
-      try {
-        const range = document.createRange();
-        range.setStart(tNode, m.start);
-        range.setEnd(tNode, m.end);
-
-        const span = document.createElement('span');
-        span.className = m.type === 'passive' ? 'fx-passive' : 'fx-filler';
-        span.title = m.type === 'passive' ? 'Passive Voice' : 'Filler Word / Cliché';
-        span.appendChild(range.extractContents());
-        range.insertNode(span);
-      } catch(e) {}
+  if (supportsHighlights) for (const type of Object.keys(ranges)) CSS.highlights.set('smart-audit-'+type, new Highlight(...ranges[type]));
+  document.getElementById('auditSummary').textContent = auditFindings.length + ' style hint' + (auditFindings.length === 1 ? '' : 's') + ' · English · violet: possible passive; yellow: wordiness; red: repetition.';
+  if (!auditFindings.length) {
+    const empty = document.createElement('div');
+    empty.textContent = 'No matches for these rules. This does not mean the text has no grammar or style issues.';
+    list.appendChild(empty);
+  }
+  for (const finding of auditFindings) {
+    const item = document.createElement('button'); item.type = 'button'; item.className = 'audit-finding';
+    item.textContent = finding.text + ' — ' + finding.message;
+    item.addEventListener('click', () => {
+      const area = document.getElementById('writerArea');
+      if (!area.contains(finding.range.startContainer)) { refreshStyleAudit(); return; }
+      area.focus();
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(finding.range.cloneRange());
+      finding.range.startContainer.parentElement.scrollIntoView({behavior:'smooth',block:'center'});
     });
-  });
+    list.appendChild(item);
+  }
+  panel.hidden = false;
 }
+
+// Retain the old entry point for other inspection modes; never wrap audit text.
+function applyStyleAuditOverlays() { scheduleStyleAudit(); }
 
 /* ================================================================
    ACTIONS & COMMAND PALETTE
    ================================================================ */
 const ACTIONS = [
+  { id: 'paragraph', label: 'Paragraph', keywords: 'normal body text', group: 'Format', run: () => applyHeading('div') },
+  { id: 'title', label: 'Title', keywords: 'h1 heading', group: 'Format', run: () => applyHeading('title') },
+  { id: 'heading1', label: 'Heading 1', keywords: 'h2 section', group: 'Format', run: () => applyHeading('h2') },
+  { id: 'heading2', label: 'Heading 2', keywords: 'h3 subsection', group: 'Format', run: () => applyHeading('h3') },
+  { id: 'heading3', label: 'Heading 3', keywords: 'h4 subsection', group: 'Format', run: () => applyHeading('h4') },
+  { id: 'fullpage', label: 'Toggle Full Page', keywords: 'expand fullscreen', group: 'View', run: () => toggleFullPage() },
   { id: 'bold', label: 'Bold', keywords: 'b strong', group: 'Format', run: () => fmt('bold') },
   { id: 'italic', label: 'Italic', keywords: 'i em', group: 'Format', run: () => fmt('italic') },
   { id: 'underline', label: 'Underline', keywords: 'u', group: 'Format', run: () => fmt('underline') },
@@ -1965,6 +2041,119 @@ const ACTIONS = [
 ];
 
 function getAction(id) { return ACTIONS.find(a => a.id === id); }
+
+let savedWriterRange = null;
+const paletteState = {matches:[],index:0,previousFocus:null};
+
+function rememberWriterSelection() {
+  const area = document.getElementById('writerArea');
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  if (area.contains(range.startContainer) && area.contains(range.endContainer)) savedWriterRange = range.cloneRange();
+}
+
+function restoreWriterSelection() {
+  const area = document.getElementById('writerArea');
+  area.focus();
+  if (savedWriterRange && area.contains(savedWriterRange.startContainer) && area.contains(savedWriterRange.endContainer)) {
+    const selection = window.getSelection();
+    selection.removeAllRanges(); selection.addRange(savedWriterRange.cloneRange());
+  }
+}
+
+function syncParagraphSelector() {
+  const select = document.getElementById('headingSelect');
+  // Do not change the chosen value while a native dropdown is being used.
+  if (document.activeElement === select) return;
+  const area = document.getElementById('writerArea');
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount || !area.contains(selection.focusNode)) return;
+  let node = selection.focusNode.nodeType === 1 ? selection.focusNode : selection.focusNode.parentElement;
+  let value = 'div';
+  while (node && node !== area) {
+    const tag = node.tagName.toLowerCase();
+    if (tag === 'h1') { value = 'title'; break; }
+    if (['h2','h3','h4'].includes(tag)) { value = tag; break; }
+    if (['p','div','li','blockquote'].includes(tag)) break;
+    node = node.parentElement;
+  }
+  select.value = value;
+}
+
+document.addEventListener('selectionchange', () => {
+  rememberWriterSelection(); syncParagraphSelector();
+});
+
+function openCommandPalette() {
+  if (document.getElementById('cmdkBackdrop').classList.contains('show')) return;
+  rememberWriterSelection();
+  paletteState.previousFocus = document.activeElement;
+  document.getElementById('cmdkBackdrop').classList.add('show');
+  const input = document.getElementById('cmdkInput');
+  input.value = ''; paletteState.index = 0; cmdkOnInput(); input.focus();
+}
+
+function closeCommandPalette() {
+  document.getElementById('cmdkBackdrop').classList.remove('show');
+  if (paletteState.previousFocus && document.getElementById('writerArea').contains(paletteState.previousFocus)) restoreWriterSelection();
+  else if (paletteState.previousFocus && paletteState.previousFocus.isConnected) paletteState.previousFocus.focus();
+}
+
+function cmdkOnInput() {
+  const query = document.getElementById('cmdkInput').value.trim().toLowerCase();
+  const words = query.split(/\s+/).filter(Boolean);
+  paletteState.matches = ACTIONS.filter(action => words.every(word =>
+    (action.label+' '+action.keywords+' '+action.group).toLowerCase().includes(word)))
+    .sort((a,b) => Number(b.label.toLowerCase() === query) - Number(a.label.toLowerCase() === query) ||
+      Number(b.label.toLowerCase().includes(query)) - Number(a.label.toLowerCase().includes(query)));
+  paletteState.index = 0; renderCommandResults();
+}
+
+function renderCommandResults() {
+  const results = document.getElementById('cmdkResults'); results.replaceChildren();
+  if (!paletteState.matches.length) {
+    const empty = document.createElement('div'); empty.className = 'cmdk-empty'; empty.textContent = 'No matching commands'; results.appendChild(empty); return;
+  }
+  paletteState.matches.forEach((action,index) => {
+    const item = document.createElement('button'); item.type = 'button';
+    item.className = 'cmdk-item'+(index===paletteState.index?' active':'');
+    item.style.width = '100%'; item.style.border = 'none'; item.style.textAlign = 'start'; item.style.fontFamily = 'inherit';
+    item.setAttribute('aria-current', String(index===paletteState.index));
+    const label = document.createElement('span'); label.textContent = action.label;
+    const group = document.createElement('span'); group.className = 'cmdk-group'; group.textContent = action.group;
+    item.appendChild(label); item.appendChild(group);
+    item.addEventListener('mousedown', event => event.preventDefault());
+    item.addEventListener('click', () => runPaletteCommand(index)); results.appendChild(item);
+  });
+  results.children[paletteState.index]?.scrollIntoView({block:'nearest'});
+}
+
+function runPaletteCommand(index) {
+  const action = paletteState.matches[index]; if (!action) return;
+  closeCommandPalette();
+  if (state.mode === 'writer') restoreWriterSelection();
+  action.run();
+}
+
+function cmdkOnKeydown(event) {
+  if (event.isComposing) return;
+  if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeCommandPalette(); }
+  else if (['ArrowDown','ArrowUp'].includes(event.key)) {
+    event.preventDefault(); const length=paletteState.matches.length;
+    if (length) { paletteState.index=(paletteState.index+(event.key==='ArrowDown'?1:-1)+length)%length; renderCommandResults(); }
+  } else if (event.key === 'Enter' || event.key === 'Tab') {
+    event.preventDefault(); runPaletteCommand(paletteState.index);
+  }
+}
+
+document.addEventListener('keydown', event => {
+  if (!event.isComposing && (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'k') {
+    event.preventDefault(); event.stopPropagation();
+    if (document.getElementById('cmdkBackdrop').classList.contains('show')) closeCommandPalette();
+    else openCommandPalette();
+  }
+}, true);
 
 /* ================================================================
    BLOCK ENGINE & NORMALIZATION
@@ -2010,11 +2199,14 @@ function writerKeydown(e) {
 
 function onWriterInput() {
   normalizeBlocks();
-  if (state.skimMode || state.heatmapMode || state.styleAuditMode) {
+  if (state.skimMode || state.heatmapMode) {
     applyInspectionOverlays();
   }
+  if (state.styleAuditMode) scheduleStyleAudit();
   if (state.outlineOpen) renderOutlineDrawer();
   detectHebrew();
+  rememberWriterSelection();
+  syncParagraphSelector();
 
   const words = (document.getElementById('writerArea').innerText || '').trim().split(/\s+/).length;
   if (Math.abs(words - state.lastAutoSnapshotWordCount) >= 100) {
@@ -2367,9 +2559,11 @@ function fmt(command, value) {
 }
 
 function applyHeading(value) {
-  document.getElementById('writerArea').focus();
+  restoreWriterSelection();
   document.execCommand('formatBlock', false, value === 'title' ? 'h1' : value);
+  rememberWriterSelection();
   onWriterInput();
+  syncParagraphSelector();
 }
 
 function toggleSmartQuote() {
@@ -2563,6 +2757,11 @@ window.addEventListener('load', () => {
   renderColorSwatchRow('textColorSwatchRow', TEXT_COLOR_PRESETS, 'applyTextColor');
   renderColorSwatchRow('highlightColorSwatchRow', HIGHLIGHT_COLOR_PRESETS, 'applyHighlightColor');
 
+  const area = document.getElementById('writerArea');
+  document.getElementById('headingSelect').addEventListener('pointerdown', rememberWriterSelection);
+  document.getElementById('headingSelect').addEventListener('blur', syncParagraphSelector);
+  area.addEventListener('compositionstart', () => { writerIsComposing = true; clearTimeout(auditTimer); });
+  area.addEventListener('compositionend', () => { writerIsComposing = false; if (state.styleAuditMode) scheduleStyleAudit(); });
   restoreSession();
   loadSnapshots();
   normalizeBlocks();
