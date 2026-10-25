@@ -12,7 +12,7 @@
     : new URL("./", document.baseURI).href;
   // Increment when an engine contract changes. The query keeps browsers and
   // CDNs from pairing a newer API facade with a stale private engine file.
-  const engineVersion = "2026-09-28.3";
+  const engineVersion = "2026-10-25.1";
   const engineLoads = new Map();
 
   const catalog = Object.freeze({
@@ -111,6 +111,27 @@
       description: "Rebuild an image from visible pixels, remove metadata containers, and verify the cleaned result.",
       input: "Blob",
       options: "{ inspection?, verify? }",
+      output: "Promise<{ blob, before, after, report }>",
+      engine: "metadata"
+    }),
+    inspectMediaMetadata: Object.freeze({
+      description: "Inspect audio or video tags, embedded artwork, chapters, technical identifiers, and Content Credentials.",
+      input: "Blob or File",
+      options: "{ kind?: 'audio'|'video', verifyC2pa? }",
+      output: "Promise<{ kind, extension, formatLabel, findings, warnings, c2pa }>",
+      engine: "metadata"
+    }),
+    explainMediaMetadata: Object.freeze({
+      description: "Turn audio or video metadata into a cautious plain-language summary of what the file reveals.",
+      input: "Media metadata inspection result",
+      options: null,
+      output: "Promise<{ narrative, privacyImpact, removalSummary, certaintyNote, evidence, removableCount }>",
+      engine: "metadata"
+    }),
+    stripMediaMetadata: Object.freeze({
+      description: "Remux audio or video without optional metadata, preserve encoded media streams, and verify the result.",
+      input: "Blob or File",
+      options: "{ kind?: 'audio'|'video', inspection?, verify?, onProgress? }",
       output: "Promise<{ blob, before, after, report }>",
       engine: "metadata"
     }),
@@ -273,6 +294,9 @@
   lazyTool("inspectImageMetadata", "metadata");
   lazyTool("explainImageMetadata", "metadata");
   lazyTool("stripImageMetadata", "metadata");
+  lazyTool("inspectMediaMetadata", "metadata");
+  lazyTool("explainMediaMetadata", "metadata");
+  lazyTool("stripMediaMetadata", "metadata");
   lazyTool("inspectPdf", "pdf");
   lazyTool("pdfToImages", "pdf");
   lazyTool("imagesToPdf", "pdf");
