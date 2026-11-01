@@ -209,7 +209,11 @@ window.loadFFmpeg = async function() {
 
       const result = {};
       for (const name of outputs) {
-        result[name] = ff.FS("readFile", name);
+        try {
+          result[name] = ff.FS("readFile", name);
+        } catch (error) {
+          throw new Error(`The media engine did not create ${name}. The selected streams or output format may be incompatible.`, { cause: error });
+        }
       }
       return result;
 
@@ -486,25 +490,37 @@ window.loadFFmpeg = async function() {
       let filter = "";
       for (let i = 0; i < n; i++) {
         filter += `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,` +
-                  `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${i}];`;
+                  `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,setpts=PTS-STARTPTS[v${i}];`;
       }
       let concatInputs = "";
       const anyAudio = target.anyAudio;
       for (let i = 0; i < n; i++) {
+        if (anyAudio) {
+          if (target.hasAudio?.[i]) {
+            filter += `[${i}:a]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a${i}];`;
+          } else {
+            const duration = Math.max(0.05, Number(target.durations?.[i]) || 1);
+            filter += `anullsrc=r=48000:cl=stereo,atrim=duration=${duration},asetpts=PTS-STARTPTS[a${i}];`;
+          }
+        }
         concatInputs += `[v${i}]`;
-        if (anyAudio) concatInputs += `[${i}:a]`;
+        if (anyAudio) concatInputs += `[a${i}]`;
       }
       if (anyAudio) {
         filter += `${concatInputs}concat=n=${n}:v=1:a=1[outv][outa]`;
-        args.push("-filter_complex", filter, "-map", "[outv]", "-map", "[outa]",
-                  "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-                  "-c:a", "aac", "-b:a", "192k");
+        args.push("-filter_complex", filter, "-map", "[outv]", "-map", "[outa]");
       } else {
         filter += `${concatInputs}concat=n=${n}:v=1[outv]`;
-        args.push("-filter_complex", filter, "-map", "[outv]",
-                  "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23");
+        args.push("-filter_complex", filter, "-map", "[outv]");
       }
-      if (outExt === "mp4" || outExt === "mov") args.push("-movflags", "+faststart");
+      if (outExt === "webm") {
+        args.push("-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-crf", "32", "-b:v", "0");
+        if (anyAudio) args.push("-c:a", "libopus", "-b:a", "128k");
+      } else {
+        args.push("-c:v", "libx264", "-preset", "ultrafast", "-crf", "23");
+        if (anyAudio) args.push("-c:a", "aac", "-b:a", "192k");
+        if (outExt === "mp4" || outExt === "mov") args.push("-movflags", "+faststart");
+      }
     } else {
       let concatInputs = "";
       for (let i = 0; i < n; i++) concatInputs += `[${i}:a]`;
@@ -856,10 +872,11 @@ window.loadFFmpeg = async function() {
     // Measure how long the inputs are in total — we'll use this to verify
     // that the fast merge actually produced a sensible result.
     let expectedDuration = null;
+    let inputDurations = [];
     try {
-      const durations = await Promise.all(files.map(f => _readFileDuration(f)));
-      if (durations.every(d => typeof d === "number" && isFinite(d) && d > 0)) {
-        expectedDuration = durations.reduce((a, b) => a + b, 0);
+      inputDurations = await Promise.all(files.map(f => _readFileDuration(f)));
+      if (inputDurations.every(d => typeof d === "number" && isFinite(d) && d > 0)) {
+        expectedDuration = inputDurations.reduce((a, b) => a + b, 0);
       }
     } catch(_) {}
 
@@ -895,7 +912,9 @@ window.loadFFmpeg = async function() {
     const target = {
       width:  recipes[0] && recipes[0].width  ? recipes[0].width  : 1280,
       height: recipes[0] && recipes[0].height ? recipes[0].height : 720,
-      anyAudio: recipes.some(r => r.hasAudio)
+      anyAudio: recipes.some(r => r.hasAudio),
+      hasAudio: recipes.map(r => Boolean(r.hasAudio)),
+      durations: inputDurations
     };
     // For re-encode, normalize output extension to a safe container
     if (isVideo && outExt !== "mp4" && outExt !== "webm") outExt = "mp4";
