@@ -12,7 +12,7 @@
     : new URL("./", document.baseURI).href;
   // Increment when an engine contract changes. The query keeps browsers and
   // CDNs from pairing a newer API facade with a stale private engine file.
-  const engineVersion = "2026-11-01.1";
+  const engineVersion = "2026-11-20.3";
   const engineLoads = new Map();
 
   const catalog = Object.freeze({
@@ -134,6 +134,13 @@
       options: "{ kind?: 'audio'|'video', inspection?, verify?, onProgress? }",
       output: "Promise<{ blob, before, after, report }>",
       engine: "metadata"
+    }),
+    remuxMediaWithoutMetadata: Object.freeze({
+      description: "Copy encoded audio or video streams into a clean container without optional metadata.",
+      input: "Blob or File",
+      options: "{ kind: 'audio'|'video', extension: string, onProgress? }",
+      output: "Promise<Blob>",
+      engine: "media"
     }),
     inspectPdf: Object.freeze({
       description: "Read a PDF page count without rendering its pages.",
@@ -297,6 +304,7 @@
   lazyTool("inspectMediaMetadata", "metadata");
   lazyTool("explainMediaMetadata", "metadata");
   lazyTool("stripMediaMetadata", "metadata");
+  lazyTool("remuxMediaWithoutMetadata", "media");
   lazyTool("inspectPdf", "pdf");
   lazyTool("pdfToImages", "pdf");
   lazyTool("imagesToPdf", "pdf");
