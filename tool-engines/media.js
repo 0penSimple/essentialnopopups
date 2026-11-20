@@ -926,6 +926,28 @@ window.loadFFmpeg = async function() {
 
   Tools.mergeMedia = mergeMedia;
   window.concatFiles = mergeMedia;
+
+  Tools.remuxMediaWithoutMetadata = async function (file, { kind, extension, onProgress } = {}) {
+    if (!(file instanceof Blob)) throw new TypeError("remuxMediaWithoutMetadata expects a media Blob or File.");
+    const resolvedKind = kind === "audio" ? "audio" : "video";
+    const ext = String(extension || _mediaExtension(file, resolvedKind === "audio" ? "mp3" : "mp4")).toLowerCase();
+    const stamp = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const inputName = `metadata_input_${stamp}.${ext}`;
+    const outputName = `metadata_clean_${stamp}.${ext}`;
+    const common = ["-map_metadata", "-1", "-map_metadata:s", "-1", "-map_chapters", "-1",
+      "-c", "copy", "-metadata", "encoder=", "-fflags", "+bitexact"];
+    const args = resolvedKind === "audio"
+      ? ["-y", "-i", inputName, "-map", "0:a?", "-vn", "-sn", "-dn", ...common]
+      : ["-y", "-i", inputName, "-map", "0:V?", "-map", "0:a?", "-map", "0:s?", "-dn", ...common];
+    if (ext === "mp3") args.push("-write_id3v1", "0", "-id3v2_version", "0");
+    if (ext === "wav") args.push("-write_bext", "0");
+    args.push(outputName);
+    onProgress?.(15, "Reading the media file…");
+    onProgress?.(25, "Rebuilding the container without metadata…");
+    const output = await _ffExec(args, { [inputName]: file }, [outputName]);
+    onProgress?.(80, "Inspecting the cleaned output…");
+    return new Blob([output[outputName].buffer], { type: _mimeForExt(ext) });
+  };
   window.Tools = Tools;
 
 })();
