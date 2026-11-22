@@ -688,13 +688,61 @@ window.loadFFmpeg = async function() {
     const extension = _mediaExtension(file, file.type?.startsWith("audio/") ? "mp3" : "mp4");
     const inputName = `input.${extension}`;
     const outputName = `output.${extension}`;
-    const output = await _ffExec(
+    const wantedDuration = end - start;
+    const copied = await _ffExec(
       ["-i", inputName, "-ss", start.toFixed(3), "-t", (end - start).toFixed(3),
         "-map", "0", "-c", "copy", "-avoid_negative_ts", "make_zero", "-y", outputName],
       { [inputName]: file },
       [outputName]
     );
-    return new Blob([output[outputName].buffer], { type: file.type || _mimeForExt(extension) });
+    const mime = file.type || _mimeForExt(extension);
+    const copiedBlob = new Blob([copied[outputName].buffer], { type: mime });
+
+    // Audio has no keyframe dependency. Its copied packets may differ by a few
+    // milliseconds at the edges, but do not suffer from an unidentified video
+    // stream or an audio-only MP4.
+    const isVideo = file.type?.startsWith("video/") ||
+      ["mp4", "mov", "m4v", "webm", "mkv", "avi", "mpeg", "mpg"].includes(extension);
+    if (!isVideo) return copiedBlob;
+
+    let copiedIsValid = false;
+    try {
+      const info = await _readBlobVideoInfo(copiedBlob);
+      const durationTolerance = Math.max(1, wantedDuration * 0.12);
+      copiedIsValid = Boolean(info && info.width > 0 && info.height > 0 &&
+        Number.isFinite(info.duration) && Math.abs(info.duration - wantedDuration) <= durationTolerance);
+    } catch (_) {}
+    if (copiedIsValid) return copiedBlob;
+
+    // A stream-copy cut can omit the keyframe needed to identify or decode the
+    // selected video. Decode from the source and encode only this selection so
+    // the fallback begins with a complete independent frame.
+    let encode;
+    if (extension === "webm") {
+      encode = ["-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8",
+        "-crf", "30", "-b:v", "0", "-c:a", "libopus", "-b:a", "128k"];
+    } else if (extension === "avi") {
+      encode = ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "mpeg4",
+        "-q:v", "3", "-c:a", "libmp3lame", "-b:a", "192k"];
+    } else {
+      encode = ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264",
+        "-preset", "ultrafast", "-crf", "20", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k"];
+      if (["mp4", "mov", "m4v"].includes(extension)) encode.push("-movflags", "+faststart");
+    }
+
+    const rebuilt = await _ffExec(
+      ["-i", inputName, "-ss", start.toFixed(3), "-t", wantedDuration.toFixed(3),
+        "-map", "0:v:0", "-map", "0:a?", ...encode, "-y", outputName],
+      { [inputName]: file },
+      [outputName]
+    );
+    const rebuiltBlob = new Blob([rebuilt[outputName].buffer], { type: mime });
+    const rebuiltInfo = await _readBlobVideoInfo(rebuiltBlob);
+    if (!rebuiltInfo || !(rebuiltInfo.width > 0) || !(rebuiltInfo.height > 0)) {
+      throw new Error("The selected range does not contain a decodable video frame.");
+    }
+    return rebuiltBlob;
   }
 
   async function _combineImageAudioSparse(image, audio) {
