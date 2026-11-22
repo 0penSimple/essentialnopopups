@@ -1198,8 +1198,9 @@ function clearLastDownload() {
         <button class="btn-primary" id="trimBtn" disabled>Trim &amp; download — 0/1</button>`,
       ...mediaPrivacy(isVideo ? "Your video" : "Your audio"),
       goodToKnow: [
-        "Trimming copies the original media streams without re-encoding, preserving their existing quality.",
-        isVideo ? "Video cuts occur near encoded keyframes, so the saved start can differ slightly from the selected time." : "Audio cuts follow encoded packet boundaries, so the saved edge can differ by a tiny fraction of a second.",
+        isVideo ? "The tool first tries a fast quality-preserving cut. If that result is not playable, it rebuilds the selected range automatically."
+          : "Audio trimming copies the original stream without re-encoding, preserving its existing quality.",
+        isVideo ? "Quality-preserving cuts occur near encoded keyframes; rebuilt cuts begin at the selected position." : "Audio cuts follow encoded packet boundaries, so the saved edge can differ by a tiny fraction of a second.",
         "Use the sliders, enter a time such as 1:23.50, or set an edge from the preview's current position.",
         "Preview selection plays only the range currently selected on the timeline."
       ]
