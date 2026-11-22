@@ -369,6 +369,44 @@ window.loadFFmpeg = async function() {
     );
   }
 
+  function _canSafelyStreamCopy(recipes, isVideo, outExt) {
+    if (!_recipesMatch(recipes)) return false;
+    if (!isVideo) return true;
+    const videoCodec = String(recipes[0]?.vcodec || "").toLowerCase();
+    const audioCodec = String(recipes[0]?.acodec || "").toLowerCase();
+    const hasAudio = Boolean(recipes[0]?.hasAudio);
+    if (["mp4", "mov", "m4v"].includes(outExt)) {
+      const h264 = /^(avc|avc1|h264)$/.test(videoCodec);
+      const aac = !hasAudio || /^(aac|mp4a)$/.test(audioCodec);
+      return h264 && aac;
+    }
+    if (outExt === "webm") {
+      const webVideo = /^(vp8|vp9|av1)$/.test(videoCodec);
+      const webAudio = !hasAudio || /^(opus|vorbis)$/.test(audioCodec);
+      return webVideo && webAudio;
+    }
+    return false;
+  }
+
+  async function _validateMergedOutput(blob, { isVideo, expectedAudio, expectedDuration }) {
+    const recipe = await _readMediaRecipe(blob);
+    if (isVideo && !recipe.hasVideo) throw new Error("The merged file does not contain a readable video track.");
+    if (!isVideo && !recipe.hasAudio) throw new Error("The merged file does not contain a readable audio track.");
+    if (isVideo && expectedAudio && !recipe.hasAudio) throw new Error("The merged file lost its audio track.");
+    const playback = isVideo ? await _readBlobVideoInfo(blob) : null;
+    if (isVideo && (!playback || !(playback.width > 0) || !(playback.height > 0))) {
+      throw new Error("The browser could not decode a video frame from the merged file.");
+    }
+    if (expectedDuration) {
+      const actual = playback?.duration ?? await _readBlobDuration(blob);
+      const tolerance = expectedDuration * 0.1 + 5;
+      if (!(typeof actual === "number" && isFinite(actual)) || Math.abs(actual - expectedDuration) > tolerance) {
+        throw new Error(`Merged duration check failed (expected about ${Math.round(expectedDuration)} seconds).`);
+      }
+    }
+    return recipe;
+  }
+
   // ── FAST PATH: instant staple (stream copy, no re-encoding) ──
   // For MP4/MOV: each clip is first re-packaged (NOT re-encoded) into a neutral
   // MPEG-TS container. TS uses one universal "time ruler" for everything, which
@@ -454,6 +492,29 @@ window.loadFFmpeg = async function() {
       el.onerror = () => done(null);
       setTimeout(() => done(null), 10000); // don't hang forever
       el.src = url;
+    });
+  }
+
+  function _readBlobVideoInfo(blob) {
+    return new Promise((resolve) => {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      const url = URL.createObjectURL(blob);
+      let settled = false;
+      const done = (value) => {
+        if (settled) return;
+        settled = true;
+        URL.revokeObjectURL(url);
+        resolve(value);
+      };
+      video.onloadedmetadata = () => done({
+        duration: video.duration,
+        width: video.videoWidth,
+        height: video.videoHeight
+      });
+      video.onerror = () => done(null);
+      setTimeout(() => done(null), 10000);
+      video.src = url;
     });
   }
 
@@ -867,7 +928,8 @@ window.loadFFmpeg = async function() {
       console.warn("[concatFiles] Could not read metadata, will try fast path anyway:", e.message);
     }
 
-    const canStreamCopy = recipes.length === files.length && _recipesMatch(recipes);
+    const canStreamCopy = recipes.length === files.length &&
+      _canSafelyStreamCopy(recipes, isVideo, outExt);
 
     // Measure how long the inputs are in total — we'll use this to verify
     // that the fast merge actually produced a sensible result.
@@ -886,20 +948,8 @@ window.loadFFmpeg = async function() {
       try {
         const blob = await _concatStreamCopy(files, outExt, onProgress);
 
-        // Sanity check: does the merged file's duration make sense?
-        // Two 5-minute clips should give ~10 minutes — not 60 hours.
-        // Allow generous 10% + 5s wiggle room for container rounding.
-        if (expectedDuration) {
-          const actual = await _readBlobDuration(blob);
-          const tolerance = expectedDuration * 0.1 + 5;
-          const looksRight = typeof actual === "number" && isFinite(actual) &&
-                             Math.abs(actual - expectedDuration) <= tolerance;
-          if (!looksRight) {
-            console.warn(`[concatFiles] Fast merge produced suspicious duration ` +
-              `(expected ~${Math.round(expectedDuration)}s, got ${actual}s) — re-encoding instead.`);
-            throw new Error("duration check failed");
-          }
-        }
+        await _validateMergedOutput(blob, { isVideo,
+          expectedAudio: isVideo && recipes.some(recipe => recipe.hasAudio), expectedDuration });
 
         return { blob, method: "copy", extension: outExt };
       } catch(e) {
@@ -921,6 +971,7 @@ window.loadFFmpeg = async function() {
     if (!isVideo && outExt !== "mp3" && outExt !== "m4a") outExt = "mp3";
 
     const blob = await _concatReEncode(files, outExt, isVideo, target, onProgress);
+    await _validateMergedOutput(blob, { isVideo, expectedAudio: isVideo && target.anyAudio, expectedDuration });
     return { blob, method: "reencode", extension: outExt };
   }
 
