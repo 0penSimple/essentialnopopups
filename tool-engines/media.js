@@ -129,7 +129,7 @@ window.loadFFmpeg = async function() {
   //    to revive it (unreliable), we hire a FRESH worker for each command,
   //    hand him only that job's materials, collect results, and let him go.
   //
-  // All operations below go through one helper: _ffExec(args, inputs, outputs).
+  // All operations below go through one helper: _ffExec(args, inputs, outputs, onProgress).
 
   const _ffSingleThread = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
                           typeof SharedArrayBuffer === "undefined";
@@ -170,7 +170,7 @@ window.loadFFmpeg = async function() {
   //   inputs  — { filename: File|Blob|Uint8Array } materials this job needs
   //   outputs — [filenames] to read back when the job is done
   // Returns { filename: Uint8Array } for every requested output.
-  async function _ffExec(args, inputs, outputs) {
+  async function _ffExec(args, inputs, outputs, onProgress) {
     inputs  = inputs  || {};
     outputs = outputs || [];
 
@@ -193,6 +193,18 @@ window.loadFFmpeg = async function() {
 
     const written = [];
     try {
+      // FFmpeg's progress callback is the only useful sign of life during a
+      // long compatibility encode. Keep it job-scoped because the desktop
+      // worker is reused by later operations.
+      if (typeof ff.setProgress === "function") {
+        ff.setProgress(({ ratio }) => {
+          const value = Number(ratio);
+          if (typeof onProgress === "function" && Number.isFinite(value)) {
+            onProgress(Math.max(0, Math.min(1, value)));
+          }
+        });
+      }
+
       for (const name in prepared) {
         ff.FS("writeFile", name, prepared[name]);
         written.push(name);
@@ -218,6 +230,9 @@ window.loadFFmpeg = async function() {
       return result;
 
     } finally {
+      if (typeof ff.setProgress === "function") {
+        try { ff.setProgress(() => {}); } catch(_) {}
+      }
       if (_ffSingleThread) {
         // Let this worker go entirely — a fresh one is hired for the next job.
         try { ff.exit(); } catch(_) {}
@@ -408,70 +423,37 @@ window.loadFFmpeg = async function() {
   }
 
   // ── FAST PATH: instant staple (stream copy, no re-encoding) ──
-  // For MP4/MOV: each clip is first re-packaged (NOT re-encoded) into a neutral
-  // MPEG-TS container. TS uses one universal "time ruler" for everything, which
-  // fixes the classic "60-hour duration" bug caused by clips measuring time in
-  // different units. The repackaging copies data as-is — seconds, no quality loss.
-  // For WebM/audio: the concat demuxer works reliably, so we use it directly.
+  // Matching files are joined with FFmpeg's concat demuxer. Keeping the original
+  // containers intact matters for phone recordings whose first video keyframe or
+  // timestamps begin later than their audio; repackaging those files through
+  // MPEG-TS can discard the video parameters and leave an audio-only result.
   async function _concatStreamCopy(files, outExt, onProgress) {
     const isMp4Like = (outExt === "mp4" || outExt === "mov" || outExt === "m4v");
     const outName = `output.${outExt}`;
-    let outData;
-
-    if (isMp4Like) {
-      // Step 1: repackage each clip into a neutral .ts binder (copy, not re-encode)
-      const segments = {}; // name → Uint8Array, kept in our hands between jobs
-      for (let i = 0; i < files.length; i++) {
-        const inName  = `in${i}.${outExt}`;
-        const segName = `seg${i}.ts`;
-        const out = await _ffExec(
-          ["-i", inName, "-c", "copy",
-           "-bsf:v", "h264_mp4toannexb", // adapt H.264 packaging for TS
-           "-f", "mpegts", "-y", segName],
-          { [inName]: files[i] },
-          [segName]
-        );
-        segments[segName] = out[segName];
-        if (onProgress) onProgress(((i + 1) / files.length) * 0.6);
-      }
-
-      // Step 2: staple the neutral binders and package back into MP4
-      const concatInput = "concat:" + Object.keys(segments).join("|");
-      const finalOut = await _ffExec(
-        ["-i", concatInput, "-c", "copy",
-         "-bsf:a", "aac_adtstoasc", // restore AAC audio packaging for MP4
-         "-movflags", "+faststart",
-         "-y", outName],
-        segments,
-        [outName]
-      );
-      outData = finalOut[outName];
-
-    } else {
-      // WebM / audio — concat demuxer works reliably for these, one single job
-      const inputs = {};
-      const listLines = [];
-      for (let i = 0; i < files.length; i++) {
-        const inName = `in${i}.${outExt}`;
-        inputs[inName] = files[i];
-        listLines.push(`file '${inName}'`);
-      }
-      inputs["list.txt"] = new TextEncoder().encode(listLines.join("\n"));
-
-      const args = [
-        "-fflags", "+genpts",
-        "-f", "concat", "-safe", "0",
-        "-i", "list.txt",
-        "-c", "copy",
-        "-avoid_negative_ts", "make_zero"
-      ];
-      if (outExt === "m4a") args.push("-movflags", "+faststart");
-      args.push("-y", outName);
-
-      if (onProgress) onProgress(0.3);
-      const out = await _ffExec(args, inputs, [outName]);
-      outData = out[outName];
+    const inputs = {};
+    const listLines = [];
+    for (let i = 0; i < files.length; i++) {
+      const inName = `in${i}.${outExt}`;
+      inputs[inName] = files[i];
+      listLines.push(`file '${inName}'`);
     }
+    inputs["list.txt"] = new TextEncoder().encode(listLines.join("\n"));
+
+    const args = [
+      "-fflags", "+genpts",
+      "-f", "concat", "-safe", "0",
+      "-i", "list.txt",
+      "-c", "copy",
+      "-avoid_negative_ts", "make_zero"
+    ];
+    if (isMp4Like || outExt === "m4a") args.push("-movflags", "+faststart");
+    args.push("-y", outName);
+
+    if (onProgress) onProgress(0.1);
+    const out = await _ffExec(args, inputs, [outName], ratio => {
+      if (onProgress) onProgress(0.1 + ratio * 0.85);
+    });
+    const outData = out[outName];
 
     if (onProgress) onProgress(1);
     return new Blob([outData.buffer], { type: _mimeForExt(outExt) });
@@ -593,8 +575,10 @@ window.loadFFmpeg = async function() {
 
     args.push("-y", outName);
 
-    if (onProgress) onProgress(0.2);
-    const out = await _ffExec(args, inputs, [outName]);
+    if (onProgress) onProgress(0.05);
+    const out = await _ffExec(args, inputs, [outName], ratio => {
+      if (onProgress) onProgress(0.05 + ratio * 0.9);
+    });
     if (onProgress) onProgress(1);
 
     return new Blob([out[outName].buffer], { type: _mimeForExt(outExt) });
