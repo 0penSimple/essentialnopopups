@@ -1425,7 +1425,7 @@ function clearLastDownload() {
         const result = await Tools.mergeMedia({ files: files.slice(), kind,
           onPhase(phase) {
             $("progressLabel").textContent = phase === "fast" ? "Joining without quality loss…"
-              : phase === "slow" ? "Matching different file settings…" : "Checking compatibility…";
+              : phase === "slow" ? "Re-encoding clips with different settings…" : "Checking compatibility…";
           },
           onProgress(progress) {
             $("progressFill").classList.remove("indeterminate");
